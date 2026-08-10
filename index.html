@@ -37,16 +37,10 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
 <script>
-    // Глобальная функция проверки среды
     window.isTelegramEnv = function() {
-        // 1. Проверяем, есть ли объект Telegram
         if (typeof window.Telegram === 'undefined' || typeof window.Telegram.WebApp === 'undefined') {
             return false;
         }
-        
-        // 2. Проверяем платформу. В обычном браузере platform часто "unknown",
-        // но внутри телеграма это "android", "ios", "tdesktop", "macos" и т.д.
-        // Если platform известна ИЛИ есть initData — считаем это Телеграмом.
         if (window.Telegram.WebApp.platform !== 'unknown' || window.Telegram.WebApp.initData.length > 0) {
             return true;
         }
@@ -54,27 +48,7 @@
         return false;
     };
 
-    function loadAdsgram() {
-        if (window.isTelegramEnv()) {
-            console.log("Telegram detected via SDK. Loading Adsgram...");
-            
-            // Сообщаем телеграму, что приложение готово (убирает белый экран быстрее)
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand(); // Разворачиваем на весь экран
 
-            var s1 = document.createElement('script');
-            s1.src = "https://sad.adsgram.ai/js/sad.min.js";
-            document.head.appendChild(s1);
-
-            var s2 = document.createElement('script');
-            s2.src = "https://js.adsgram.ai/effect/task.js";
-            document.head.appendChild(s2);
-        } else {
-            console.log("Regular browser detected. Adsgram skipped.");
-        }
-    }
-
-    // Запускаем только после загрузки DOM, чтобы точно подхватить SDK
     document.addEventListener('DOMContentLoaded', loadAdsgram);
 </script>
 </head>
@@ -1904,12 +1878,6 @@ function checkAuthState() {
 }
 
 // Функции показа экранов
-function showMaintenanceScreen(msg) {
-    document.getElementById('maintenance-overlay').style.display = 'flex';
-    document.getElementById('banned-overlay').style.display = 'none';
-    document.getElementById('app-container').style.display = 'none'; // Скрываем основное приложение
-    if(msg) document.getElementById('maint-timer-display').innerText = msg;
-}
 
 function showBannedScreen(uid) {
     document.getElementById('banned-overlay').style.display = 'flex';
@@ -2160,12 +2128,6 @@ function useProduct(id, amount) {
     checkAchievements('count'); 
 }
 
-function deleteShoppingItem(id) { 
-    userShopping = userShopping.filter(s => s.id !== id); 
-    updateShoppingList(); // Сразу обновляем список
-    updateHeader();
-    saveData(false); 
-}
 
 function toggleCryptoDetails() {
     const el = document.getElementById('crypto-details');
@@ -2180,12 +2142,6 @@ function toggleCryptoDetails() {
     }
 }
 
-function toggleShoppingItem(id) { 
-    const item = userShopping.find(s => s.id === id); 
-    if (item) item.completed = !item.completed; 
-    updateShoppingList(); // Сразу обновляем
-    saveData(false); 
-}
 
 // --- ФУНКЦИЯ: НАТИВНОЕ МЕНЮ "ПОДЕЛИТЬСЯ" ---
 // --- НОВАЯ ЛОГИКА ШЕРИНГА И ПЕЧАТИ ---
@@ -2833,14 +2789,6 @@ function selectSuggestion(select) {
 }
 
 // Функция для новых кнопок фильтров покупок
-function setShoppingFilter(filterType, btnElement) {
-    // Убираем активный класс у всех кнопок внутри shopping-filters
-    document.querySelectorAll('#shopping-filters .cat-btn').forEach(btn => btn.classList.remove('active'));
-    // Добавляем нажатой
-    btnElement.classList.add('active');
-    // Обновляем список
-    updateShoppingList();
-}
 
         function addShoppingItem(name = null, qty = null, unit = null) {
     // Определяем значения (либо из аргументов, либо из формы)
@@ -4046,99 +3994,10 @@ async function analyzeAppStats() {
 }
 
 // 2. МАССОВАЯ АМНИСТИЯ (Mass Unban) - РАБОЧАЯ
-async function massUnban() {
-    const phrase = prompt("Напишите 'CONFIRM' чтобы разбанить ВСЕХ пользователей:");
-    if (phrase !== 'CONFIRM') return;
-
-    // Загружаем только забаненных
-    logAdmin("Поиск забаненных...");
-    const snap = await db.collection(USER_COLLECTION).where('isBanned', '==', true).get();
-    
-    if (snap.empty) {
-        logAdmin("Нет забаненных пользователей.");
-        return showToast("Нет забаненных пользователей", "info");
-    }
-
-    const items = [];
-    snap.forEach(doc => items.push(doc.ref));
-
-    // Используем нашу функцию батчей
-    await performBatchOperation(items, (batch, ref) => {
-        batch.update(ref, { isBanned: false });
-    }, "Разбан");
-    
-    loadAllUsers(); // Обновляем таблицу
-}
 
 // 3. ОЧИСТКА МУСОРА (Cleanup) - РАБОЧАЯ
-async function cleanupOldData() {
-    if(!confirm("Удалить старые жалобы (Feedback) и логи старше 30 дней?")) return;
-
-    const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 30);
-    const isoDate = dateLimit.toISOString();
-
-    // 1. Чистим Feedback
-    const fbSnap = await db.collection('app_feedback').where('date', '<', isoDate).get();
-    const items = [];
-    fbSnap.forEach(doc => items.push(doc.ref));
-
-    if (items.length > 0) {
-        await performBatchOperation(items, (batch, ref) => {
-            batch.delete(ref);
-        }, "Очистка Feedback");
-    } else {
-        logAdmin("Feedback чист.");
-    }
-
-    // 2. Чистим промокоды (если есть поле usedBy и оно полное, или по дате)
-    // (Пример логики)
-    logAdmin("Очистка завершена.");
-}
 
 // 4. ПРОВЕРКА ЦЕЛОСТНОСТИ (Data Integrity)
-async function checkDataIntegrity() {
-    logAdmin("Проверка базы данных...");
-    let errors = 0;
-
-    // Проверяем публичные рецепты на наличие битых картинок или полей
-    const recipesSnap = await db.collection('public_recipes').get();
-    const batch = db.batch();
-    let fixCount = 0;
-
-    recipesSnap.forEach(doc => {
-        const r = doc.data();
-        let needsFix = false;
-        
-        // Проверка: нет массива images, но есть image
-        if (!r.images && r.image) {
-            batch.update(doc.ref, { images: [r.image] });
-            needsFix = true;
-        }
-        // Проверка: нет времени
-        if (!r.time) {
-            batch.update(doc.ref, { time: "30 min" });
-            needsFix = true;
-        }
-
-        if (needsFix) {
-            fixCount++;
-            errors++;
-        }
-    });
-
-    if (fixCount > 0) {
-        logAdmin(`Найдено ${fixCount} рецептов с устаревшей структурой.`);
-        if(confirm(`Найдено ${fixCount} ошибок в рецептах. Исправить автоматически?`)) {
-            await batch.commit();
-            logAdmin("Исправления применены.");
-            showToast(`Исправлено ${fixCount} записей`, "success");
-        }
-    } else {
-        logAdmin("База данных в порядке.");
-        showToast("Ошибок не найдено", "success");
-    }
-}
 
 // 5. АВТО-ПОЧИНКА (Repair Script)
 async function runRepairScript() {
@@ -5271,44 +5130,6 @@ function confirmAddToPlan(recipeId) {
 }
 
 // Updated Render Planner (Better CSS structure)
-function renderPlanner() {
-    const container = document.getElementById('planner-container');
-    container.innerHTML = '';
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    
-    days.forEach(day => {
-        const col = document.createElement('div');
-        col.className = 'day-card';
-        
-        let mealsHtml = '';
-        if(mealPlan[day]) {
-            mealPlan[day].forEach((rId, index) => {
-                const r = globalRecipes.find(x => x.id === rId);
-                // Handle image for mini slot
-                let img = '';
-                if(r) {
-                     let imgSrc = (r.images && r.images[0]) ? r.images[0] : (r.image || '');
-                     if(imgSrc) img = `<img src="${imgSrc}">`;
-                }
-
-                if(r) {
-                    mealsHtml += `
-                    <div class="meal-slot" onclick="showRecipeDetail(${r.id})">
-                        ${img}
-                        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name.ru || r.name}</span>
-                        <i class="fas fa-times" style="color:var(--text-secondary); font-size:0.8em; padding:2px;" onclick="event.stopPropagation(); removeFromPlan('${day}', ${index})"></i>
-                    </div>`;
-                }
-            });
-        }
-        
-        // Add button
-        mealsHtml += `<button class="add-meal-btn-small" onclick="addToPlan('${day}')"><i class="fas fa-plus"></i> Добавить</button>`;
-
-        col.innerHTML = `<div class="day-title">${day}</div><div style="flex:1">${mealsHtml}</div>`;
-        container.appendChild(col);
-    });
-}
 
 // Remove item from plan
 function removeFromPlan(day, index) {
@@ -6598,51 +6419,9 @@ if(localRecipe) {
 }
 
 /* --- TUTORIAL LOGIC --- */
-function updateTutorialUI() {
-    // Скрываем все шаги
-    document.querySelectorAll('.tutorial-step').forEach(el => el.classList.remove('active'));
-    // Показываем текущий
-    document.querySelector(`.tutorial-step[data-step="${currentTutorialStep}"]`).classList.add('active');
-    
-    // Обновляем точки
-    const dots = document.getElementById('tutorial-dots').children;
-    for(let i=0; i<dots.length; i++) {
-        dots[i].className = i < currentTutorialStep ? 'dot active' : 'dot';
-    }
 
-    // Текст кнопки в конце
-    const nextBtn = document.getElementById('tutorial-next-btn');
-    nextBtn.textContent = currentTutorialStep === totalTutorialSteps ? "Погнали!" : "Далее";
-}
 
-function nextTutorialStep() {
-    if (currentTutorialStep < totalTutorialSteps) {
-        currentTutorialStep++;
-        updateTutorialUI();
-    } else {
-        completeTutorial();
-    }
-}
 
-function skipTutorial() {
-    if(confirm("Пропустить обучение? Вы всегда сможете найти его в настройках.")) {
-        completeTutorial();
-    }
-}
-
-function completeTutorial() {
-    hideModal('tutorial-modal');
-    // Сохраняем флаг, что туториал пройден
-    if(currentUser) {
-        currentUser.tutorialCompleted = true;
-        saveData(false); // Сохраняем в базу
-    }
-    // Дублируем в localStorage для скорости
-    localStorage.setItem('axio_tutorial_seen', 'true');
-    
-    // Запускаем эффект конфетти для радости
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-}
 
 // 1. Переключение вкладок внутри модалки пользователя
 function switchAdmUserTab(tabName) {
@@ -6699,35 +6478,6 @@ async function admRemoveItem(uid, collectionField, index) {
 }
 
 // 4. Добавление предмета пользователю (Инжект)
-async function admAddItem(uid, collectionField) {
-    const name = prompt("Название товара:");
-    if(!name) return;
-    const qty = parseFloat(prompt("Количество:", "1")) || 1;
-    
-    try {
-        const docRef = db.collection(USER_COLLECTION).doc(uid);
-        const doc = await docRef.get();
-        let list = doc.data()[collectionField] || [];
-        
-        const newItem = {
-            id: Date.now(),
-            name: name,
-            qty: qty,
-            unit: 'шт',
-            category: 'AdminGift',
-            addedDate: new Date().toISOString()
-        };
-        
-        if(collectionField === 'inventory') newItem.expiryDate = '2030-01-01'; // Долговечный
-        if(collectionField === 'shopping') newItem.completed = false;
-
-        list.push(newItem);
-        
-        await docRef.update({ [collectionField]: list });
-        openUserDetail(uid);
-        showToast("Предмет добавлен", "success");
-    } catch(e) { showToast(e.message, "error"); }
-}
 
 // 5. Очистка списка
 async function admClearList(uid, collectionField) {
@@ -7187,47 +6937,8 @@ async function admSaveProfile(uid) {
 }
 
 // 4. Удаление элемента из массива (инвентарь/покупки)
-async function admDeleteItem(uid, listName, index) {
-    if(!confirm('Удалить этот предмет у пользователя?')) return;
-    try {
-        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-        const docRef = db.collection(USER_COLLECTION).doc(uid);
-        const doc = await docRef.get();
-        let list = doc.data()[listName] || [];
-        
-        list.splice(index, 1); // Удаляем
-        
-        await docRef.update({ [listName]: list });
-        openUserDetail(uid); // Перерисовать окно
-        showToast('Предмет удален', 'success');
-    } catch(e) { showToast(e.message, 'error'); }
-}
 
 // 5. Добавление элемента (инвентарь/покупки)
-async function admAddItem(uid, listName) {
-    const name = prompt('Название продукта:');
-    if(!name) return;
-    
-    const newItem = {
-        id: Date.now(),
-        name: name,
-        qty: 1,
-        unit: 'шт',
-        addedDate: new Date().toISOString()
-    };
-    
-    if(listName === 'inventory') newItem.expiryDate = '2030-01-01'; // Дефолт дата
-    if(listName === 'shopping') newItem.completed = false;
-
-    try {
-        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-        await db.collection(USER_COLLECTION).doc(uid).update({
-            [listName]: firebase.firestore.FieldValue.arrayUnion(newItem)
-        });
-        openUserDetail(uid);
-        showToast('Добавлено!', 'success');
-    } catch(e) { showToast(e.message, 'error'); }
-}
 
 // 4. Удаление элемента из массива (инвентарь/покупки)
 async function admDeleteItem(uid, listName, index) {
@@ -7437,80 +7148,6 @@ function sendGlobalAnnouncement() {
 /* --- 10 POWER TOOLS FOR ADMIN (FULLY FUNCTIONAL) --- */
 
 // 1. Recipe Analytics (Что готовят?) - РЕАЛИЗОВАНО ЧЕРЕЗ КЭШ
-function analyzeTopProducts() {
-    // Проверяем, загружены ли пользователи
-    if (!allUsersCache || allUsersCache.length === 0) {
-        showToast("Сначала загрузите список пользователей!", "warning");
-        switchAdminTab('users'); // Переключаем на вкладку, чтобы подгрузить данные
-        return;
-    }
-
-    logAdmin("Запуск аналитики по " + allUsersCache.length + " пользователям...");
-    
-    // Агрегация данных
-    let recipeStats = {};
-    let categoryStats = {};
-    let totalCooked = 0;
-
-    allUsersCache.forEach(u => {
-        if (u.history && Array.isArray(u.history)) {
-            u.history.forEach(h => {
-                if (h.type === 'cook') {
-                    // Считаем рецепты
-                    const rName = h.recipeName || "Неизвестный рецепт";
-                    recipeStats[rName] = (recipeStats[rName] || 0) + 1;
-                    
-                    // Считаем категории
-                    const cat = h.category || "Other";
-                    categoryStats[cat] = (categoryStats[cat] || 0) + 1;
-                    
-                    totalCooked++;
-                }
-            });
-        }
-    });
-
-    // Сортировка ТОП-10 Рецептов
-    const sortedRecipes = Object.entries(recipeStats)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-
-    // Сортировка категорий
-    const sortedCats = Object.entries(categoryStats)
-        .sort((a, b) => b[1] - a[1]);
-
-    // Формирование отчета
-    let reportHTML = `
-        <div style="text-align:left; padding:10px;">
-            <h3 style="color:var(--primary)">📊 Аналитика готовки</h3>
-            <p>Всего приготовлено блюд: <b>${totalCooked}</b></p>
-            
-            <h5 style="margin-top:10px; border-bottom:1px solid #333">🔥 Топ-10 Блюд</h5>
-            <ul style="list-style:none; padding:0">
-                ${sortedRecipes.map((r, i) => `<li><b>${i+1}.</b> ${r[0]} <span style="float:right; color:var(--text-secondary)">${r[1]} раз</span></li>`).join('')}
-            </ul>
-
-            <h5 style="margin-top:10px; border-bottom:1px solid #333">🍰 Популярные категории</h5>
-            <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:5px;">
-                ${sortedCats.map(c => `<span style="background:var(--surface-light); padding:2px 8px; border-radius:10px; font-size:0.8em">${c[0]}: ${c[1]}</span>`).join('')}
-            </div>
-        </div>
-    `;
-
-    // Показываем результат в модалке предпросмотра (переиспользуем существующую)
-    const content = document.getElementById('admin-preview-content');
-    if(content) {
-        content.innerHTML = reportHTML;
-        // Скрываем кнопки одобрения/отклонения, так как это просто отчет
-        document.getElementById('btn-approve-preview').style.display = 'none';
-        document.getElementById('btn-reject-preview').style.display = 'none';
-        showModal('admin-preview-modal');
-    } else {
-        alert("Ошибка отображения: элемент модального окна не найден");
-    }
-    
-    logAdmin("Аналитика завершена.");
-}
 
 // 2. JSON Editor Юзера (Хирургическое вмешательство)
 async function rawEditUser(uid) {
@@ -8080,12 +7717,6 @@ async function fixBrokenImages() {
 }
 
 // 15. Feature Flag: Disable Ads
-async function toggleAdsGlobal() {
-    const doc = await db.collection('global_settings').doc('config').get();
-    const status = doc.data().adsDisabled || false;
-    await db.collection('global_settings').doc('config').update({ adsDisabled: !status });
-    showToast(status ? "Реклама включена" : "Реклама выключена", "info");
-}
 
 // 16. Mass Notification (System)
 async function broadcastSystemAlert() {
@@ -8390,30 +8021,6 @@ function openMealPlanner() {
     renderPlanner();
 }
 
-function renderPlanner() {
-    const container = document.getElementById('planner-container');
-    container.innerHTML = '';
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    
-    days.forEach(day => {
-        const col = document.createElement('div');
-        col.className = 'day-card';
-        
-        let mealsHtml = '';
-        if(mealPlan[day]) {
-            mealPlan[day].forEach(rId => {
-                const r = globalRecipes.find(x => x.id === rId);
-                if(r) mealsHtml += `<div class="meal-slot" onclick="showRecipeDetail(${r.id})">${r.name.ru || r.name}</div>`;
-            });
-        }
-        
-        // Кнопка добавления блюда в день (упрощено)
-        mealsHtml += `<button class="btn-sm" style="width:100%" onclick="addToPlan('${day}')">+</button>`;
-
-        col.innerHTML = `<div class="day-title">${day}</div>${mealsHtml}`;
-        container.appendChild(col);
-    });
-}
 
 // Переменная для хранения дня, в который добавляем
 let plannerDayTarget = null;
