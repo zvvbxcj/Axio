@@ -1,4 +1,4 @@
-const recipesDB = [
+window.recipesDB = window.recipesDB || [
     // --- ЗАВТРАКИ ---
     {
         id: 101, 

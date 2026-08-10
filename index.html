@@ -2424,20 +2424,20 @@ function getExpiryColor(days) {
 
     const darkThemePalette = [
         '#EF4444', // 0 дней: Критический Красный
-        '#F87171', // 1 день: Светло-красный
-        '#FB923C', // 2 дня: Оранжево-красный
-        '#F97316', // 3 дня: Оранжевый
-        '#FBBF24', // 4 дня: Янтарный
-        '#FACC15', // 5 дней: Желтый
-        '#A3E635', // 6 дней: Лайм (желто-зеленый)
-        '#84CC16', // 7 дней: Насыщенный лайм
-        '#4ADE80', // 8 дней: Светло-зеленый
-        '#22C55E', // 9 дней: Зеленый
-        '#15803D'  // 10+ дней: Глубокий, насыщенный зеленый (не неон)
+        '#F87171', // 1 день
+        '#FB923C', // 2 дня
+        '#F97316', // 3 дня
+        '#FBBF24', // 4 дня
+        '#FACC15', // 5 дней
+        '#A3E635', // 6 дней
+        '#84CC16', // 7 дней
+        '#4ADE80', // 8 дней
+        '#22C55E', // 9 дней
+        '#15803D'  // 10+ дней
     ];
 
     const lightThemePalette = [
-        '#B91C1C', // 0 дней: Темно-красный
+        '#B91C1C', // 0 дней
         '#DC2626', // 1 день
         '#EA580C', // 2 дня
         '#D97706', // 3 дня
@@ -2447,18 +2447,17 @@ function getExpiryColor(days) {
         '#4D7C0F', // 7 дней
         '#15803D', // 8 дней
         '#166534', // 9 дней
-        '#14532D'  // 10+ дней: Очень темный зеленый
+        '#14532D'  // 10+ дней
     ];
 
     const palette = isLight ? lightThemePalette : darkThemePalette;
 
-    // Логика выбора индекса
-    if (days < 0) return palette[0]; // Просрочено
-    if (days >= 10) return palette[10]; // Свежее (более 10 дней)
+    // Логика выбора цвета по остатку дней:
+    if (days <= 0) return palette[0];
+    if (days >= 10) return palette[10];
     
     return palette[days];
 }
-
 
 function getExpiryStatus(dateString) {
     const days = getDaysUntilExpiry(dateString);
@@ -5218,7 +5217,7 @@ function removeFromPlan(day, index) {
     // Защита от фатальной ошибки: если элемента нет, выходим из функции
     if (!list) return; 
     
-    list.innerHTML = '';
+    container.innerHTML = '';
     const products = commonProductsDB[currentLang] || commonProductsDB['en'];
     
     products.forEach(item => {
