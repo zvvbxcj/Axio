@@ -904,80 +904,160 @@
                 </label>
             </div>
             
-            <div class="settings-row">
-                <div class="sticker-label" data-translate="LanguageLabel">Язык</div>
-                <div class="lang-picker" id="lang-picker">
-                    <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
-                        <span class="lang-picker-flag" id="lang-picker-flag">🇷🇺</span>
-                        <span class="lang-picker-name" id="lang-picker-name">Русский</span>
-                        <i class="fas fa-chevron-down lang-picker-arrow"></i>
-                    </button>
-                    <div class="lang-picker-panel" id="lang-picker-panel">
-                        <div class="lang-option" data-lang="ru" onclick="selectLanguage('ru')">
-                            <span class="lang-picker-flag">🇷🇺</span>
-                            <span class="lang-option-name">Русский</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="en" onclick="selectLanguage('en')">
-                            <span class="lang-picker-flag">🇬🇧</span>
-                            <span class="lang-option-name">English</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="it" onclick="selectLanguage('it')">
-                            <span class="lang-picker-flag">🇮🇹</span>
-                            <span class="lang-option-name">Italiano</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="es" onclick="selectLanguage('es')">
-                            <span class="lang-picker-flag">🇦🇷</span>
-                            <span class="lang-option-name">Español (AR)</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="zh" onclick="selectLanguage('zh')">
-                            <span class="lang-picker-flag">🇨🇳</span>
-                            <span class="lang-option-name">中文</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="de" onclick="selectLanguage('de')">
-                            <span class="lang-picker-flag">🇩🇪</span>
-                            <span class="lang-option-name">Deutsch</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="ja" onclick="selectLanguage('ja')">
-                            <span class="lang-picker-flag">🇯🇵</span>
-                            <span class="lang-option-name">日本語</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="ar" onclick="selectLanguage('ar')">
-                            <span class="lang-picker-flag">🇸🇦</span>
-                            <span class="lang-option-name">العربية</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="hi" onclick="selectLanguage('hi')">
-                            <span class="lang-picker-flag">🇮🇳</span>
-                            <span class="lang-option-name">हिन्दी</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                        <div class="lang-option" data-lang="ko" onclick="selectLanguage('ko')">
-                            <span class="lang-picker-flag">🇰🇷</span>
-                            <span class="lang-option-name">한국어</span>
-                            <i class="fas fa-check lang-option-check"></i>
-                        </div>
-                    </div>
-                </div>
-                <select id="language-select" class="lang-native-fallback" aria-hidden="true">
-                    <option value="ru">Русский</option>
-                    <option value="en">English</option>
-                    <option value="it">Italiano</option>
-                    <option value="es">Español (AR)</option>
-                    <option value="zh">中文</option>
-                    <option value="de">Deutsch</option>
-                    <option value="ja">日本語</option>
-                    <option value="ar">العربية</option>
-                    <option value="hi">हिन्दी</option>
-                    <option value="ko">한국어</option>
-                </select>
+            <div class="settings-row luxury-lang-row">
+    <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
+    
+    <!-- Премиальный выбор языка -->
+    <div class="lang-picker-luxury" id="lang-picker">
+        <!-- Главная кнопка-триггер -->
+        <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
+            <div class="lang-flag-wrapper">
+                <img src="https://flagcdn.com/w40/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img">
             </div>
+            <div class="lang-info">
+                <span class="lang-picker-name" id="lang-picker-name">Русский</span>
+                <span class="lang-picker-code" id="lang-picker-code">RU</span>
+            </div>
+            <div class="lang-arrow-icon">
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </button>
+
+        <!-- Выпадающая стеклянная панель -->
+        <div class="lang-picker-panel glass-panel" id="lang-picker-panel">
+            <div class="lang-panel-header">
+                <span data-translate="SelectLanguageTitle">Выберите язык</span>
+            </div>
+            <div class="lang-options-grid">
+                
+                <div class="lang-option active" data-lang="ru" onclick="selectLanguage('ru')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/ru.png" alt="Русский">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">Русский</span>
+                        <span class="lang-option-sub">Russian</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="en" onclick="selectLanguage('en')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/gb.png" alt="English">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">English</span>
+                        <span class="lang-option-sub">United Kingdom</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="it" onclick="selectLanguage('it')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/it.png" alt="Italiano">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">Italiano</span>
+                        <span class="lang-option-sub">Italian</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="es" onclick="selectLanguage('es')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/ar.png" alt="Español">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">Español</span>
+                        <span class="lang-option-sub">Argentina</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="de" onclick="selectLanguage('de')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/de.png" alt="Deutsch">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">Deutsch</span>
+                        <span class="lang-option-sub">German</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="zh" onclick="selectLanguage('zh')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/cn.png" alt="中文">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">中文</span>
+                        <span class="lang-option-sub">Chinese</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="ja" onclick="selectLanguage('ja')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/jp.png" alt="日本語">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">日本語</span>
+                        <span class="lang-option-sub">Japanese</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="ar" onclick="selectLanguage('ar')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/sa.png" alt="العربية">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">العربية</span>
+                        <span class="lang-option-sub">Arabic</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="hi" onclick="selectLanguage('hi')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/in.png" alt="हिन्दी">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">हिन्दी</span>
+                        <span class="lang-option-sub">Hindi</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+                <div class="lang-option" data-lang="ko" onclick="selectLanguage('ko')">
+                    <div class="lang-flag-badge">
+                        <img src="https://flagcdn.com/w40/kr.png" alt="한국어">
+                    </div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">한국어</span>
+                        <span class="lang-option-sub">Korean</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Резервный скрытый нативный селект -->
+    <select id="language-select" class="lang-native-fallback" aria-hidden="true">
+        <option value="ru">Русский</option>
+        <option value="en">English</option>
+        <option value="it">Italiano</option>
+        <option value="es">Español (AR)</option>
+        <option value="de">Deutsch</option>
+        <option value="zh">中文</option>
+        <option value="ja">日本語</option>
+        <option value="ar">العربية</option>
+        <option value="hi">हिन्दी</option>
+        <option value="ko">한국어</option>
+    </select>
+</div>
         </div>
 
         <div class="settings-section">
