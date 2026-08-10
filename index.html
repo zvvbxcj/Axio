@@ -1761,37 +1761,18 @@ async function trackStat(type) {
     try {
         const doc = await db.collection(USER_COLLECTION).doc(currentUser.uid).get();
 
-        // --- ИСПРАВЛЕНИЕ ОШИБКИ 1: Проверка наличия базы рецептов ---
-        if (typeof recipesDB === 'undefined') {
-            console.warn("recipesDB не найден! Создаем пустую базу во избежание ошибки.");
-            window.recipesDB = []; // Создаем пустую заглушку
-        }
+        // Безопасные заглушки, если файлы скриптов не загрузились
+        if (typeof recipesDB === 'undefined') window.recipesDB = [];
+        if (typeof achievementsDB === 'undefined') window.achievementsDB = [];
 
-        // --- ИСПРАВЛЕНИЕ ОШИБКИ 1: Проверка наличия базы достижений ---
-        if (typeof achievementsDB === 'undefined') {
-            console.warn("achievementsDB не найден! Создаем пустую базу.");
-            window.achievementsDB = []; // Создаем пустую заглушку
-        }
-
-        // 1. СБРОС: Берем чистую базу стандартных рецептов
-        // Важно делать глубокую копию, чтобы не менять оригинал recipesDB
+        // 1. Инициализация локальной базы рецептов
         globalRecipes = JSON.parse(JSON.stringify(recipesDB));
-        // --- НОРМАЛИЗАЦИЯ КАРТИНОК ---
-        // Превращаем одиночное image в массив images, чтобы ничего не ломалось
-        globalRecipes.forEach(r => {
-            if (!r.images && r.image) {
-                r.images = [r.image];
-            } else if (!r.images && !r.image) {
-                r.images = ['https://via.placeholder.com/300'];
-            }
-        });
 
-        // 2. ЗАГРУЗКА ПУБЛИЧНЫХ: Добавляем одобренные рецепты от других пользователей
+        // 2. Загрузка публичных рецептов из Firestore
         try {
             const publicSnapshot = await db.collection('public_recipes').get();
             publicSnapshot.forEach(doc => {
                 const pubRecipe = doc.data();
-                // Проверяем, нет ли уже такого ID (на случай конфликтов)
                 if (!globalRecipes.find(r => r.id === pubRecipe.id)) {
                     globalRecipes.push(pubRecipe);
                 }
@@ -1800,12 +1781,11 @@ async function trackStat(type) {
             console.log("Offline or error loading public recipes", e);
         }
 
-        checkAdmin(); // Проверка на админа
+        checkAdmin();
 
         if (doc.exists) {
             const data = doc.data();
             
-            // Загружаем основные данные профиля
             currentUser.tutorialCompleted = data.tutorialCompleted || false;
             userInventory = data.inventory || [];
             userDeletedRecipes = data.deletedRecipes || [];
@@ -1825,12 +1805,11 @@ async function trackStat(type) {
             
             userEditedRecipes = data.editedRecipes || {};
 
-            globalRecipes = JSON.parse(JSON.stringify(recipesDB));
+            // 3. Применение удаленных и отредактированных рецептов
             globalRecipes = globalRecipes.filter(r => !userDeletedRecipes.includes(r.id) && !userDeletedRecipes.includes(String(r.id)));
+            
             Object.values(userEditedRecipes).forEach(savedRecipe => {
-              
                 const index = globalRecipes.findIndex(r => r.id === savedRecipe.id);
-                
                 if (index !== -1) {
                     globalRecipes[index] = savedRecipe;
                 } else {
@@ -1847,18 +1826,15 @@ async function trackStat(type) {
                 return saved ? { ...fileAch, current: saved.current ?? 0, unlocked: saved.unlocked || false } : { ...fileAch, current: 0, unlocked: false };
             });
 
-            // Проверка туториала
-            const localSeen = localStorage.getItem('axio_tutorial_seen');
-            if (!currentUser.tutorialCompleted && !localSeen) {
+            if (!currentUser.tutorialCompleted && !localStorage.getItem('axio_tutorial_seen')) {
                 setTimeout(startTutorial, 400);
             }
 
         } else {
-            // Если пользователя нет - создаем структуру
             const initialData = {
                 inventory: [], shopping: [], history: [], notifications: [], favorites: [], dislikes: [],
                 xp: 0, level: 1, cookedDishes: 0, theme: 'dark', lang: currentLang,
-                editedRecipes: {}, // Важно инициализировать пустым объектом
+                editedRecipes: {},
                 achievements: JSON.parse(JSON.stringify(achievementsDB)),
                 name: currentUser.name, avatar: avatarCollection[0]
             };
@@ -1871,7 +1847,7 @@ async function trackStat(type) {
 
     } catch (error) {
         console.error("Load error", error);
-        showToast("Добро пожаловать!", "error");
+        showToast("Ошибка загрузки данных", "error");
     }
 }
 
@@ -2485,23 +2461,22 @@ function openExpiryEdit(id) {
     showModal('edit-expiry-modal');
 }
 
-// Функция сохранения новой даты
 function saveNewExpiry() {
     const newDate = document.getElementById('edit-expiry-input').value;
-    if (!newDate || !editingProductId) return;
-
-    const product = userInventory.find(p => p.id === editingProductId);
-    if (product) {
-        product.expiryDate = newDate;
-        
-        // Сохраняем и обновляем
-        saveData(false);
-        updateInventoryList();
-        updateHeader(); // Чтобы обновились счетчики "скоро испортится"
-        
-        showToast(translations[currentLang].SaveButton, "success"); // "Сохранено"
+    if (!newDate) {
+        return showToast("Выберите дату!", "warning");
     }
-    hideModal('edit-expiry-modal');
+    
+    if (editingProductId !== null) {
+        const product = userInventory.find(p => p.id === editingProductId);
+        if (product) {
+            product.expiryDate = newDate;
+            saveData(false);
+            updateInventoryList();
+            hideModal('edit-expiry-modal');
+            showToast("Срок годности обновлен!", "success");
+        }
+    }
 }
 
 function openStatistics() {
