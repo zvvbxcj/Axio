@@ -48,8 +48,6 @@
         return false;
     };
 
-
-    document.addEventListener('DOMContentLoaded', loadAdsgram);
 </script>
 </head>
 <body>
@@ -1115,10 +1113,6 @@
         </div>
 
     </div>
-    
-    <script>
-        document.write('<script src="recipes.js?v=' + new Date().getTime() + '"><\/script>');
-    </script>
     
     <script>       
       // --- GLOBAL APP STATE ---
@@ -5219,10 +5213,20 @@ function removeFromPlan(day, index) {
 }
 
         function populateProductSuggestions() {
-            const list = document.getElementById('product-suggestions-list'); list.innerHTML = '';
-            const products = commonProductsDB[currentLang] || commonProductsDB['en'];
-            products.forEach(item => { const option = document.createElement('option'); option.value = item; list.appendChild(option); });
-        }
+    const list = document.getElementById('product-suggestions-list');
+    
+    // Защита от фатальной ошибки: если элемента нет, выходим из функции
+    if (!list) return; 
+    
+    list.innerHTML = '';
+    const products = commonProductsDB[currentLang] || commonProductsDB['en'];
+    
+    products.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item;
+        list.appendChild(option);
+    });
+}
 
 // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ДОСТИЖЕНИЙ ---
 async function checkAchievements(triggerType, payload = null) {
@@ -9956,6 +9960,8 @@ function fallbackCopy(text) {
         <button class="btn btn-primary" onclick="applyCustomExpiry()">Применить</button>
     </div>
 </div>
+
+ document.addEventListener('DOMContentLoaded', loadAdsgram);
 
 </body>
 </html>
