@@ -4147,3 +4147,14 @@ adsgram-task {
     .lang-full-grid { grid-template-columns: 1fr; }
 }
     </style>
+/* --- Barcode scanner (scanner.js) --- */
+#barcode-reader video {
+    width: 100% !important;
+    border-radius: 12px;
+    object-fit: cover;
+}
+#barcode-reader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

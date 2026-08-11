@@ -633,6 +633,40 @@
                             <span style="display:block; font-size:0.85em; color: var(--text-secondary);" data-translate="AddChoiceScanDesc">Сфотографировать продукт или чек</span>
                         </span>
                     </button>
+                    <button type="button" class="btn btn-secondary add-choice-option" onclick="openBarcodeScanner()" style="display:flex; align-items:center; gap:14px; text-align:left; padding: 16px;">
+                        <span style="width:44px; height:44px; flex-shrink:0; border-radius:12px; background: var(--surface-light); display:flex; align-items:center; justify-content:center; font-size:1.3em; color: var(--primary);"><i class="fas fa-barcode"></i></span>
+                        <span>
+                            <span style="display:block; font-weight:600; color: var(--text-primary);" data-translate="AddChoiceBarcodeTitle">Штрих-код</span>
+                            <span style="display:block; font-size:0.85em; color: var(--text-secondary);" data-translate="AddChoiceBarcodeDesc">Отсканировать штрих-код товара</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="barcode-scanner-modal" class="modal" onclick="if(event.target.id === 'barcode-scanner-modal') closeBarcodeScanner()">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h4 data-translate="BarcodeScanTitle">Скан штрих-кода</h4>
+                    <span class="modal-close" onclick="closeBarcodeScanner()"><i class="fas fa-times"></i></span>
+                </div>
+
+                <div id="barcode-reader" style="width:100%; min-height:220px; border-radius:12px; overflow:hidden; background:#000;"></div>
+
+                <div id="barcode-status" style="text-align:center; margin-top:14px; color: var(--text-secondary); font-size:0.9em;" data-translate="BarcodeStatusReady">
+                    Наведите камеру на штрих-код
+                </div>
+                <div id="barcode-error" style="display:none; text-align:center; margin-top:10px; color: var(--error); font-size:0.9em;"></div>
+
+                <div style="display:flex; align-items:center; gap:10px; margin: 16px 0 4px;">
+                    <div style="flex:1; height:1px; background: var(--border-color);"></div>
+                    <span style="color: var(--text-secondary); font-size:0.8em;" data-translate="BarcodeManualOr">или введите вручную</span>
+                    <div style="flex:1; height:1px; background: var(--border-color);"></div>
+                </div>
+
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="barcode-manual-input" class="styled-input" inputmode="numeric" placeholder="4870000000000" style="flex:1;">
+                    <button type="button" class="btn btn-secondary" onclick="submitManualBarcode()"><i class="fas fa-search"></i></button>
                 </div>
             </div>
         </div>
