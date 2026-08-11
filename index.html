@@ -787,11 +787,21 @@
             <div class="planner-header-title">
                 <span class="planner-header-icon"><i class="fas fa-crown"></i></span>
                 <div>
-                    <h4>Меню на неделю</h4>
-                    <span class="planner-header-subtitle">Ваш кулинарный план, красиво и без хлопот</span>
+                    <h4>Меню питания</h4>
+                    <span class="planner-header-subtitle">Планируйте на любой день — красиво и просто</span>
                 </div>
             </div>
             <span class="modal-close" onclick="hideModal('meal-planner-modal')"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div class="planner-nav-bar">
+            <button class="planner-nav-btn" onclick="plannerPrevWeek()" aria-label="Предыдущая неделя"><i class="fas fa-chevron-left"></i></button>
+            <button class="planner-range-pill" onclick="openPlannerCalendar()">
+                <i class="fas fa-calendar-days"></i>
+                <span id="planner-range-label">—</span>
+            </button>
+            <button class="planner-nav-btn" onclick="plannerNextWeek()" aria-label="Следующая неделя"><i class="fas fa-chevron-right"></i></button>
+            <button id="planner-today-btn" class="planner-today-btn" onclick="plannerGoToday()">Сегодня</button>
         </div>
 
         <div class="planner-actions-bar">
@@ -815,6 +825,29 @@
         <div class="planner-grid" id="planner-container">
             </div>
         <button class="btn btn-primary planner-close-btn" onclick="hideModal('meal-planner-modal')">Закрыть</button>
+    </div>
+</div>
+
+<div id="planner-calendar-modal" class="modal" onclick="if(event.target.id === 'planner-calendar-modal') hideModal('planner-calendar-modal')">
+    <div class="modal-content planner-cal-modal-content">
+        <div class="modal-header">
+            <h4><i class="fas fa-calendar-days"></i> Выберите дату</h4>
+            <span class="modal-close" onclick="hideModal('planner-calendar-modal')"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div class="planner-cal-nav">
+            <button class="planner-nav-btn" onclick="plannerCalendarPrevMonth()" aria-label="Предыдущий месяц"><i class="fas fa-chevron-left"></i></button>
+            <span id="planner-calendar-month-label" class="planner-cal-month-label">—</span>
+            <button class="planner-nav-btn" onclick="plannerCalendarNextMonth()" aria-label="Следующий месяц"><i class="fas fa-chevron-right"></i></button>
+        </div>
+
+        <div class="planner-cal-weekdays">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+        </div>
+
+        <div class="planner-cal-grid" id="planner-calendar-grid"></div>
+
+        <div class="planner-cal-legend"><span class="planner-cal-legend-dot"></span> — есть запланированные блюда</div>
     </div>
 </div>
 
@@ -1231,13 +1264,13 @@ function generateShoppingFromPlan() {
     }
 
     let totalNeeded = {}; 
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    const dateKeys = Object.keys(mealPlan);
     let recipeCount = 0;
 
-    // 1. Собираем все ингредиенты со всех дней
-    days.forEach(day => {
-        if (mealPlan[day]) {
-            mealPlan[day].forEach(item => {
+    // 1. Собираем все ингредиенты со всех запланированных дат
+    dateKeys.forEach(dateKey => {
+        if (mealPlan[dateKey]) {
+            mealPlan[dateKey].forEach(item => {
                 // Получаем ID (учитываем, что это может быть объект или число/строка)
                 let rId = (typeof item === 'object' && item.id) ? item.id : item;
                 // Пропускаем кастомные текстовые записи (где нет ID)
@@ -3517,24 +3550,26 @@ async function publishExistingRecipe(id) {
 
 // --- ФУНКЦИИ ЭКСПОРТА МЕНЮ ---
 function getMealPlanText() {
-    let text = "📅 *Мое меню на неделю (Axio)*\n\n";
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    let hasMeals = false;
+    const dateKeys = Object.keys(mealPlan).filter(k => mealPlan[k] && mealPlan[k].length > 0).sort();
+    if (dateKeys.length === 0) return null;
 
-    days.forEach(day => {
-        if (mealPlan[day] && mealPlan[day].length > 0) {
-            hasMeals = true;
-            text += `🔹 *${day}:*\n`;
-            mealPlan[day].forEach(rId => {
-                const r = globalRecipes.find(x => x.id === rId);
-                const rName = r ? (r.name.ru || r.name) : "Неизвестный рецепт";
-                text += `   - ${rName}\n`;
-            });
-            text += "\n";
-        }
+    let text = "📅 *Мое меню (Axio)*\n\n";
+
+    dateKeys.forEach(dateKey => {
+        text += `🔹 *${formatDateLabel(dateKey)}:*\n`;
+        mealPlan[dateKey].forEach(item => {
+            let rName;
+            if (typeof item === 'object' && item.customName) {
+                rName = item.customName;
+            } else {
+                const r = globalRecipes.find(x => x.id === item);
+                rName = r ? (r.name.ru || r.name) : "Неизвестный рецепт";
+            }
+            text += `   - ${rName}\n`;
+        });
+        text += "\n";
     });
 
-    if (!hasMeals) return null;
     return text;
 }
 
@@ -3556,24 +3591,24 @@ function shareMealPlan(type) {
 }
 
 function printMealPlan() {
-    const text = getMealPlanText();
-    if (!text) return showToast("План пуст!", "warning");
+    const dateKeys = Object.keys(mealPlan).filter(k => mealPlan[k] && mealPlan[k].length > 0).sort();
+    if (dateKeys.length === 0) return showToast("План пуст!", "warning");
 
     const printArea = document.getElementById('print-area');
-    const date = new Date().toLocaleDateString();
-    
-    let html = `<div class="print-header">📅 Меню на неделю (${date})</div>`;
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    let html = `<div class="print-header">📅 Меню (Axio)</div>`;
 
-    days.forEach(day => {
-        if (mealPlan[day] && mealPlan[day].length > 0) {
-            html += `<div class="print-category" style="margin-top:20px; border-bottom:1px solid #ddd;">${day}</div>`;
-            mealPlan[day].forEach(rId => {
-                const r = globalRecipes.find(x => x.id === rId);
-                const rName = r ? (r.name.ru || r.name) : "Неизвестный рецепт";
-                html += `<div class="print-item" style="font-size:16px; padding:5px 0;">• ${rName}</div>`;
-            });
-        }
+    dateKeys.forEach(dateKey => {
+        html += `<div class="print-category" style="margin-top:20px; border-bottom:1px solid #ddd;">${formatDateLabel(dateKey)}</div>`;
+        mealPlan[dateKey].forEach(item => {
+            let rName;
+            if (typeof item === 'object' && item.customName) {
+                rName = item.customName;
+            } else {
+                const r = globalRecipes.find(x => x.id === item);
+                rName = r ? (r.name.ru || r.name) : "Неизвестный рецепт";
+            }
+            html += `<div class="print-item" style="font-size:16px; padding:5px 0;">• ${rName}</div>`;
+        });
     });
 
     printArea.innerHTML = html;
@@ -8063,22 +8098,161 @@ function toggleVoiceInput() {
     recognition.start();
 }
 
-/* --- FEATURE 4: MEAL PLANNER --- */
-let mealPlan = {}; // { "Mon": [recipeId, ...], "Tue": ... }
+/* --- FEATURE 4: MEAL PLANNER (полноценный календарь) --- */
+let mealPlan = {}; // { "2026-08-11": [recipeId, ...], "2026-08-12": [...] } — ключ: дата в формате YYYY-MM-DD
+
+// --- Вспомогательные функции для работы с датами (RU) ---
+const RU_MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const RU_MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const RU_WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+function formatDateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+function parseDateKey(key) {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+function getWeekdayShort(date) {
+    return RU_WEEKDAYS_SHORT[(date.getDay() + 6) % 7];
+}
+function formatDateLabel(dateKey) {
+    const d = parseDateKey(dateKey);
+    return `${getWeekdayShort(d)}, ${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]}`;
+}
+function getMondayOfWeek(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1) - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+function isSameDate(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Неделя, которая сейчас отображается в планировщике
+let plannerWeekStart = getMondayOfWeek(new Date());
 
 function openMealPlanner() {
     showModal('meal-planner-modal');
     renderPlanner();
 }
 
+function plannerPrevWeek() {
+    plannerWeekStart.setDate(plannerWeekStart.getDate() - 7);
+    renderPlanner();
+}
+function plannerNextWeek() {
+    plannerWeekStart.setDate(plannerWeekStart.getDate() + 7);
+    renderPlanner();
+}
+function plannerGoToday() {
+    plannerWeekStart = getMondayOfWeek(new Date());
+    renderPlanner();
+}
 
-// Переменная для хранения дня, в который добавляем
+function updatePlannerRangeLabel() {
+    const label = document.getElementById('planner-range-label');
+    if (!label) return;
+
+    const start = plannerWeekStart;
+    const end = new Date(plannerWeekStart);
+    end.setDate(end.getDate() + 6);
+
+    let text;
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+        text = `${start.getDate()}–${end.getDate()} ${RU_MONTHS_GEN[start.getMonth()]}`;
+    } else if (start.getFullYear() === end.getFullYear()) {
+        text = `${start.getDate()} ${RU_MONTHS_GEN[start.getMonth()]} – ${end.getDate()} ${RU_MONTHS_GEN[end.getMonth()]}`;
+    } else {
+        text = `${start.getDate()} ${RU_MONTHS_GEN[start.getMonth()]} ${start.getFullYear()} – ${end.getDate()} ${RU_MONTHS_GEN[end.getMonth()]} ${end.getFullYear()}`;
+    }
+    label.textContent = text;
+
+    const todayBtn = document.getElementById('planner-today-btn');
+    if (todayBtn) {
+        todayBtn.style.display = isSameDate(start, getMondayOfWeek(new Date())) ? 'none' : 'inline-flex';
+    }
+}
+
+// --- Мини-календарь для перехода на любую дату ---
+let plannerCalendarMonth = new Date();
+
+function openPlannerCalendar() {
+    plannerCalendarMonth = new Date(plannerWeekStart.getFullYear(), plannerWeekStart.getMonth(), 1);
+    renderPlannerCalendarGrid();
+    showModal('planner-calendar-modal');
+}
+function plannerCalendarPrevMonth() {
+    plannerCalendarMonth.setMonth(plannerCalendarMonth.getMonth() - 1);
+    renderPlannerCalendarGrid();
+}
+function plannerCalendarNextMonth() {
+    plannerCalendarMonth.setMonth(plannerCalendarMonth.getMonth() + 1);
+    renderPlannerCalendarGrid();
+}
+
+function renderPlannerCalendarGrid() {
+    const label = document.getElementById('planner-calendar-month-label');
+    if (label) label.textContent = `${RU_MONTHS_NOM[plannerCalendarMonth.getMonth()]} ${plannerCalendarMonth.getFullYear()}`;
+
+    const grid = document.getElementById('planner-calendar-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const year = plannerCalendarMonth.getFullYear();
+    const month = plannerCalendarMonth.getMonth();
+    const startOffset = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = Пн
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+    const trailingCount = totalCells - startOffset - daysInMonth;
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const weekStart = plannerWeekStart;
+    const weekEnd = new Date(plannerWeekStart); weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const cellDates = [];
+    for (let i = startOffset; i > 0; i--) cellDates.push(new Date(year, month - 1, daysInPrevMonth - i + 1));
+    for (let d = 1; d <= daysInMonth; d++) cellDates.push(new Date(year, month, d));
+    for (let d = 1; d <= trailingCount; d++) cellDates.push(new Date(year, month + 1, d));
+
+    cellDates.forEach(date => {
+        const key = formatDateKey(date);
+        const muted = date.getMonth() !== month;
+        const isToday = isSameDate(date, today);
+        const inSelectedWeek = date >= weekStart && date <= weekEnd;
+        const hasMeals = mealPlan[key] && mealPlan[key].length > 0;
+
+        const cell = document.createElement('div');
+        cell.className = 'planner-cal-day'
+            + (muted ? ' planner-cal-day--muted' : '')
+            + (isToday ? ' planner-cal-day--today' : '')
+            + (inSelectedWeek ? ' planner-cal-day--in-week' : '');
+        cell.innerHTML = `<span>${date.getDate()}</span>${hasMeals ? '<i class="planner-cal-dot"></i>' : ''}`;
+        cell.onclick = () => selectPlannerCalendarDate(date);
+        grid.appendChild(cell);
+    });
+}
+
+function selectPlannerCalendarDate(date) {
+    plannerWeekStart = getMondayOfWeek(date);
+    hideModal('planner-calendar-modal');
+    renderPlanner();
+}
+
+// Переменная для хранения даты, в которую добавляем
 let plannerDayTarget = null;
 
 // 1. Открытие модального окна (Заменяет старый prompt)
 function addToPlan(day) {
     plannerDayTarget = day;
-    document.getElementById('meal-selector-title').innerText = `Добавить на ${day}`;
+    document.getElementById('meal-selector-title').innerText = `Добавить на ${formatDateLabel(day)}`;
     document.getElementById('meal-selector-search').value = ''; // Сброс поиска
     renderMealSelectorList(); // Отрисовка списка
     showModal('meal-selector-modal');
@@ -8161,18 +8335,26 @@ function finalizePlanUpdate() {
     // saveData(); 
 }
 
-// 6. Обновленная функция отрисовки самого планировщика (чтобы поддерживать текст)
+// 6. Отрисовка планировщика: неделя реальных дат (plannerWeekStart .. +6 дней)
 function renderPlanner() {
     const container = document.getElementById('planner-container');
     container.innerHTML = '';
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    const todayIndex = (new Date().getDay() + 6) % 7; // 0 = Пн ... 6 = Вс
 
-    days.forEach((day, dayIndex) => {
+    updatePlannerRangeLabel();
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(plannerWeekStart);
+        date.setDate(date.getDate() + i);
+        const dateKey = formatDateKey(date);
+        const isToday = isSameDate(date, today);
+        const isPast = date < today && !isToday;
+
         const col = document.createElement('div');
-        col.className = 'day-card' + (dayIndex === todayIndex ? ' day-card--today' : '');
+        col.className = 'day-card' + (isToday ? ' day-card--today' : '') + (isPast ? ' day-card--past' : '');
 
-        const dayMeals = mealPlan[day] || [];
+        const dayMeals = mealPlan[dateKey] || [];
         let mealsHtml = '';
 
         dayMeals.forEach((item, index) => {
@@ -8203,7 +8385,7 @@ function renderPlanner() {
                 <div class="meal-slot" ${onclickAction}>
                     ${imgHtml}
                     <span class="meal-slot-name">${displayName}</span>
-                    <span class="meal-slot-remove" onclick="event.stopPropagation(); removeFromPlan('${day}', ${index})"><i class="fas fa-times"></i></span>
+                    <span class="meal-slot-remove" onclick="event.stopPropagation(); removeFromPlan('${dateKey}', ${index})"><i class="fas fa-times"></i></span>
                 </div>`;
             }
         });
@@ -8212,20 +8394,23 @@ function renderPlanner() {
             mealsHtml = `<div class="day-empty-hint">Пока пусто</div>`;
         }
 
-        // Кнопка добавления вызывает теперь наше модальное окно
-        mealsHtml += `<button class="add-meal-btn-small" onclick="addToPlan('${day}')"><i class="fas fa-plus"></i> Добавить</button>`;
+        // Кнопка добавления вызывает наше модальное окно
+        mealsHtml += `<button class="add-meal-btn-small" onclick="addToPlan('${dateKey}')"><i class="fas fa-plus"></i> Добавить</button>`;
 
         const countBadge = dayMeals.length ? `<span class="day-count-badge">${dayMeals.length}</span>` : '';
 
         col.innerHTML = `
             <div class="day-title-row">
-                <span class="day-title">${day}</span>
+                <div class="day-title-text">
+                    <span class="day-title">${getWeekdayShort(date)}</span>
+                    <span class="day-date-num">${date.getDate()} ${RU_MONTHS_GEN[date.getMonth()].slice(0, 3)}</span>
+                </div>
                 ${countBadge}
             </div>
             <div class="day-meals-wrap">${mealsHtml}</div>
         `;
         container.appendChild(col);
-    });
+    }
 }
 
 /* --- FEATURE 5: SMART IMPORT --- */

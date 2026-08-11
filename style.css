@@ -3184,7 +3184,7 @@ adsgram-task {
 }
 
 /* ============================================================
-   PREMIUM MEAL PLANNER — «Меню на неделю»
+   PREMIUM MEAL PLANNER — Календарный планировщик питания
    Золотисто-стеклянная премиальная тема, единый язык с
    .lang-picker-luxury. Все интерактивные элементы остаются
    видимыми без hover (приложение — мобильный Telegram Mini App).
@@ -3238,6 +3238,79 @@ adsgram-task {
     color: var(--text-secondary);
     margin-top: 3px;
     letter-spacing: 0.2px;
+}
+
+/* Панель навигации по неделям */
+.planner-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 14px;
+}
+
+.planner-nav-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    border: 1px solid var(--border-color);
+    background: var(--surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+.planner-nav-btn:hover {
+    color: #B8860B;
+    border-color: rgba(212, 175, 55, 0.5);
+    background: rgba(212, 175, 55, 0.06);
+}
+.light-theme .planner-nav-btn:hover { color: #8a6a08; }
+
+.planner-range-pill {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 9px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.02));
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85em;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    text-transform: capitalize;
+    transition: all 0.2s ease;
+}
+.planner-range-pill i { color: #B8860B; font-size: 0.9em; }
+.light-theme .planner-range-pill i { color: #8a6a08; }
+.planner-range-pill:hover {
+    border-color: rgba(212, 175, 55, 0.55);
+    box-shadow: 0 6px 16px rgba(212, 175, 55, 0.15);
+    transform: translateY(-1px);
+}
+
+.planner-today-btn {
+    flex-shrink: 0;
+    padding: 9px 13px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.78em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.planner-today-btn:hover {
+    color: var(--text-primary);
+    border-color: rgba(212, 175, 55, 0.4);
 }
 
 /* Панель действий */
@@ -3341,6 +3414,11 @@ adsgram-task {
 }
 #meal-planner-modal .day-card--today::before { opacity: 1; }
 
+#meal-planner-modal .day-card--past {
+    opacity: 0.62;
+}
+#meal-planner-modal .day-card--past:hover { opacity: 0.85; }
+
 .day-title-row {
     display: flex;
     align-items: center;
@@ -3348,6 +3426,12 @@ adsgram-task {
     margin-bottom: 10px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border-color);
+}
+
+.day-title-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
 }
 
 #meal-planner-modal .day-title {
@@ -3363,6 +3447,13 @@ adsgram-task {
 }
 .day-card--today .day-title { color: #B8860B; }
 .light-theme .day-card--today .day-title { color: #8a6a08; }
+
+.day-date-num {
+    font-size: 0.72em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
 
 .day-count-badge {
     font-size: 0.66em;
@@ -3484,6 +3575,108 @@ adsgram-task {
     }
     .planner-header-subtitle { display: none; }
     .planner-header-icon { width: 38px; height: 38px; font-size: 0.95em; }
+    .planner-range-pill span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ---------- Мини-календарь (переход к любой дате) ---------- */
+#planner-calendar-modal .modal-content.planner-cal-modal-content {
+    max-width: 360px;
+    background:
+        radial-gradient(700px 200px at 50% -10%, rgba(212, 175, 55, 0.10), transparent 60%),
+        var(--surface);
+    border: 1px solid rgba(212, 175, 55, 0.18);
+}
+
+.planner-cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.planner-cal-month-label {
+    font-weight: 800;
+    font-size: 1em;
+    color: var(--text-primary);
+    text-transform: capitalize;
+}
+
+.planner-cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 6px;
+}
+.planner-cal-weekdays span {
+    text-align: center;
+    font-size: 0.7em;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.planner-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.planner-cal-day {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 0.82em;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+.planner-cal-day:hover {
+    background: rgba(212, 175, 55, 0.1);
+}
+.planner-cal-day--muted {
+    color: var(--text-secondary);
+    opacity: 0.4;
+}
+.planner-cal-day--in-week {
+    background: rgba(212, 175, 55, 0.12);
+}
+.planner-cal-day--today {
+    box-shadow: inset 0 0 0 1.5px rgba(212, 175, 55, 0.7);
+    font-weight: 800;
+    color: #B8860B;
+}
+.light-theme .planner-cal-day--today { color: #8a6a08; }
+
+.planner-cal-dot {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #D4AF37;
+}
+
+.planner-cal-legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 0.75em;
+    color: var(--text-secondary);
+}
+.planner-cal-legend-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #D4AF37;
+    flex-shrink: 0;
 }
 
 /* Hover animation for icons */
