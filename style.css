@@ -2672,6 +2672,59 @@ adsgram-task {
         .item-actions { display: flex; align-items: center; gap: 8px; }
         .item-actions button { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.2em; transition: 0.2s; padding: 5px; }
         .item-actions button.trash:hover { color: var(--error); transform: scale(1.1); }
+        .item-actions button.deliver:hover { color: var(--primary); transform: scale(1.1); }
+
+        /* --- Умные поисковые карточки доставки (Deep Search) --- */
+        .delivery-product-label {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        .delivery-product-label b { color: var(--text-primary); }
+        .market-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 5px 0 10px;
+        }
+        .market-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--surface-light);
+            padding: 14px 14px;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+        }
+        .market-option:hover, .market-option:active {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2);
+            border-color: var(--market-color, var(--primary));
+        }
+        .market-option .market-icon {
+            width: 40px; height: 40px; min-width: 40px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--market-color, var(--primary));
+            color: #fff;
+            font-size: 1.1em;
+        }
+        .market-option span {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+        .market-option small {
+            display: block;
+            font-weight: 400;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
 
         /* QTY CONTROLS STYLE */
         .qty-controls { 

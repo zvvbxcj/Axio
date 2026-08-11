@@ -2867,7 +2867,10 @@ function selectSuggestion(select) {
                 <div class="item-details">
                     <div class="item-name">${item.name}${qtyText}</div>
                 </div>
-                <div class="item-actions"><button class="trash" onclick="event.stopPropagation(); deleteShoppingItem(${item.id})"><i class="fas fa-trash"></i></button></div>
+                <div class="item-actions">
+                    <button class="deliver" onclick="event.stopPropagation(); openDeliverySearch('${item.name.replace(/'/g, "\\'")}')" title="Заказать с доставкой"><i class="fas fa-truck-fast"></i></button>
+                    <button class="trash" onclick="event.stopPropagation(); deleteShoppingItem(${item.id})"><i class="fas fa-trash"></i></button>
+                </div>
             </div>`;
 
         // --- ЛОГИКА РЕКЛАМЫ ---
@@ -2897,6 +2900,80 @@ function editShoppingItemQty(id) {
             showToast("Неверное число", "warning");
         }
     }
+}
+
+// --- УМНЫЕ ПОИСКОВЫЕ КАРТОЧКИ ДОСТАВКИ (DEEP SEARCH) ---
+
+const DELIVERY_MARKETPLACES = [
+    {
+        id: 'ozon',
+        name: 'Ozon',
+        hint: 'Продукты и товары',
+        icon: 'fas fa-shopping-bag',
+        color: '#005BFF',
+        buildUrl: (q) => `https://www.ozon.ru/search/?text=${encodeURIComponent(q)}&from_global=true`
+    },
+    {
+        id: 'wb',
+        name: 'Wildberries',
+        hint: 'Товары с доставкой',
+        icon: 'fas fa-shopping-basket',
+        color: '#CB11AB',
+        buildUrl: (q) => `https://www.wildberries.ru/catalog/0/search.aspx?search=${encodeURIComponent(q)}`
+    },
+    {
+        id: 'ym',
+        name: 'Яндекс Маркет',
+        hint: 'Магазины рядом',
+        icon: 'fas fa-store',
+        color: '#FFCC00',
+        buildUrl: (q) => `https://market.yandex.ru/search?text=${encodeURIComponent(q)}`
+    },
+    {
+        id: 'other',
+        name: 'Другие магазины',
+        hint: 'Поиск в интернете',
+        icon: 'fas fa-magnifying-glass',
+        color: '#64748B',
+        buildUrl: (q) => `https://www.google.com/search?q=${encodeURIComponent(q + ' купить с доставкой')}`
+    }
+];
+
+let currentDeliverySearchQuery = '';
+
+function openDeliverySearch(productName) {
+    if (!productName) return;
+    currentDeliverySearchQuery = productName;
+
+    const nameEl = document.getElementById('delivery-search-product-name');
+    if (nameEl) nameEl.textContent = productName;
+
+    const grid = document.getElementById('delivery-search-grid');
+    if (grid) {
+        grid.innerHTML = DELIVERY_MARKETPLACES.map(m => `
+            <div class="market-option" style="--market-color:${m.color}" onclick="goToDeliveryMarketplace('${m.id}')">
+                <div class="market-icon"><i class="${m.icon}"></i></div>
+                <span>${m.name}<small>${m.hint}</small></span>
+            </div>
+        `).join('');
+    }
+
+    showModal('delivery-search-modal');
+}
+
+function goToDeliveryMarketplace(marketId) {
+    const market = DELIVERY_MARKETPLACES.find(m => m.id === marketId);
+    if (!market || !currentDeliverySearchQuery) return;
+
+    const url = market.buildUrl(currentDeliverySearchQuery);
+
+    if (isTelegramEnv() && window.Telegram.WebApp.openLink) {
+        window.Telegram.WebApp.openLink(url);
+    } else {
+        window.open(url, '_blank');
+    }
+
+    hideModal('delivery-search-modal');
 }
 
 function toggleRecipeStatus(id, action) {
@@ -10061,6 +10138,23 @@ function fallbackCopy(text) {
             
             <button type="submit" class="btn btn-primary" data-translate="SaveButton">Сохранить</button>
         </form>
+    </div>
+</div>
+
+<div id="delivery-search-modal" class="modal" onclick="if(event.target.id === 'delivery-search-modal') hideModal('delivery-search-modal')">
+    <div class="modal-content" style="max-width: 380px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-truck-fast"></i> Заказать с доставкой</h4>
+            <span class="modal-close" onclick="hideModal('delivery-search-modal')"><i class="fas fa-times"></i></span>
+        </div>
+
+        <p class="delivery-product-label">Ищем: <b id="delivery-search-product-name">—</b></p>
+
+        <div class="market-grid" id="delivery-search-grid"></div>
+
+        <p style="font-size: 0.75em; color: var(--text-secondary); text-align: center; margin-top: 5px;">
+            Откроется поиск по этому товару на выбранной площадке
+        </p>
     </div>
 </div>
 
