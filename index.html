@@ -4240,25 +4240,21 @@ async function updateServerStatus(status) {
     // 2. Логика статусов
     let maintenanceMode = false;
     let isDevMode = false;
-    let isEcoMode = false;
 
     if (status === 'maintenance') maintenanceMode = true;
     if (status === 'dev') isDevMode = true; // Приватный режим
-    if (status === 'eco') isEcoMode = true; // Эконом
 
     try {
         await db.collection('global_settings').doc('config').set({
             serverStatus: status,
             maintenanceMode: maintenanceMode,
             devMode: isDevMode,
-            ecoMode: isEcoMode
         }, { merge: true });
         
         const labels = {
             'online': 'Штатный режим',
             'maintenance': 'Тех. Работы',
             'dev': 'Приватный режим',
-            'eco': 'Эконом режим'
         };
 
         showToast(`Статус сервера: ${labels[status]}`, "success");
