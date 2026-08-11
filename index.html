@@ -782,33 +782,39 @@
         </div>
         
     </div> </div> <div id="meal-planner-modal" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
-        <div class="modal-header">
-            <h4>📅 Меню на неделю</h4>
-            <span class="modal-close" onclick="hideModal('meal-planner-modal')">&times;</span>
+    <div class="modal-content planner-modal-content">
+        <div class="modal-header planner-modal-header">
+            <div class="planner-header-title">
+                <span class="planner-header-icon"><i class="fas fa-crown"></i></span>
+                <div>
+                    <h4>Меню на неделю</h4>
+                    <span class="planner-header-subtitle">Ваш кулинарный план, красиво и без хлопот</span>
+                </div>
+            </div>
+            <span class="modal-close" onclick="hideModal('meal-planner-modal')"><i class="fas fa-times"></i></span>
         </div>
-        
-        <div class="section-header-actions" style="margin-bottom: 15px; justify-content: center;">
-    <button id="btn-print" class="small-action-btn" onclick="printMealPlan()">
-        <i class="fas fa-print"></i> Печать
-    </button>
-    
-    <button class="small-action-btn" onclick="generateShoppingFromPlan()" style="border-color: var(--secondary); color: var(--secondary);">
-    <i class="fas fa-magic"></i> Создать список покупок
-</button>
 
-    <button class="small-action-btn" onclick="shareMealPlan('copy')">
-        <i class="fas fa-copy"></i> Копировать
+        <div class="planner-actions-bar">
+    <button id="btn-print" class="planner-action-btn" onclick="printMealPlan()">
+        <i class="fas fa-print"></i> <span>Печать</span>
     </button>
-    
-    <button class="small-action-btn" onclick="shareMealPlan('share')">
-        <i class="fas fa-share-alt"></i> Поделиться
+
+    <button class="planner-action-btn planner-action-btn--accent" onclick="generateShoppingFromPlan()">
+        <i class="fas fa-wand-magic-sparkles"></i> <span>Список покупок</span>
+    </button>
+
+    <button class="planner-action-btn" onclick="shareMealPlan('copy')">
+        <i class="fas fa-copy"></i> <span>Копировать</span>
+    </button>
+
+    <button class="planner-action-btn" onclick="shareMealPlan('share')">
+        <i class="fas fa-share-alt"></i> <span>Поделиться</span>
     </button>
 </div>
 
         <div class="planner-grid" id="planner-container">
             </div>
-        <button class="btn btn-primary" onclick="hideModal('meal-planner-modal')">Закрыть</button>
+        <button class="btn btn-primary planner-close-btn" onclick="hideModal('meal-planner-modal')">Закрыть</button>
     </div>
 </div>
 
@@ -915,6 +921,7 @@
             </div>
             <div class="lang-info">
                 <span class="lang-picker-name" id="lang-picker-name">Русский</span>
+                <span class="lang-picker-code" id="lang-picker-code" data-translate="NativeLanguage">Родной язык</span>
             </div>
             <div class="lang-arrow-icon">
                 <i class="fas fa-chevron-down"></i>
@@ -8159,51 +8166,64 @@ function renderPlanner() {
     const container = document.getElementById('planner-container');
     container.innerHTML = '';
     const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    
-    days.forEach(day => {
+    const todayIndex = (new Date().getDay() + 6) % 7; // 0 = Пн ... 6 = Вс
+
+    days.forEach((day, dayIndex) => {
         const col = document.createElement('div');
-        col.className = 'day-card';
-        
+        col.className = 'day-card' + (dayIndex === todayIndex ? ' day-card--today' : '');
+
+        const dayMeals = mealPlan[day] || [];
         let mealsHtml = '';
-        if(mealPlan[day]) {
-            mealPlan[day].forEach((item, index) => {
-                let displayName = '';
-                let onclickAction = '';
-                let imgHtml = '';
 
-                // Проверяем, это ID рецепта или кастомный текст
-                if (typeof item === 'object' && item.customName) {
-                    // Это просто текст
-                    displayName = item.customName;
-                    // Нет картинки и клика на детали
+        dayMeals.forEach((item, index) => {
+            let displayName = '';
+            let onclickAction = '';
+            let imgHtml = '<div class="meal-slot-icon"><i class="fas fa-utensils"></i></div>';
+
+            // Проверяем, это ID рецепта или кастомный текст
+            if (typeof item === 'object' && item.customName) {
+                // Это просто текст
+                displayName = item.customName;
+                // Нет картинки и клика на детали
+            } else {
+                // Это ID рецепта
+                const r = globalRecipes.find(x => x.id === item);
+                if (r) {
+                    displayName = r.name.ru || r.name;
+                    onclickAction = `onclick="showRecipeDetail(${r.id})"`;
+                    let src = (r.images && r.images[0]) ? r.images[0] : r.image;
+                    if(src) imgHtml = `<img src="${src}">`;
                 } else {
-                    // Это ID рецепта
-                    const r = globalRecipes.find(x => x.id === item);
-                    if (r) {
-                        displayName = r.name.ru || r.name;
-                        onclickAction = `onclick="showRecipeDetail(${r.id})"`;
-                        let src = (r.images && r.images[0]) ? r.images[0] : r.image;
-                        if(src) imgHtml = `<img src="${src}">`;
-                    } else {
-                        displayName = "Удаленный рецепт";
-                    }
+                    displayName = "Удаленный рецепт";
                 }
+            }
 
-                if (displayName) {
-                    mealsHtml += `
-                    <div class="meal-slot" ${onclickAction}>
-                        ${imgHtml}
-                        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayName}</span>
-                        <i class="fas fa-times" style="color:var(--text-secondary); font-size:0.8em; padding:5px;" onclick="event.stopPropagation(); removeFromPlan('${day}', ${index})"></i>
-                    </div>`;
-                }
-            });
+            if (displayName) {
+                mealsHtml += `
+                <div class="meal-slot" ${onclickAction}>
+                    ${imgHtml}
+                    <span class="meal-slot-name">${displayName}</span>
+                    <span class="meal-slot-remove" onclick="event.stopPropagation(); removeFromPlan('${day}', ${index})"><i class="fas fa-times"></i></span>
+                </div>`;
+            }
+        });
+
+        if (!mealsHtml) {
+            mealsHtml = `<div class="day-empty-hint">Пока пусто</div>`;
         }
-        
+
         // Кнопка добавления вызывает теперь наше модальное окно
         mealsHtml += `<button class="add-meal-btn-small" onclick="addToPlan('${day}')"><i class="fas fa-plus"></i> Добавить</button>`;
 
-        col.innerHTML = `<div class="day-title">${day}</div><div style="flex:1; width:100%">${mealsHtml}</div>`;
+        const countBadge = dayMeals.length ? `<span class="day-count-badge">${dayMeals.length}</span>` : '';
+
+        col.innerHTML = `
+            <div class="day-title-row">
+                <span class="day-title">${day}</span>
+                ${countBadge}
+            </div>
+            <div class="day-meals-wrap">${mealsHtml}</div>
+        `;
         container.appendChild(col);
     });
 }
