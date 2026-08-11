@@ -1,4 +1,5 @@
- *       3) Barcode Spider    — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
+/** 
+*       3) Barcode Spider    — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
  *       4) EAN-Search        — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
  * -----------------------------------------------------------------------
  */
