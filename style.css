@@ -3523,4 +3523,234 @@ adsgram-task {
     border-radius: 50%;
     box-shadow: 0 0 10px #ffd700;
 }
+
+/* ============================================================
+   ЯЗЫКОВОЙ ПАСПОРТ — расширение люксового пикера
+   ============================================================ */
+
+/* Лёгкий блеск, пробегающий по кнопке-триггеру при наведении */
+.lang-picker-trigger { position: relative; overflow: hidden; }
+.lang-picker-trigger::after {
+    content: "";
+    position: absolute;
+    top: 0; left: -150%;
+    width: 55%; height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255, 215, 0, 0.16), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.6s ease;
+    pointer-events: none;
+}
+.lang-picker-trigger:hover::after { left: 150%; }
+
+/* Флаг-"печать": круглый флаг в золотом кольце вместо квадратного бейджа */
+.lang-seal {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: conic-gradient(from 180deg, #ffd700, #fff3c4, #b8860b, #ffd700);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.lang-seal .lang-flag-img {
+    width: calc(100% - 4px);
+    height: calc(100% - 4px);
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #14202f;
+    display: block;
+}
+.lang-seal-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px dashed rgba(255, 215, 0, 0.45);
+    animation: langSealSpin 14s linear infinite;
+}
+@keyframes langSealSpin { to { transform: rotate(360deg); } }
+
+/* Кнопка "Ещё языки мира" в компактной панели */
+.lang-more-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 215, 0, 0.35);
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.08), transparent);
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-weight: 600;
+}
+.lang-more-btn:hover {
+    border-color: rgba(255, 215, 0, 0.7);
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.16), transparent);
+    transform: translateX(2px);
+}
+.lang-more-icon {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 215, 0, 0.12);
+    color: #ffd700;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.lang-more-text {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    text-align: left;
+    line-height: 1.25;
+}
+.lang-more-text small { font-weight: 400; color: rgba(255, 255, 255, 0.5); font-size: 11px; }
+.lang-more-btn i.fa-chevron-right { color: rgba(255, 255, 255, 0.35); font-size: 11px; }
+
+/* ---- Модалка "паспорт" с полным списком языков ---- */
+.lang-passport-content {
+    max-width: 480px;
+    width: 92%;
+    max-height: 82vh;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(160deg, #16222f 0%, #0b131e 100%);
+    border: 1px solid rgba(255, 215, 0, 0.18);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 215, 0, 0.05);
+    position: relative;
+    animation: slideUp 0.25s ease-out;
+}
+/* Едва заметная "бумажная" текстура фона */
+.lang-passport-content::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.035) 1px, transparent 0);
+    background-size: 14px 14px;
+    pointer-events: none;
+}
+
+.lang-passport-header {
+    position: relative;
+    padding: 22px 22px 16px;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+.lang-passport-eyebrow {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffd700;
+    opacity: 0.85;
+    margin-bottom: 4px;
+    font-weight: 700;
+}
+.lang-passport-title h3 {
+    margin: 0;
+    font-size: 1.3em;
+    background: linear-gradient(90deg, #ffffff, #ffd700);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.lang-search-wrap { position: relative; margin: 16px 22px 6px; flex-shrink: 0; }
+.lang-search-wrap i {
+    position: absolute; left: 14px; top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.85em;
+}
+.lang-search-input {
+    width: 100%;
+    padding: 12px 14px 12px 38px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.lang-search-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+.lang-search-input:focus { border-color: rgba(255, 215, 0, 0.55); background: rgba(255, 255, 255, 0.06); }
+
+.lang-full-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 22px 18px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+.lang-full-grid::-webkit-scrollbar { width: 5px; }
+.lang-full-grid::-webkit-scrollbar-thumb { background: rgba(255, 215, 0, 0.25); border-radius: 4px; }
+
+.lang-visa-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    animation: langCardIn 0.35s ease both;
+}
+.lang-visa-card:hover {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.06);
+    transform: translateY(-2px);
+}
+.lang-visa-flag { width: 30px; height: 22px; border-radius: 5px; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.lang-visa-flag img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lang-visa-name { font-size: 13.5px; font-weight: 600; color: #fff; line-height: 1.2; }
+.lang-visa-native { font-size: 11px; color: rgba(255, 255, 255, 0.45); }
+
+.lang-visa-card.active {
+    border-color: #ffd700;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.16), rgba(255, 215, 0, 0.02));
+}
+.lang-visa-card.active::after {
+    content: "\2713";
+    position: absolute; top: 6px; right: 8px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #ffd700;
+    color: #1a1400;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    animation: langStampPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lang-visa-card.hidden { display: none; }
+
+@keyframes langCardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes langStampPop { from { transform: scale(0) rotate(-25deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+
+.lang-passport-footnote {
+    margin: 0 22px 18px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    display: flex; gap: 8px; align-items: flex-start;
+    flex-shrink: 0;
+}
+.lang-passport-footnote i { color: #ffd700; margin-top: 1px; }
+
+@media (max-width: 380px) {
+    .lang-full-grid { grid-template-columns: 1fr; }
+}
     </style>

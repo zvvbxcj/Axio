@@ -904,156 +904,47 @@
             
             <div class="settings-row luxury-lang-row">
     <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
-    
-    <!-- Премиальный выбор языка -->
+
+    <!-- Языковой "паспорт" -->
     <div class="lang-picker-luxury" id="lang-picker">
-        <!-- Главная кнопка-триггер -->
+        <!-- Кнопка-триггер в виде восковой печати -->
         <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
-            <div class="lang-flag-wrapper">
-                <img src="https://flagcdn.com/w40/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img">
+            <div class="lang-seal">
+                <div class="lang-seal-ring"></div>
+                <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img">
             </div>
             <div class="lang-info">
                 <span class="lang-picker-name" id="lang-picker-name">Русский</span>
-                <span class="lang-picker-code" id="lang-picker-code">RU</span>
+                <span class="lang-picker-code" id="lang-picker-code" data-translate="NativeLanguage">Родной язык</span>
             </div>
             <div class="lang-arrow-icon">
                 <i class="fas fa-chevron-down"></i>
             </div>
         </button>
 
-        <!-- Выпадающая стеклянная панель -->
+        <!-- Компактная панель: 3 быстрых языка + переход в полный список -->
         <div class="lang-picker-panel glass-panel" id="lang-picker-panel">
             <div class="lang-panel-header">
-                <span data-translate="SelectLanguageTitle">Выберите язык</span>
+                <i class="fas fa-bolt"></i> <span data-translate="QuickLanguageTitle">Быстрый выбор</span>
             </div>
-            <div class="lang-options-grid">
-                
-                <div class="lang-option active" data-lang="ru" onclick="selectLanguage('ru')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/ru.png" alt="Русский">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">Русский</span>
-                        <span class="lang-option-sub">Russian</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="en" onclick="selectLanguage('en')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/gb.png" alt="English">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">English</span>
-                        <span class="lang-option-sub">United Kingdom</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="it" onclick="selectLanguage('it')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/it.png" alt="Italiano">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">Italiano</span>
-                        <span class="lang-option-sub">Italian</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="es" onclick="selectLanguage('es')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/ar.png" alt="Español">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">Español</span>
-                        <span class="lang-option-sub">Argentina</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="de" onclick="selectLanguage('de')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/de.png" alt="Deutsch">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">Deutsch</span>
-                        <span class="lang-option-sub">German</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="zh" onclick="selectLanguage('zh')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/cn.png" alt="中文">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">中文</span>
-                        <span class="lang-option-sub">Chinese</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="ja" onclick="selectLanguage('ja')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/jp.png" alt="日本語">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">日本語</span>
-                        <span class="lang-option-sub">Japanese</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="ar" onclick="selectLanguage('ar')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/sa.png" alt="العربية">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">العربية</span>
-                        <span class="lang-option-sub">Arabic</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="hi" onclick="selectLanguage('hi')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/in.png" alt="हिन्दी">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">हिन्दी</span>
-                        <span class="lang-option-sub">Hindi</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
-                <div class="lang-option" data-lang="ko" onclick="selectLanguage('ko')">
-                    <div class="lang-flag-badge">
-                        <img src="https://flagcdn.com/w40/kr.png" alt="한국어">
-                    </div>
-                    <div class="lang-option-text">
-                        <span class="lang-option-name">한국어</span>
-                        <span class="lang-option-sub">Korean</span>
-                    </div>
-                    <div class="lang-active-glow"></div>
-                </div>
-
+            <div class="lang-options-grid" id="lang-quick-grid">
+                <!-- рендерится в JS (renderLangQuickList) -->
             </div>
+
+            <button type="button" class="lang-more-btn" onclick="openLangModal()">
+                <span class="lang-more-icon"><i class="fas fa-earth-europe"></i></span>
+                <span class="lang-more-text">
+                    <span data-translate="MoreLanguages">Ещё языки мира</span>
+                    <small id="lang-more-count">+22</small>
+                </span>
+                <i class="fas fa-chevron-right"></i>
+            </button>
         </div>
     </div>
 
     <!-- Резервный скрытый нативный селект -->
     <select id="language-select" class="lang-native-fallback" aria-hidden="true">
-        <option value="ru">Русский</option>
-        <option value="en">English</option>
-        <option value="it">Italiano</option>
-        <option value="es">Español (AR)</option>
-        <option value="de">Deutsch</option>
-        <option value="zh">中文</option>
-        <option value="ja">日本語</option>
-        <option value="ar">العربية</option>
-        <option value="hi">हिन्दी</option>
-        <option value="ko">한국어</option>
+        <!-- опции рендерятся в JS (renderLangNativeFallback), чтобы список не расходился с LANG_META -->
     </select>
 </div>
 
@@ -5428,19 +5319,38 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 
         function applyTheme(theme) { document.body.className = theme === 'light' ? 'light-theme' : ''; const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
 
+        // cc = код страны для флага (flagcdn.com), name = название на самом языке, en = название по-английски (для поиска/подписи)
         const LANG_META = {
-            ru: { flag: '🇷🇺', name: 'Русский' },
-            en: { flag: '🇬🇧', name: 'English' },
-            it: { flag: '🇮🇹', name: 'Italiano' },
-            es: { flag: '🇦🇷', name: 'Español (AR)' },
-            zh: { flag: '🇨🇳', name: '中文' },
-            de: { flag: '🇩🇪', name: 'Deutsch' },
-            ja: { flag: '🇯🇵', name: '日本語' },
-            ar: { flag: '🇸🇦', name: 'العربية' },
-            hi: { flag: '🇮🇳', name: 'हिन्दी' },
-            ko: { flag: '🇰🇷', name: '한국어' }
+            ru: { cc: 'ru', name: 'Русский',            en: 'Russian' },
+            en: { cc: 'gb', name: 'English',            en: 'English' },
+            it: { cc: 'it', name: 'Italiano',           en: 'Italian' },
+            es: { cc: 'es', name: 'Español',            en: 'Spanish' },
+            de: { cc: 'de', name: 'Deutsch',            en: 'German' },
+            fr: { cc: 'fr', name: 'Français',           en: 'French' },
+            pt: { cc: 'pt', name: 'Português',          en: 'Portuguese' },
+            zh: { cc: 'cn', name: '中文',                en: 'Chinese' },
+            ja: { cc: 'jp', name: '日本語',              en: 'Japanese' },
+            ko: { cc: 'kr', name: '한국어',              en: 'Korean' },
+            ar: { cc: 'sa', name: 'العربية',            en: 'Arabic' },
+            hi: { cc: 'in', name: 'हिन्दी',              en: 'Hindi' },
+            tr: { cc: 'tr', name: 'Türkçe',             en: 'Turkish' },
+            pl: { cc: 'pl', name: 'Polski',             en: 'Polish' },
+            nl: { cc: 'nl', name: 'Nederlands',         en: 'Dutch' },
+            uk: { cc: 'ua', name: 'Українська',         en: 'Ukrainian' },
+            vi: { cc: 'vn', name: 'Tiếng Việt',         en: 'Vietnamese' },
+            th: { cc: 'th', name: 'ไทย',                en: 'Thai' },
+            id: { cc: 'id', name: 'Bahasa Indonesia',   en: 'Indonesian' },
+            ms: { cc: 'my', name: 'Bahasa Melayu',      en: 'Malay' },
+            fa: { cc: 'ir', name: 'فارسی',              en: 'Persian' },
+            he: { cc: 'il', name: 'עברית',              en: 'Hebrew' },
+            sv: { cc: 'se', name: 'Svenska',            en: 'Swedish' },
+            el: { cc: 'gr', name: 'Ελληνικά',           en: 'Greek' },
+            cs: { cc: 'cz', name: 'Čeština',            en: 'Czech' },
+            ro: { cc: 'ro', name: 'Română',             en: 'Romanian' }
         };
-        const RTL_LANGS = ['ar'];
+        // Языки в компактной панели быстрого выбора
+        const QUICK_LANGS = ['ru', 'en', 'it'];
+        const RTL_LANGS = ['ar', 'fa', 'he'];
 
         function toggleLangPicker() {
             document.getElementById('lang-picker').classList.toggle('open');
@@ -5448,17 +5358,80 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 
         function selectLanguage(lang) {
             document.getElementById('lang-picker').classList.remove('open');
+            closeLangModal();
             setLanguage(lang);
             saveData(false);
+        }
+
+        // --- Рендер компактного списка (3 быстрых языка) ---
+        function renderLangQuickList() {
+            const grid = document.getElementById('lang-quick-grid');
+            if (!grid) return;
+            grid.innerHTML = QUICK_LANGS.map(code => {
+                const m = LANG_META[code];
+                return `
+                <div class="lang-option" data-lang="${code}" onclick="selectLanguage('${code}')">
+                    <div class="lang-flag-badge"><img src="https://flagcdn.com/w40/${m.cc}.png" alt="${m.name}"></div>
+                    <div class="lang-option-text">
+                        <span class="lang-option-name">${m.name}</span>
+                        <span class="lang-option-sub">${m.en}</span>
+                    </div>
+                    <div class="lang-active-glow"></div>
+                </div>`;
+            }).join('');
+            const countEl = document.getElementById('lang-more-count');
+            if (countEl) countEl.textContent = '+' + (Object.keys(LANG_META).length - QUICK_LANGS.length);
+        }
+
+        // --- Рендер полной "паспортной" сетки языков (модалка) ---
+        function renderLangFullGrid(filter) {
+            const grid = document.getElementById('lang-full-grid');
+            if (!grid) return;
+            const q = (filter || '').trim().toLowerCase();
+            const codes = Object.keys(LANG_META);
+            grid.innerHTML = codes.map((code, i) => {
+                const m = LANG_META[code];
+                const matches = !q || m.name.toLowerCase().includes(q) || m.en.toLowerCase().includes(q) || code.includes(q);
+                return `
+                <div class="lang-visa-card ${code === currentLang ? 'active' : ''} ${matches ? '' : 'hidden'}"
+                     data-lang="${code}" style="animation-delay:${i * 18}ms" onclick="selectLanguage('${code}')">
+                    <div class="lang-visa-flag"><img src="https://flagcdn.com/w40/${m.cc}.png" alt="${m.name}"></div>
+                    <div>
+                        <div class="lang-visa-name">${m.name}</div>
+                        <div class="lang-visa-native">${m.en}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function filterLangModal(value) { renderLangFullGrid(value); }
+
+        function openLangModal() {
+            document.getElementById('lang-picker').classList.remove('open');
+            renderLangFullGrid();
+            showModal('lang-modal-full');
+            const input = document.getElementById('lang-search-input');
+            if (input) { input.value = ''; setTimeout(() => input.focus(), 150); }
+        }
+
+        function closeLangModal() { hideModal('lang-modal-full'); }
+
+        // --- Резервный нативный select (для доступности / автозаполнения форм) ---
+        function renderLangNativeFallback() {
+            const sel = document.getElementById('language-select');
+            if (!sel) return;
+            sel.innerHTML = Object.keys(LANG_META).map(code =>
+                `<option value="${code}">${LANG_META[code].name}</option>`
+            ).join('');
         }
 
         function updateLangPickerUI(lang) {
             const meta = LANG_META[lang] || LANG_META.ru;
             const flagEl = document.getElementById('lang-picker-flag');
             const nameEl = document.getElementById('lang-picker-name');
-            if (flagEl) flagEl.textContent = meta.flag;
+            if (flagEl) flagEl.src = `https://flagcdn.com/w80/${meta.cc}.png`;
             if (nameEl) nameEl.textContent = meta.name;
-            document.querySelectorAll('.lang-option').forEach(opt => {
+            document.querySelectorAll('.lang-option, .lang-visa-card').forEach(opt => {
                 opt.classList.toggle('active', opt.getAttribute('data-lang') === lang);
             });
         }
@@ -5468,12 +5441,26 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             if (picker && !picker.contains(e.target)) picker.classList.remove('open');
         });
 
+        renderLangQuickList();
+        renderLangNativeFallback();
+
         function setLanguage(lang) {
-            currentLang = lang; document.documentElement.lang = lang; document.getElementById('language-select').value = lang;
+            // Защита: если для языка ещё нет полного словаря в translations.js — не роняем интерфейс,
+            // а аккуратно показываем английский (или русский, если и его нет), но флаг/название запоминаем как выбранные.
+            const hasFullTranslation = !!translations[lang];
+            const dictLang = hasFullTranslation ? lang : (translations['en'] ? 'en' : 'ru');
+            const dict = translations[dictLang] || {};
+
+            currentLang = lang;
+            document.documentElement.lang = lang;
+            document.getElementById('language-select').value = lang;
             document.documentElement.dir = RTL_LANGS.includes(lang) ? 'rtl' : 'ltr';
             updateLangPickerUI(lang);
-            document.querySelectorAll('[data-translate]').forEach(el => { const key = el.getAttribute('data-translate'); const translation = translations[currentLang][key]; if (typeof translation === 'string') { el.textContent = translation; } });
-            document.querySelectorAll('[data-translate-placeholder]').forEach(el => { const key = el.getAttribute('data-translate-placeholder'); const translation = translations[currentLang][key]; if (typeof translation === 'string') { el.placeholder = translation; } });
+            document.querySelectorAll('[data-translate]').forEach(el => { const key = el.getAttribute('data-translate'); const translation = dict[key]; if (typeof translation === 'string') { el.textContent = translation; } });
+            document.querySelectorAll('[data-translate-placeholder]').forEach(el => { const key = el.getAttribute('data-translate-placeholder'); const translation = dict[key]; if (typeof translation === 'string') { el.placeholder = translation; } });
+            if (!hasFullTranslation && typeof showToast === 'function') {
+                showToast('Перевод для этого языка ещё дорабатывается — часть интерфейса на английском', 'info');
+            }
             updateHeader(); updateInventoryList(); updateRecipesList(); updateShoppingList(); updateAchievementsList();
         }
 
@@ -9914,6 +9901,35 @@ function fallbackCopy(text) {
     </div>
 </div>
 
+<!-- Полный список языков в виде разворота "паспорта" -->
+<div id="lang-modal-full" class="modal lang-passport-modal" onclick="if(event.target.id === 'lang-modal-full') closeLangModal()">
+    <div class="modal-content lang-passport-content">
+        <div class="lang-passport-header">
+            <div class="lang-passport-title">
+                <span class="lang-passport-eyebrow" data-translate="WorldLanguagesEyebrow">Кулинарный паспорт</span>
+                <h3 data-translate="WorldLanguagesTitle">Выберите язык</h3>
+            </div>
+            <span class="modal-close" onclick="closeLangModal()"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div class="lang-search-wrap">
+            <i class="fas fa-search"></i>
+            <input type="text" id="lang-search-input" class="lang-search-input styled-input"
+                   placeholder="Найти язык..." data-translate-placeholder="SearchLanguagePlaceholder"
+                   oninput="filterLangModal(this.value)">
+        </div>
+
+        <div class="lang-full-grid" id="lang-full-grid">
+            <!-- рендерится в JS (renderLangFullGrid) -->
+        </div>
+
+        <p class="lang-passport-footnote">
+            <i class="fas fa-stamp"></i>
+            <span data-translate="LanguageFootnote">Интерфейс переведён не для всех языков полностью — там, где перевода пока нет, покажем английский.</span>
+        </p>
+    </div>
+</div>
+
 <div id="ut-flying" style="position: fixed; right: 0; bottom: 90px; z-index: 99; pointer-events: none;"></div>
 
 <div id="expiry-filter-modal" class="modal" onclick="if(event.target.id === 'expiry-filter-modal') hideModal('expiry-filter-modal')">
@@ -9935,7 +9951,9 @@ function fallbackCopy(text) {
     </div>
 </div>
 
+<script>
  document.addEventListener('DOMContentLoaded', loadAdsgram);
+</script>
 
 </body>
 </html>
