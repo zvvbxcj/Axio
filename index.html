@@ -35,6 +35,7 @@
     <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     
 <script>
     window.isTelegramEnv = function() {
@@ -3210,7 +3211,15 @@ function calculateAndRenderStats(period) {
     const variety = cookedItems.length ? Math.round((uniqueRecipes / cookedItems.length) * 100) : 0;
     document.getElementById('st-variety').textContent = variety + '%';
 
-    // 9. Отрисовка графика
+    // 9. Спасённый CO₂ (углеродный след)
+    const co2Saved = estimateCO2Saved(cookedItems.length);
+    document.getElementById('st-co2-saved').textContent = formatCO2(co2Saved);
+    const co2Km = Math.round(co2Saved / CO2_KG_PER_CAR_KM);
+    document.getElementById('st-co2-hint').textContent = co2Km > 0
+        ? `≈ ${co2Km} км на авто 🚗`
+        : '';
+
+    // 10. Отрисовка графика
     renderEfficiencyChart(cookedItems.length, wastedItems.length);
 }
 
@@ -3270,6 +3279,151 @@ const valEl = document.getElementById('eco-score-val');
             plugins: { legend: { display: false }, tooltip: { enabled: total > 0 } }
         }
     });
+}
+
+// --- РАСЧЁТ СПАСЁННОГО CO₂ (углеродного следа) ---
+// Логика оценки (приблизительная, но прозрачная):
+// 1 приготовленное блюдо в среднем "спасает" от выброса ~0.9 кг продуктов.
+// Разложение пищевых отходов на свалке даёт в среднем ~2.5 кг CO2-эквивалента на 1 кг еды
+// (метан от гниения + затраты на производство/логистику, которые "сгорают впустую").
+// Итого: ~0.9 кг продуктов * 2.5 кг CO2e/кг ≈ 2.3 кг CO2e на одно приготовленное блюдо.
+const CO2_KG_PER_COOKED_DISH = 2.3;
+// Для сравнения: среднестатистический автомобиль выбрасывает ~0.12 кг CO2 на 1 км пробега.
+const CO2_KG_PER_CAR_KM = 0.12;
+
+function estimateCO2Saved(cookedCount) {
+    const kg = (cookedCount || 0) * CO2_KG_PER_COOKED_DISH;
+    return Math.round(kg * 10) / 10; // округляем до 0.1 кг
+}
+
+function formatCO2(kg) {
+    if (kg >= 1000) return (kg / 1000).toFixed(1) + ' т';
+    return kg.toFixed(1).replace(/\.0$/, '') + ' кг';
+}
+
+function getPeriodLabel(period) {
+    if (period === 'week') return 'За неделю';
+    if (period === 'month') return 'За месяц';
+    return 'За всё время';
+}
+
+// --- Премиальная карточка со статистикой (для шеринга) ---
+function openStatsShareCard() {
+    if (!userHistory) userHistory = [];
+
+    const now = new Date();
+    const period = currentStatsPeriod || 'week';
+
+    let filteredHistory = userHistory.filter(item => {
+        if (!item.date) return false;
+        const itemDate = new Date(item.date);
+        if (period === 'all') return true;
+        if (period === 'month') {
+            const oneMonthAgo = new Date();
+            oneMonthAgo.setMonth(now.getMonth() - 1);
+            return itemDate >= oneMonthAgo;
+        }
+        if (period === 'week') {
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(now.getDate() - 7);
+            return itemDate >= oneWeekAgo;
+        }
+        return true;
+    });
+
+    const cookedItems = filteredHistory.filter(i => i.type === 'cook');
+    const wastedItems = filteredHistory.filter(i => i.type === 'waste');
+    const total = cookedItems.length + wastedItems.length;
+
+    let ecoScore = 'A+', ecoColor = '#10B981';
+    if (total > 0) {
+        const wasteRatio = wastedItems.length / total;
+        if (wasteRatio > 0.5) { ecoScore = 'D'; ecoColor = '#EF4444'; }
+        else if (wasteRatio > 0.3) { ecoScore = 'C'; ecoColor = '#F59E0B'; }
+        else if (wasteRatio > 0.1) { ecoScore = 'B'; ecoColor = '#3B82F6'; }
+    } else {
+        ecoScore = '-'; ecoColor = '#94A3B8';
+    }
+
+    const co2Saved = estimateCO2Saved(cookedItems.length);
+    const co2Km = Math.round(co2Saved / CO2_KG_PER_CAR_KM);
+
+    // Заполняем карточку
+    document.getElementById('sc-period').textContent = getPeriodLabel(period);
+    document.getElementById('sc-username').textContent = (currentUser && currentUser.name) ? currentUser.name : 'Шеф';
+    document.getElementById('sc-avatar').src = (currentUser && currentUser.avatar) ? currentUser.avatar : (typeof avatarCollection !== 'undefined' ? avatarCollection[0] : '');
+    document.getElementById('sc-eco-val').textContent = ecoScore;
+
+    const ring = document.getElementById('sc-eco-ring');
+    if (ring) ring.style.setProperty('--eco-color', ecoColor);
+
+    document.getElementById('sc-cooked').textContent = cookedItems.length;
+    document.getElementById('sc-wasted').textContent = wastedItems.length;
+    document.getElementById('sc-co2').textContent = formatCO2(co2Saved);
+    document.getElementById('sc-co2-fact').textContent = (co2Km > 0 ? co2Km : 0) + ' км';
+
+    showModal('stats-share-modal');
+}
+
+// Рендерим карточку в canvas через html2canvas
+async function renderStatsCardCanvas() {
+    const card = document.getElementById('stats-share-card');
+    if (!card || typeof html2canvas === 'undefined') return null;
+    return await html2canvas(card, {
+        backgroundColor: null,
+        scale: 3,
+        useCORS: true
+    });
+}
+
+async function downloadStatsCard() {
+    try {
+        const canvas = await renderStatsCardCanvas();
+        if (!canvas) return showToast('Не удалось создать изображение', 'error');
+        const link = document.createElement('a');
+        link.download = `axio-stats-${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    } catch (e) {
+        console.error('Ошибка экспорта карточки:', e);
+        showToast('Не удалось создать изображение', 'error');
+    }
+}
+
+async function shareStatsCardImage() {
+    try {
+        const canvas = await renderStatsCardCanvas();
+        if (!canvas) return showToast('Не удалось создать изображение', 'error');
+
+        canvas.toBlob(async (blob) => {
+            if (!blob) return showToast('Не удалось создать изображение', 'error');
+            const file = new File([blob], 'axio-stats.png', { type: 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Моя статистика в Axio',
+                        text: 'Смотри, сколько еды и CO₂ я спас с Axio 🌱'
+                    });
+                    return;
+                } catch (shareErr) {
+                    // Пользователь отменил шеринг — просто выходим
+                    if (shareErr && shareErr.name === 'AbortError') return;
+                }
+            }
+
+            // Фоллбэк: скачиваем файл и уведомляем пользователя
+            const link = document.createElement('a');
+            link.download = `axio-stats-${Date.now()}.png`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            showToast('Изображение сохранено! Прикрепите его вручную.', 'info');
+        }, 'image/png');
+    } catch (e) {
+        console.error('Ошибка шеринга карточки:', e);
+        showToast('Не удалось поделиться изображением', 'error');
+    }
 }
 
 function isExpired(dateString) {
@@ -10057,7 +10211,100 @@ async function runTest(type) {
                     <small>Разнообразие меню</small>
                     <div class="stat-big-text" id="st-variety">0%</div>
                 </div>
+
+                <div class="stat-box highlight-co2" style="grid-column: span 2;">
+                    <div class="stat-icon"><i class="fas fa-leaf"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-label" data-translate="StatCO2Saved">Спасено CO₂ (углеродный след)</span>
+                        <span class="stat-value" id="st-co2-saved">0 кг</span>
+                    </div>
+                    <span class="stat-co2-hint" id="st-co2-hint"></span>
+                </div>
             </div>
+
+            <button class="stats-share-trigger-btn" onclick="openStatsShareCard()">
+                <i class="fas fa-share-alt"></i>
+                <span data-translate="ShareStatsButton">Поделиться статистикой</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="stats-share-modal" class="modal" onclick="if(event.target.id === 'stats-share-modal') hideModal('stats-share-modal')">
+    <div class="modal-content share-card-modal-content">
+        <div class="modal-header">
+            <h4><i class="fas fa-wand-magic-sparkles"></i> <span data-translate="ShareCardTitle">Ваша карточка</span></h4>
+            <span class="modal-close" onclick="hideModal('stats-share-modal')"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div class="share-card-stage">
+            <div id="stats-share-card" class="share-card">
+                <div class="share-card-glow g1"></div>
+                <div class="share-card-glow g2"></div>
+                <div class="share-card-glow g3"></div>
+                <div class="share-card-noise"></div>
+
+                <div class="share-card-top">
+                    <div class="share-card-brand">
+                        <span class="share-card-brand-icon"><i class="fas fa-leaf"></i></span>
+                        <span class="share-card-brand-name">Axio</span>
+                    </div>
+                    <div class="share-card-period" id="sc-period">Неделя</div>
+                </div>
+
+                <div class="share-card-user">
+                    <img id="sc-avatar" class="share-card-avatar" src="" alt="">
+                    <div class="share-card-user-info">
+                        <div class="share-card-user-name" id="sc-username">Шеф</div>
+                        <div class="share-card-user-sub" data-translate="ShareCardSubtitle">мой кулинарный отчёт</div>
+                    </div>
+                </div>
+
+                <div class="share-card-eco-wrap">
+                    <div class="share-card-eco-ring" id="sc-eco-ring">
+                        <div class="share-card-eco-inner">
+                            <span class="share-card-eco-val" id="sc-eco-val">A+</span>
+                            <span class="share-card-eco-label" data-translate="EcoRatingLabel">эко-рейтинг</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="share-card-metrics">
+                    <div class="share-card-metric">
+                        <i class="fas fa-utensils"></i>
+                        <span class="share-card-metric-val" id="sc-cooked">0</span>
+                        <span class="share-card-metric-label" data-translate="StatCooked">приготовлено</span>
+                    </div>
+                    <div class="share-card-metric">
+                        <i class="fas fa-trash-alt"></i>
+                        <span class="share-card-metric-val" id="sc-wasted">0</span>
+                        <span class="share-card-metric-label" data-translate="StatWasted">выброшено</span>
+                    </div>
+                    <div class="share-card-metric metric-co2">
+                        <i class="fas fa-earth-europe"></i>
+                        <span class="share-card-metric-val" id="sc-co2">0 кг</span>
+                        <span class="share-card-metric-label" data-translate="StatCO2Short">CO₂ спасено</span>
+                    </div>
+                    <div class="share-card-metric">
+                        <i class="fas fa-car-side"></i>
+                        <span class="share-card-metric-val" id="sc-co2-fact">0 км</span>
+                        <span class="share-card-metric-label" data-translate="StatCO2Compare">эквивалент авто</span>
+                    </div>
+                </div>
+
+                <div class="share-card-footer">
+                    <span data-translate="ShareCardFooter">Сокращаю пищевые отходы вместе с</span> <b>Axio</b>
+                </div>
+            </div>
+        </div>
+
+        <div class="share-card-actions">
+            <button class="btn btn-secondary share-card-action-btn" onclick="downloadStatsCard()">
+                <i class="fas fa-download"></i> <span data-translate="DownloadButton">Скачать</span>
+            </button>
+            <button class="btn btn-primary share-card-action-btn" onclick="shareStatsCardImage()">
+                <i class="fas fa-paper-plane"></i> <span data-translate="ShareButton">Поделиться</span>
+            </button>
         </div>
     </div>
 </div>
