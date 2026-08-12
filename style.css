@@ -39,6 +39,36 @@
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
+/* =========================================================
+   Премиальный скроллбар (глобально, для всего сайта)
+   Тонкий, скруглённый, под цвет темы (тёмная/светлая)
+   ========================================================= */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-lighter) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+    background-color: var(--surface-lighter);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s ease;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary);
+}
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
         body, html { height: 100%; background-color: var(--background); color: var(--text-primary); transition: background-color 0.4s ease, color 0.4s ease; }
 
         #app-container {
@@ -386,10 +416,17 @@
     padding-bottom: 10px;
     margin-bottom: 15px;
     scroll-behavior: smooth;
-    /* Скрываем скроллбар */
-    scrollbar-width: none; 
+    /* Тонкий премиальный скроллбар */
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-lighter) transparent;
 }
-.recipe-gallery::-webkit-scrollbar { display: none; }
+.recipe-gallery::-webkit-scrollbar { height: 4px; }
+.recipe-gallery::-webkit-scrollbar-track { background: transparent; }
+.recipe-gallery::-webkit-scrollbar-thumb {
+    background-color: var(--surface-lighter);
+    border-radius: 10px;
+}
+.recipe-gallery::-webkit-scrollbar-thumb:hover { background-color: var(--primary); }
 
 .gallery-img {
     width: 200px; /* Ширина картинки в карусели */
@@ -1431,11 +1468,17 @@ adsgram-task {
     overflow-x: auto;
     gap: 10px;
     padding-bottom: 5px;
-    /* Скрываем скроллбар */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    /* Тонкий премиальный скроллбар */
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-lighter) transparent;
 }
-#ach-filters::-webkit-scrollbar { display: none; }
+#ach-filters::-webkit-scrollbar { height: 4px; }
+#ach-filters::-webkit-scrollbar-track { background: transparent; }
+#ach-filters::-webkit-scrollbar-thumb {
+    background-color: var(--surface-lighter);
+    border-radius: 10px;
+}
+#ach-filters::-webkit-scrollbar-thumb:hover { background-color: var(--primary); }
 
 #ach-filters .filter-btn {
     flex-shrink: 0; /* Чтобы кнопки не сжимались */
@@ -2993,9 +3036,16 @@ adsgram-task {
         /* Horizontal Scroll Category Slider */
         .category-slider {
             display: flex; overflow-x: auto; gap: 10px; padding-bottom: 10px; margin-bottom: 15px;
-            scrollbar-width: none; /* Firefox */
+            scrollbar-width: thin;
+            scrollbar-color: var(--surface-lighter) transparent;
         }
-        .category-slider::-webkit-scrollbar { display: none; }
+        .category-slider::-webkit-scrollbar { height: 4px; }
+        .category-slider::-webkit-scrollbar-track { background: transparent; }
+        .category-slider::-webkit-scrollbar-thumb {
+            background-color: var(--surface-lighter);
+            border-radius: 10px;
+        }
+        .category-slider::-webkit-scrollbar-thumb:hover { background-color: var(--primary); }
         
         .cat-btn {
             flex-shrink: 0; padding: 8px 16px; border-radius: 20px; font-size: 0.85em; font-weight: 600;
@@ -3668,11 +3718,24 @@ adsgram-task {
     gap: 10px;
     padding-bottom: 10px;
     margin-bottom: 15px;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-lighter) transparent;
 }
-#inventory-filters::-webkit-scrollbar, 
-#shopping-filters::-webkit-scrollbar, 
-#ach-filters::-webkit-scrollbar { display: none; }
+#inventory-filters::-webkit-scrollbar,
+#shopping-filters::-webkit-scrollbar,
+#ach-filters::-webkit-scrollbar { height: 4px; }
+#inventory-filters::-webkit-scrollbar-track,
+#shopping-filters::-webkit-scrollbar-track,
+#ach-filters::-webkit-scrollbar-track { background: transparent; }
+#inventory-filters::-webkit-scrollbar-thumb,
+#shopping-filters::-webkit-scrollbar-thumb,
+#ach-filters::-webkit-scrollbar-thumb {
+    background-color: var(--surface-lighter);
+    border-radius: 10px;
+}
+#inventory-filters::-webkit-scrollbar-thumb:hover,
+#shopping-filters::-webkit-scrollbar-thumb:hover,
+#ach-filters::-webkit-scrollbar-thumb:hover { background-color: var(--primary); }
 
 /* Styles for Meal Selector Modal */
 .meal-select-item {
@@ -4943,9 +5006,16 @@ adsgram-task {
     overflow-x: auto;
     padding-bottom: 4px;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-lighter) transparent;
 }
-.shelf-row::-webkit-scrollbar { display: none; }
+.shelf-row::-webkit-scrollbar { height: 4px; }
+.shelf-row::-webkit-scrollbar-track { background: transparent; }
+.shelf-row::-webkit-scrollbar-thumb {
+    background-color: var(--surface-lighter);
+    border-radius: 10px;
+}
+.shelf-row::-webkit-scrollbar-thumb:hover { background-color: var(--primary); }
 
 .fridge-capsule {
     flex: 0 0 auto;
