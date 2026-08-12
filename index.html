@@ -351,8 +351,26 @@
                         </select>
                     </div>
 
-                    <div id="inventory-list">
+                    <div class="fridge-wrap" id="fridge-wrap-el">
+                        <div class="fridge-unit">
+                            <div class="fridge-interior">
+                                <div class="fridge-close-btn" onclick="toggleFridgeDoor()"><i class="fas fa-times"></i></div>
+                                <div class="fridge-interior-scroll" id="inventory-list"></div>
+                            </div>
+                            <div class="fridge-door" id="fridge-door" onclick="toggleFridgeDoor()">
+                                <div class="fridge-door-face">
+                                    <div class="fridge-brand"><i class="fas fa-snowflake"></i> AXIO</div>
+                                    <div class="fridge-door-alert" id="fridge-door-alert" style="display:none;"></div>
+                                    <div class="fridge-door-summary">
+                                        <div class="fridge-door-count" id="fridge-door-count">0</div>
+                                        <div class="fridge-door-label" data-translate="ProductsCount">Продуктов</div>
+                                    </div>
+                                    <div class="fridge-door-hint"><i class="fas fa-hand-pointer"></i> <span data-translate="FridgeOpenHint">Нажмите, чтобы открыть</span></div>
+                                </div>
+                                <div class="fridge-handle"></div>
+                            </div>
                         </div>
+                    </div>
 
                     <div id="inventory-empty" style="text-align: center; margin-top: 50px; display: none;">
                         <i class="fas fa-box-open" style="font-size: 3em; color: var(--text-secondary); opacity: 0.5; margin-bottom: 10px;"></i>
@@ -361,6 +379,29 @@
                     </div>
 
                 </section>
+
+                <div id="product-detail-modal" class="modal" onclick="if(event.target.id === 'product-detail-modal') hideModal('product-detail-modal')">
+                    <div class="modal-content product-detail-content">
+                        <span class="modal-close product-detail-close" onclick="hideModal('product-detail-modal')"><i class="fas fa-times"></i></span>
+
+                        <div class="pd-visual" id="pd-visual"></div>
+
+                        <div class="pd-category" id="pd-category"></div>
+                        <h3 class="pd-name" id="pd-name">Продукт</h3>
+
+                        <div class="pd-expiry" id="pd-expiry" onclick="pdEditExpiry()">
+                            <span id="pd-expiry-text"></span> <i class="fas fa-pencil-alt"></i>
+                        </div>
+
+                        <div class="pd-qty-row">
+                            <button class="pd-qty-btn" onclick="pdUse()" title="Использовать"><i class="fas fa-minus"></i></button>
+                            <div class="pd-qty-val" id="pd-qty-val">0 шт</div>
+                            <button class="pd-qty-btn" onclick="pdAddToShopping()" title="В список покупок"><i class="fas fa-cart-plus"></i></button>
+                        </div>
+
+                        <button class="btn btn-secondary pd-waste-btn" onclick="pdWaste()"><i class="fas fa-trash"></i> Выбросить</button>
+                    </div>
+                </div>
 
                 <section id="recipes-section" class="section">
     <h3><i class="fas fa-book"></i> <span data-translate="RecipesHeader">Рецепты</span></h3>
@@ -2838,6 +2879,10 @@ function saveNewExpiry() {
             updateInventoryList();
             hideModal('edit-expiry-modal');
             showToast("Срок годности обновлен!", "success");
+            // Если карточка товара открыта поверх - обновим и её данные
+            if (currentDetailProductId === editingProductId && document.getElementById('product-detail-modal').style.display === 'flex') {
+                openProductDetail(editingProductId);
+            }
         }
     }
 }
@@ -3094,6 +3139,14 @@ function applyExpiryFilter() {
     showToast(`Показаны продукты со сроком < ${customExpiryDays} дн.`, "info");
 }
 
+        // Порядок полок в холодильнике
+        const FRIDGE_SHELF_ORDER = ['Dairy', 'Meat', 'Seafood', 'Vegetables', 'Fruits', 'Bakery', 'Cereals', 'Condiments', 'Other'];
+
+        function toggleFridgeDoor() {
+            const door = document.getElementById('fridge-door');
+            if (door) door.classList.toggle('open');
+        }
+
         function updateInventoryList() {
     const list = document.getElementById('inventory-list');
     if (!list) return;
@@ -3130,45 +3183,157 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
         return daysA - daysB; 
     });
 
+    // Пустой холодильник целиком (нет продуктов вообще)
     const emptyState = document.getElementById('inventory-empty');
-    if (emptyState) emptyState.style.display = items.length === 0 ? 'block' : 'none';
-    
-    items.forEach((p, index) => {
-        const days = getDaysUntilExpiry(p.expiryDate);
-        const dynamicColor = getExpiryColor(days); 
-        const statusText = getExpiryStatus(p.expiryDate); 
-        const categoryIcon = getCategoryIcon(p.category);
-        const decayStage = getDecayStage(days);
-        const imgHtml = p.image 
-            ? `<div class="decay-visual decay-${decayStage}"><img src="${p.image}" class="inventory-img"></div>`
-            : `<div class="decay-visual decay-${decayStage}"><div class="item-icon" style="color: ${categoryIcon.color};">${categoryIcon.icon}</div></div>`;
+    const fridgeWrapEl = document.getElementById('fridge-wrap-el');
+    const totallyEmpty = userInventory.length === 0;
+    if (emptyState) emptyState.style.display = totallyEmpty ? 'block' : 'none';
+    if (fridgeWrapEl) fridgeWrapEl.style.display = totallyEmpty ? 'none' : 'block';
 
-        // Рендер карточки товара
+    // Счетчик и бейдж-предупреждение на дверце (считаем по всему инвентарю, не по фильтру)
+    const doorCount = document.getElementById('fridge-door-count');
+    if (doorCount) doorCount.textContent = userInventory.length;
+
+    const doorAlert = document.getElementById('fridge-door-alert');
+    if (doorAlert) {
+        const criticalCount = userInventory.filter(p => isExpired(p.expiryDate)).length;
+        const warningCount = userInventory.filter(p => isExpiringSoon(p.expiryDate) && !isExpired(p.expiryDate)).length;
+        if (criticalCount > 0) {
+            doorAlert.style.display = 'flex';
+            doorAlert.style.background = 'var(--error)';
+            doorAlert.innerHTML = `<i class="fas fa-skull"></i> ${criticalCount}`;
+        } else if (warningCount > 0) {
+            doorAlert.style.display = 'flex';
+            doorAlert.style.background = 'var(--warning)';
+            doorAlert.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${warningCount}`;
+        } else {
+            doorAlert.style.display = 'none';
+        }
+    }
+
+    if (totallyEmpty) return;
+
+    if (items.length === 0) {
+        list.innerHTML = `<div class="fridge-shelf-empty"><i class="fas fa-box-open"></i><p data-translate="InventoryFilterEmptyText">Ничего не найдено по этому фильтру</p></div>`;
+        return;
+    }
+
+    // Группируем отфильтрованные товары по полкам (категориям)
+    const grouped = {};
+    items.forEach(p => {
+        const cat = FRIDGE_SHELF_ORDER.includes(p.category) ? p.category : 'Other';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(p);
+    });
+
+    let renderedShelves = 0;
+    FRIDGE_SHELF_ORDER.forEach(cat => {
+        const catItems = grouped[cat];
+        if (!catItems || catItems.length === 0) return;
+
+        const catIcon = getCategoryIcon(cat);
+        const catName = (translations[currentLang] && translations[currentLang]['Category' + cat + 'Full']) || cat;
+
+        let capsulesHtml = '';
+        catItems.forEach(p => {
+            const days = getDaysUntilExpiry(p.expiryDate);
+            const dynamicColor = getExpiryColor(days);
+            const decayStage = getDecayStage(days);
+            const visualHtml = p.image
+                ? `<img src="${p.image}" class="capsule-img">`
+                : `<div class="capsule-emoji">${catIcon.icon}</div>`;
+
+            capsulesHtml += `
+                <div class="fridge-capsule decay-${decayStage}" style="--ring-color: ${dynamicColor};" onclick="openProductDetail(${p.id})">
+                    <div class="capsule-visual">${visualHtml}</div>
+                    <div class="capsule-qty">${p.qty}${p.unit}</div>
+                    <div class="capsule-name">${p.name}</div>
+                </div>`;
+        });
+
         list.innerHTML += `
-            <div class="inventory-item" style="border-left: 5px solid ${dynamicColor};">
-                ${imgHtml}
-                <div class="item-details">
-                    <div class="item-name">${p.name}</div>
-                    <div class="item-meta" onclick="openExpiryEdit(${p.id})" style="color: ${dynamicColor}; font-weight: 700; cursor: pointer;">
-                        <span>${statusText}</span> <i class="fas fa-pencil-alt"></i>
-                    </div>
+            <div class="fridge-shelf">
+                <div class="shelf-header">
+                    <span class="shelf-icon" style="color:${catIcon.color}">${catIcon.icon}</span>
+                    <span class="shelf-name">${catName}</span>
+                    <span class="shelf-count">${catItems.length}</span>
                 </div>
-                <div class="item-actions">
-                    <div class="qty-controls">
-                        <button class="qty-btn" onclick="event.stopPropagation(); useProduct(${p.id}, 1)">-</button>
-                        <span class="qty-val">${p.qty} ${p.unit}</span>
-                        <button class="qty-btn" onclick="event.stopPropagation(); addShoppingItem('${p.name}', 1, '${p.unit}')"><i class="fas fa-cart-plus"></i></button>
-                    </div>
-                    <button class="trash" onclick="event.stopPropagation(); wasteProduct(${p.id})"><i class="fas fa-trash"></i></button>
-                </div>
+                <div class="shelf-row">${capsulesHtml}</div>
             </div>`;
 
         // --- ЛОГИКА РЕКЛАМЫ ---
-        // 1. Adsgram: Только 1 раз после 2-го элемента (index === 1), и только в Telegram
-        if (index === 1 && isTelegramEnv()) {
-            list.innerHTML += getAdsgramRowHTML('inv', p.id);
+        // Adsgram: только 1 раз, после первой отрисованной полки, и только в Telegram
+        if (renderedShelves === 0 && isTelegramEnv()) {
+            list.innerHTML += `<div class="fridge-ad-shelf">${getAdsgramRowHTML('inv', 'shelf')}</div>`;
         }
+        renderedShelves++;
     });
+}
+
+// --- Карточка товара (попап при клике на продукт в холодильнике) ---
+let currentDetailProductId = null;
+
+function openProductDetail(id) {
+    const product = userInventory.find(p => p.id === id);
+    if (!product) return;
+    currentDetailProductId = id;
+
+    const days = getDaysUntilExpiry(product.expiryDate);
+    const dynamicColor = getExpiryColor(days);
+    const statusText = getExpiryStatus(product.expiryDate);
+    const catIcon = getCategoryIcon(product.category);
+    const catKey = product.category || 'Other';
+    const catName = (translations[currentLang] && translations[currentLang]['Category' + catKey + 'Full']) || catKey;
+
+    const pdVisual = document.getElementById('pd-visual');
+    pdVisual.innerHTML = product.image
+        ? `<img src="${product.image}" class="pd-img">`
+        : `<div class="pd-emoji" style="color:${catIcon.color}">${catIcon.icon}</div>`;
+    pdVisual.style.setProperty('--ring-color', dynamicColor);
+
+    document.getElementById('pd-category').textContent = catName;
+    document.getElementById('pd-name').textContent = product.name;
+
+    const pdExpiryText = document.getElementById('pd-expiry-text');
+    pdExpiryText.textContent = statusText;
+    document.getElementById('pd-expiry').style.color = dynamicColor;
+
+    document.getElementById('pd-qty-val').textContent = `${product.qty} ${product.unit}`;
+
+    showModal('product-detail-modal');
+}
+
+function pdUse() {
+    if (currentDetailProductId === null) return;
+    const id = currentDetailProductId;
+    useProduct(id, 1);
+    const stillExists = userInventory.find(p => p.id === id);
+    if (!stillExists) {
+        hideModal('product-detail-modal');
+    } else {
+        openProductDetail(id);
+    }
+}
+
+function pdAddToShopping() {
+    if (currentDetailProductId === null) return;
+    const product = userInventory.find(p => p.id === currentDetailProductId);
+    if (!product) return;
+    addShoppingItem(product.name, 1, product.unit);
+}
+
+function pdWaste() {
+    if (currentDetailProductId === null) return;
+    const id = currentDetailProductId;
+    wasteProduct(id);
+    if (!userInventory.find(p => p.id === id)) {
+        hideModal('product-detail-modal');
+    }
+}
+
+function pdEditExpiry() {
+    if (currentDetailProductId === null) return;
+    openExpiryEdit(currentDetailProductId);
 }
 
 function toggleProductSuggestions() {
