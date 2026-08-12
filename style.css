@@ -17,8 +17,10 @@
             --border-color: #334155; 
             --radius: 16px;
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-            --base-font-size: clamp(14px, 1.2vw, 22px);
-            --h3-font-size: clamp(1.2em, 2vw, 2.5em);
+            --base-font-size: clamp(14px, 1vw, 17px);
+            --h3-font-size: clamp(1.2em, 2vw, 1.8em);
+            /* Максимальная ширина "экрана" приложения — как в мобильных мини-приложениях */
+            --app-max-width: 480px;
         }
 
         * { font-size: var(--base-font-size); }
@@ -69,20 +71,47 @@
     background: transparent;
 }
 
-        body, html { height: 100%; background-color: var(--background); color: var(--text-primary); transition: background-color 0.4s ease, color 0.4s ease; }
+        body, html {
+            height: 100%;
+            background-color: var(--background);
+            color: var(--text-primary);
+            transition: background-color 0.4s ease, color 0.4s ease;
+        }
+
+        /* На широких экранах — тёмная/светлая подложка вокруг приложения,
+           само приложение выглядит как аккуратная центрированная карточка */
+        body {
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+        }
+        @media (min-width: 600px) {
+            body { background-color: #05070d; }
+            .light-theme body { background-color: #cbd5e1; }
+        }
 
         #app-container {
     display: flex; 
     flex-direction: column; 
     width: 100%; 
-    /* Убираем жесткий max-width или делаем его очень большим для ТВ */
-    max-width: 100vw; 
-    height: 100vh; 
+    max-width: var(--app-max-width);
+    height: 100vh;
+    height: 100dvh;
     margin: 0 auto;
     background-color: var(--background); 
-    box-shadow: 0 0 30px rgba(0,0,0,0.2); 
+    box-shadow: 0 0 60px rgba(0,0,0,0.35); 
     overflow: hidden; 
     position: relative;
+}
+
+/* Полноэкранные заставки (загрузка / техработы / бан) — тоже держим в рамках
+   карточки приложения на больших экранах, а не растягиваем на весь монитор */
+.blocking-screen,
+#global-loader,
+#maintenance-screen {
+    left: 50% !important;
+    transform: translateX(-50%);
+    max-width: var(--app-max-width);
 }
 
 /* Стили для текстового поля импорта */
@@ -2965,13 +2994,11 @@ adsgram-task {
         /* --- Main Content --- */
         #app-content { display: none; flex-direction: column; height: 100%; }
 
-/* Ограничиваем контентную область для удобства чтения на больших экранах */
+/* Контентная область — во всю ширину карточки приложения (см. --app-max-width) */
 .main-content {
     flex-grow: 1; 
     overflow-y: auto; 
     padding: 20px; 
-    max-width: 1200px; /* Оптимальная ширина для десктопа/ТВ */
-    margin: 0 auto;
     width: 100%;
 }
         
@@ -3301,8 +3328,11 @@ adsgram-task {
 
         /* Nav Bar */
         .nav-bar {
-            position: fixed; bottom: 0; left: 0; width: 100%; background: var(--surface);
-            display: flex; justify-content: space-around; padding: 12px 0 15px; border-top: 1px solid var(--border-color); z-index: 100;
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: var(--app-max-width); background: var(--surface);
+            display: flex; justify-content: space-around;
+            padding: 12px 0 calc(15px + env(safe-area-inset-bottom, 0px));
+            border-top: 1px solid var(--border-color); z-index: 100;
             box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
         }
         .nav-tab { text-align: center; color: var(--text-secondary); flex-grow: 1; cursor: pointer; transition: 0.2s; position: relative; }
