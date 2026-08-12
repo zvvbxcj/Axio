@@ -3208,7 +3208,7 @@ function calculateAndRenderStats(period) {
     document.getElementById('st-variety').textContent = variety + '%';
 
     // 9. Спасённый CO₂ (углеродный след)
-    const co2Saved = estimateCO2Saved(cookedItems.length);
+    const co2Saved = estimateCO2Saved(cookedItems);
     document.getElementById('st-co2-saved').textContent = formatCO2(co2Saved);
     const co2Km = Math.round(co2Saved / CO2_KG_PER_CAR_KM);
     document.getElementById('st-co2-hint').textContent = co2Km > 0
@@ -3278,18 +3278,99 @@ const valEl = document.getElementById('eco-score-val');
 }
 
 // --- РАСЧЁТ СПАСЁННОГО CO₂ (углеродного следа) ---
-// Логика оценки (приблизительная, но прозрачная):
-// 1 приготовленное блюдо в среднем "спасает" от выброса ~0.9 кг продуктов.
-// Разложение пищевых отходов на свалке даёт в среднем ~2.5 кг CO2-эквивалента на 1 кг еды
-// (метан от гниения + затраты на производство/логистику, которые "сгорают впустую").
-// Итого: ~0.9 кг продуктов * 2.5 кг CO2e/кг ≈ 2.3 кг CO2e на одно приготовленное блюдо.
-const CO2_KG_PER_COOKED_DISH = 2.3;
-// Для сравнения: среднестатистический автомобиль выбрасывает ~0.12 кг CO2 на 1 км пробега.
-const CO2_KG_PER_CAR_KM = 0.12;
+// Методика: LCA (Life Cycle Assessment) — коэффициенты CO2e на 1 кг продукта по категориям.
+// Для каждого приготовленного блюда: CO2 = Σ (вес ингредиента в кг × коэффициент его категории).
+// Если по блюду нет детального разбора ингредиентов (старые записи истории до внедрения
+// этой методики), используется усреднённый резервный коэффициент CO2_KG_PER_COOKED_DISH.
 
-function estimateCO2Saved(cookedCount) {
-    const kg = (cookedCount || 0) * CO2_KG_PER_COOKED_DISH;
-    return Math.round(kg * 10) / 10; // округляем до 0.1 кг
+// 1. Справочник коэффициентов CO2e (кг CO2e на 1 кг продукта), по группам категорий
+const CO2_COEFFICIENTS = {
+    meat_red: 27.0,      // говядина, баранина, фарш говяжий
+    meat_poultry: 6.5,   // курица, индейка, свинина
+    dairy: 9.0,          // сыр, сливочное масло, творог, молоко
+    fish: 6.0,           // лосось, минтай, креветки, консервы
+    grains: 1.8,         // хлеб, макароны, рис, гречка, мука
+    veggies: 0.8,        // томаты, огурцы, картофель, яблоки, зелень
+    drinks: 1.2,         // соки, газировка, растительное молоко
+    other: 1.5           // соусы, специи, яйца, сладости
+};
+
+// 2. Сопоставление категорий продуктов приложения (product.category) с группами методики.
+// Категория "Meat" в приложении объединяет красное мясо и птицу — используем усреднённый
+// коэффициент для птицы (более консервативная/частая оценка), пока категории не разделены.
+const CATEGORY_TO_CO2_GROUP = {
+    'Dairy': 'dairy',
+    'Meat': 'meat_poultry',
+    'Vegetables': 'veggies',
+    'Fruits': 'veggies',
+    'Bakery': 'grains',
+    'Seafood': 'fish',
+    'Cereals': 'grains',
+    'Condiments': 'other',
+    'Drinks': 'drinks',
+    'Other': 'other',
+    'Gift': 'other'
+};
+
+function getCO2Coefficient(category) {
+    const group = CATEGORY_TO_CO2_GROUP[category] || 'other';
+    return CO2_COEFFICIENTS[group] || CO2_COEFFICIENTS.other;
+}
+
+// 3. Приведение количества продукта к килограммам (см. методику LCA)
+function convertToKg(amount, unit) {
+    const qty = parseFloat(amount) || 0;
+    switch ((unit || '').toLowerCase().trim()) {
+        case 'г': return qty / 1000;
+        case 'кг': return qty;
+        case 'мл': return qty / 1000;    // условно 1 л жидкости ≈ 1 кг
+        case 'л': return qty;
+        case 'шт': return qty * 0.2;     // средняя масса 1 штуки ≈ 200 г
+        case 'уп': return qty * 0.4;     // средняя масса 1 упаковки ≈ 400 г (оценочно)
+        default: return qty * 0.2;       // fallback для неизвестных единиц
+    }
+}
+
+// 4. CO2e для конкретного продукта/ингредиента (кг CO2e)
+function calcProductCO2(amount, unit, category) {
+    const kg = convertToKg(amount, unit);
+    return kg * getCO2Coefficient(category);
+}
+
+// Резервный коэффициент для записей истории без детального разбора ингредиентов
+// (расчёт: ~0.9 кг продуктов * 2.5 кг CO2e/кг ≈ 2.3 кг CO2e на одно приготовленное блюдо)
+const CO2_KG_PER_COOKED_DISH = 2.3;
+// Для сравнения: среднестатистический автомобиль выбрасывает ~0.193 кг CO2 на 1 км пробега.
+const CO2_KG_PER_CAR_KM = 0.193;
+
+// 5. Итоговый спасённый CO2 за период: суммируем по каждому приготовленному блюду
+// (если задан массив cookedItems) либо считаем по резервной формуле (если передано число —
+// для обратной совместимости со старыми вызовами).
+function estimateCO2Saved(cookedItems) {
+    if (!Array.isArray(cookedItems)) {
+        const kg = (cookedItems || 0) * CO2_KG_PER_COOKED_DISH;
+        return Math.round(kg * 10) / 10;
+    }
+    const totalKg = cookedItems.reduce((sum, item) => {
+        if (typeof item.co2 === 'number') return sum + item.co2;
+        return sum + CO2_KG_PER_COOKED_DISH; // старая запись без детального расчёта
+    }, 0);
+    return Math.round(totalKg * 10) / 10; // округляем до 0.1 кг
+}
+
+// 6. Разбивка спасённого CO2 по категориям продуктов за период (для детальной статистики)
+function getCO2Breakdown(cookedItems) {
+    const breakdown = {}; // group -> { kgCO2, weightKg }
+    (cookedItems || []).forEach(item => {
+        if (!item.ingredientsDetailed) return;
+        item.ingredientsDetailed.forEach(ing => {
+            const group = CATEGORY_TO_CO2_GROUP[ing.category] || 'other';
+            if (!breakdown[group]) breakdown[group] = { kgCO2: 0, weightKg: 0 };
+            breakdown[group].kgCO2 += ing.co2 || 0;
+            breakdown[group].weightKg += ing.weightKg || 0;
+        });
+    });
+    return breakdown;
 }
 
 function formatCO2(kg) {
@@ -3341,7 +3422,7 @@ function openStatsShareCard() {
         ecoScore = '-'; ecoColor = '#94A3B8';
     }
 
-    const co2Saved = estimateCO2Saved(cookedItems.length);
+    const co2Saved = estimateCO2Saved(cookedItems);
     const co2Km = Math.round(co2Saved / CO2_KG_PER_CAR_KM);
 
     // Заполняем карточку
@@ -3486,20 +3567,47 @@ function computeStreakDays() {
 }
 
 // --- 🌱 Спасённый CO₂: подробный расклад "это как..." ---
+
+// Подписи и иконки категорий для разбивки CO2 в детальной статистике
+const CO2_GROUP_LABELS = {
+    meat_red:     { label: 'Красное мясо', icon: 'fa-drumstick-bite' },
+    meat_poultry: { label: 'Мясо и птица', icon: 'fa-drumstick-bite' },
+    dairy:        { label: 'Молочные продукты', icon: 'fa-cheese' },
+    fish:         { label: 'Рыба и морепродукты', icon: 'fa-fish' },
+    grains:       { label: 'Крупы и выпечка', icon: 'fa-wheat-awn' },
+    veggies:      { label: 'Овощи и фрукты', icon: 'fa-carrot' },
+    drinks:       { label: 'Напитки', icon: 'fa-glass-water' },
+    other:        { label: 'Другое', icon: 'fa-boxes-stacked' }
+};
+
 function openCO2Detail() {
     const period = currentStatsPeriod || 'week';
     const { cookedItems } = getStatsPeriodData(period);
-    const co2 = estimateCO2Saved(cookedItems.length);
+    const co2 = estimateCO2Saved(cookedItems);
 
-    // Коэффициенты — приблизительные, основаны на общепринятых экологических оценках
-    const carKm = Math.round(co2 / 0.193);          // ~193 г CO2/км для среднего авто
-    const phoneCharges = Math.round(co2 * 124);       // ~8 г CO2 на одну зарядку смартфона
-    const treeMonths = (co2 / 1.81).toFixed(1);       // взрослое дерево поглощает ~21.7 кг CO2/год
-    const teaCups = Math.round(co2 * 40);             // 1 кг CO2 ≈ 40 кипячений чайника
-    const ledDays = Math.round(co2 * 10);             // 1 кг CO2 ≈ 10 суток работы LED-лампы
-    const streamHours = Math.round(co2 * 30);         // 1 кг CO2 ≈ 30 часов стриминга Full HD
-    const fridgeDays = (co2 * 2.5).toFixed(1);        // 1 кг CO2 ≈ 2.5 суток работы холодильника A++
-    const flightKm = Math.round(co2 * 6);             // 1 кг CO2 ≈ 6 км перелёта на пассажира
+    // Коэффициенты-эквиваленты — приблизительные, основаны на общепринятых экологических оценках
+    const carKm = Math.round(co2 / 0.193);            // ~193 г CO2/км для среднего бензинового авто
+    const flightKm = Math.round(co2 * 6.0);            // 1 кг CO2 ≈ 6 км перелёта на пассажира
+    const scooterKm = Math.round(co2 * 60.0);          // 1 кг CO2 ≈ 60 км на электросамокате (с учётом зарядки и производства)
+    const phoneCharges = Math.round(co2 * 124);        // 1 кг CO2 ≈ 124 зарядки смартфона
+    const teaCups = Math.round(co2 * 40);               // 1 кг CO2 ≈ 40 кипячений чайника
+    const ledDays = Math.round(co2 * 10);                // 1 кг CO2 ≈ 10 суток работы LED-лампы
+    const streamHours = Math.round(co2 * 30);            // 1 кг CO2 ≈ 30 часов стриминга Full HD
+    const fridgeDays = (co2 * 2.5).toFixed(1);           // 1 кг CO2 ≈ 2.5 суток работы холодильника A++
+    const showers = Math.round(co2 * 2);                  // 1 кг CO2 ≈ 2 приёма горячего душа
+    const treeMonths = (co2 / 1.83).toFixed(1);          // 1 взрослое дерево поглощает ~1.83 кг CO2/месяц
+    const plasticBags = Math.round(co2 * 30);             // 1 кг CO2 ≈ 30 пластиковых пакетов
+
+    // Разбивка по категориям продуктов (что именно дало наибольший вклад)
+    const breakdown = getCO2Breakdown(cookedItems);
+    const breakdownRows = Object.keys(breakdown)
+        .sort((a, b) => breakdown[b].kgCO2 - breakdown[a].kgCO2)
+        .filter(group => breakdown[group].kgCO2 > 0.01)
+        .map(group => {
+            const meta = CO2_GROUP_LABELS[group] || CO2_GROUP_LABELS.other;
+            const pct = co2 > 0 ? Math.round((breakdown[group].kgCO2 / co2) * 100) : 0;
+            return `<div class="sd-equiv-row"><i class="fas ${meta.icon}"></i> ${meta.label} <b>${formatCO2(Math.round(breakdown[group].kgCO2 * 10) / 10)}</b> <span style="opacity:.6">(${pct}%)</span></div>`;
+        }).join('');
 
     document.getElementById('sd-title').innerHTML = '🌱 Спасённый CO₂';
     document.getElementById('sd-body').innerHTML = `
@@ -3513,6 +3621,19 @@ function openCO2Detail() {
             <span>Это как не проехать <b>${carKm} км</b> на автомобиле</span>
         </div>
 
+        ${breakdownRows ? `
+        <div class="sd-section-title">📊 Из чего складывается</div>
+        <div class="sd-equiv-list">
+            ${breakdownRows}
+        </div>
+        ` : ''}
+
+        <div class="sd-section-title">🚗 Транспорт и город</div>
+        <div class="sd-equiv-list">
+            <div class="sd-equiv-row"><i class="fas fa-plane"></i> <b>${flightKm} км</b> полёта на самолёте (на 1 пассажира)</div>
+            <div class="sd-equiv-row"><i class="fas fa-person-biking"></i> <b>${scooterKm} км</b> поездки на электросамокате</div>
+        </div>
+
         <div class="sd-section-title">🏠 Бытовые и домашние</div>
         <div class="sd-equiv-list">
             <div class="sd-equiv-row"><i class="fas fa-mobile-screen"></i> Зарядить смартфон <b>${phoneCharges}</b> раз</div>
@@ -3520,19 +3641,16 @@ function openCO2Detail() {
             <div class="sd-equiv-row"><i class="fas fa-lightbulb"></i> <b>${ledDays}</b> дней непрерывной работы LED-лампочки</div>
             <div class="sd-equiv-row"><i class="fas fa-tv"></i> <b>${streamHours}</b> часов стриминга видео в Full HD</div>
             <div class="sd-equiv-row"><i class="fas fa-snowflake"></i> <b>${fridgeDays}</b> суток работы холодильника класса A++</div>
+            <div class="sd-equiv-row"><i class="fas fa-shower"></i> <b>${showers}</b> приёмов горячего душа</div>
         </div>
 
-        <div class="sd-section-title">🌳 Природа</div>
+        <div class="sd-section-title">🌳 Экология</div>
         <div class="sd-equiv-list">
             <div class="sd-equiv-row"><i class="fas fa-tree"></i> Работа <b>1 взрослого дерева</b> в течение <b>${treeMonths} мес.</b></div>
+            <div class="sd-equiv-row"><i class="fas fa-bag-shopping"></i> <b>${plasticBags}</b> не произведённых пластиковых пакетов</div>
         </div>
 
-        <div class="sd-section-title">✈️ Путешествия</div>
-        <div class="sd-equiv-list">
-            <div class="sd-equiv-row"><i class="fas fa-plane"></i> <b>${flightKm} км</b> полёта на самолёте (в пересчёте на 1 пассажира)</div>
-        </div>
-
-        <div class="sd-footnote">Расчёты приблизительные и основаны на усреднённых экологических коэффициентах.</div>
+        <div class="sd-footnote">Расчёт по методике LCA: вес каждого спасённого продукта × коэффициент CO2e его категории. Эквиваленты — приблизительные, основаны на усреднённых экологических оценках.</div>
     `;
     showModal('stat-detail-modal');
 }
@@ -4968,12 +5086,30 @@ function cookRecipe(id) {
     const recipe = recipesDB.find(r => r.id === id);
     if (!recipe) return;
 
-    // 1. Списываем ингредиенты (как и раньше)
+    // 1. Списываем ингредиенты (как и раньше) + считаем CO2 по методике LCA
     let usedIngredientsNames = [];
+    let ingredientsDetailed = [];
+    let dishCO2 = 0;
     recipe.ingredients.forEach(ing => {
         const reqName = (ing.name || '').trim().toLowerCase();
         usedIngredientsNames.push(reqName);
         const product = userInventory.find(p => p.name.trim().toLowerCase() === reqName);
+
+        // Категорию продукта берём из инвентаря (если он там есть), иначе — "Other"
+        const ingCategory = (product && product.category) || 'Other';
+        const ingUnit = ing.unit || (product && product.unit) || 'шт';
+        const ingWeightKg = convertToKg(ing.amount, ingUnit);
+        const ingCO2 = ingWeightKg * getCO2Coefficient(ingCategory);
+        dishCO2 += ingCO2;
+        ingredientsDetailed.push({
+            name: ing.name,
+            amount: ing.amount,
+            unit: ingUnit,
+            category: ingCategory,
+            weightKg: Math.round(ingWeightKg * 1000) / 1000,
+            co2: Math.round(ingCO2 * 1000) / 1000
+        });
+
         if (product) {
             product.qty -= ing.amount;
             if (product.qty <= 0.01) {
@@ -4991,7 +5127,9 @@ function cookRecipe(id) {
         category: recipe.category,
         time: parseInt(recipe.time) || 30, // парсим время (например "45 min" -> 45)
         difficulty: (recipe.difficulty.en === 'Easy') ? 1 : (recipe.difficulty.en === 'Medium' ? 2 : 3),
-        ingredients: usedIngredientsNames
+        ingredients: usedIngredientsNames,
+        ingredientsDetailed: ingredientsDetailed,
+        co2: Math.round(dishCO2 * 1000) / 1000 // кг CO2e, спасённых этим блюдом (методика LCA)
     };
     
     // Инициализируем если нет
@@ -7981,9 +8119,26 @@ function finishCooking() {
     [recipe.id]: increment 
 }, { merge: true }).catch(err => console.log("Stat update skipped (offline/perms)"));
 
+        let ingredientsDetailed = [];
+        let dishCO2 = 0;
         recipe.ingredients.forEach(ing => {
             const reqName = ing.name.trim().toLowerCase();
             const product = userInventory.find(p => p.name.trim().toLowerCase() === reqName);
+
+            const ingCategory = (product && product.category) || 'Other';
+            const ingUnit = ing.unit || (product && product.unit) || 'шт';
+            const ingWeightKg = convertToKg(ing.amount, ingUnit);
+            const ingCO2 = ingWeightKg * getCO2Coefficient(ingCategory);
+            dishCO2 += ingCO2;
+            ingredientsDetailed.push({
+                name: ing.name,
+                amount: ing.amount,
+                unit: ingUnit,
+                category: ingCategory,
+                weightKg: Math.round(ingWeightKg * 1000) / 1000,
+                co2: Math.round(ingCO2 * 1000) / 1000
+            });
+
             if (product) {
                 product.qty -= ing.amount;
                 if (product.qty <= 0.01) userInventory = userInventory.filter(p => p.id !== product.id);
@@ -8002,7 +8157,9 @@ if(localRecipe) {
                 recipeId: recipe.id,
                 recipeName: recipe.name.ru,
                 category: recipe.category,
-                ingredients: recipe.ingredients.map(i => i.name)
+                ingredients: recipe.ingredients.map(i => i.name),
+                ingredientsDetailed: ingredientsDetailed,
+                co2: Math.round(dishCO2 * 1000) / 1000
             });
         }
 
