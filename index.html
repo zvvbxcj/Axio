@@ -3207,14 +3207,6 @@ function calculateAndRenderStats(period) {
     const variety = cookedItems.length ? Math.round((uniqueRecipes / cookedItems.length) * 100) : 0;
     document.getElementById('st-variety').textContent = variety + '%';
 
-    // 9. Спасённый CO₂ (углеродный след)
-    const co2Saved = estimateCO2Saved(cookedItems);
-    document.getElementById('st-co2-saved').textContent = formatCO2(co2Saved);
-    const co2Km = Math.round(co2Saved / CO2_KG_PER_CAR_KM);
-    document.getElementById('st-co2-hint').textContent = co2Km > 0
-        ? `≈ ${co2Km} км на авто 🚗`
-        : '';
-
     // 10. Отрисовка графика
     renderEfficiencyChart(cookedItems.length, wastedItems.length);
 }
@@ -10780,7 +10772,7 @@ async function runTest(type) {
                 <div class="stat-box highlight-co2 stat-box-clickable" style="grid-column: span 2;" onclick="openCO2Detail()">
                     <div class="stat-icon"><i class="fas fa-leaf"></i></div>
                     <div class="stat-info">
-                        <span class="stat-label" data-translate="StatCO2Saved">Спасено CO₂ (углеродный след)</span>
+                        <span class="stat-label" data-translate="StatCO2Saved">Спасено CO₂</span>
                         <span class="stat-value" id="st-co2-saved">0 кг</span>
                     </div>
                     <span class="stat-co2-hint" id="st-co2-hint"></span>
