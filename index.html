@@ -3733,71 +3733,127 @@ function editShoppingItemQty(id) {
 }
 
 // --- УМНЫЕ ПОИСКОВЫЕ КАРТОЧКИ ДОСТАВКИ (DEEP SEARCH) ---
+// 4 категории: Маркетплейсы (прямой поиск по товару) / Доставка / Магазины (поиск по бренду,
+// т.к. большинство сервисов доставки в РФ требуют выбора города/адреса и не имеют публичного
+// URL для поиска по тексту) / Интернет (общий веб-поиск).
 
-const DELIVERY_MARKETPLACES = [
+function ddsGoogle(brand, q) {
+    return `https://www.google.com/search?q=${encodeURIComponent(brand + ' ' + q)}`;
+}
+
+const DELIVERY_CATEGORIES = [
     {
-        id: 'ozon',
-        name: 'Ozon',
-        hint: 'Продукты и товары',
-        icon: 'fas fa-shopping-bag',
-        color: '#005BFF',
-        buildUrl: (q) => `https://www.ozon.ru/search/?text=${encodeURIComponent(q)}&from_global=true`
+        id: 'marketplaces',
+        label: 'Маркетплейсы',
+        icon: 'fa-store',
+        items: [
+            { id: 'ozon', name: 'Ozon', mono: 'O', color: '#005BFF', hint: 'Прямой поиск', buildUrl: q => `https://www.ozon.ru/search/?text=${encodeURIComponent(q)}&from_global=true` },
+            { id: 'wb', name: 'Wildberries', mono: 'WB', color: '#CB11AB', hint: 'Прямой поиск', buildUrl: q => `https://www.wildberries.ru/catalog/0/search.aspx?search=${encodeURIComponent(q)}` },
+            { id: 'ym', name: 'Яндекс Маркет', mono: 'Я', color: '#F2A900', hint: 'Прямой поиск', buildUrl: q => `https://market.yandex.ru/search?text=${encodeURIComponent(q)}` },
+            { id: 'mm', name: 'Мегамаркет', mono: 'M', color: '#00A650', hint: 'Прямой поиск', buildUrl: q => `https://megamarket.ru/catalog/?q=${encodeURIComponent(q)}` }
+        ]
     },
     {
-        id: 'wb',
-        name: 'Wildberries',
-        hint: 'Товары с доставкой',
-        icon: 'fas fa-shopping-basket',
-        color: '#CB11AB',
-        buildUrl: (q) => `https://www.wildberries.ru/catalog/0/search.aspx?search=${encodeURIComponent(q)}`
+        id: 'delivery',
+        label: 'Доставка',
+        icon: 'fa-truck-fast',
+        items: [
+            { id: 'eda', name: 'Яндекс Еда', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны', buildUrl: q => ddsGoogle('Яндекс Еда', q) },
+            { id: 'samokat', name: 'Самокат', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => ddsGoogle('Самокат', q) },
+            { id: 'lavka', name: 'Яндекс Лавка', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => ddsGoogle('Яндекс Лавка', q) },
+            { id: 'kuper', name: 'Купер', mono: 'К', color: '#7A2FF0', hint: 'Из супермаркетов', buildUrl: q => ddsGoogle('Купер доставка', q) },
+            { id: 'delivery-club', name: 'Деливери', mono: 'D', color: '#FF6600', hint: 'Доставка еды', buildUrl: q => ddsGoogle('Деливери Delivery Club', q) }
+        ]
     },
     {
-        id: 'ym',
-        name: 'Яндекс Маркет',
-        hint: 'Магазины рядом',
-        icon: 'fas fa-store',
-        color: '#FFCC00',
-        buildUrl: (q) => `https://market.yandex.ru/search?text=${encodeURIComponent(q)}`
+        id: 'stores',
+        label: 'Магазины',
+        icon: 'fa-basket-shopping',
+        items: [
+            { id: '5ka', name: 'Пятёрочка', mono: '5', color: '#E4032E', hint: 'Сеть магазинов', buildUrl: q => ddsGoogle('Пятёрочка', q) },
+            { id: 'perekrestok', name: 'Перекрёсток', mono: 'П', color: '#00A650', hint: 'Сеть магазинов', buildUrl: q => ddsGoogle('Перекрёсток', q) },
+            { id: 'magnit', name: 'Магнит', mono: 'М', color: '#E4032B', hint: 'Сеть магазинов', buildUrl: q => ddsGoogle('Магнит магазин', q) },
+            { id: 'verniy', name: 'Верный', mono: 'В', color: '#00954C', hint: 'Сеть магазинов', buildUrl: q => ddsGoogle('Верный магазин', q) },
+            { id: 'auchan', name: 'Ашан', mono: 'A', color: '#E2001A', hint: 'Гипермаркет', buildUrl: q => ddsGoogle('Ашан', q) },
+            { id: 'lenta', name: 'Лента', mono: 'Л', color: '#D91E36', hint: 'Гипермаркет', buildUrl: q => ddsGoogle('Лента магазин', q) },
+            { id: 'globus', name: 'Глобус', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => ddsGoogle('Глобус гипермаркет', q) },
+            { id: 'spar', name: 'СПАР', mono: 'SP', color: '#00873E', hint: 'Сеть магазинов', buildUrl: q => ddsGoogle('SPAR СПАР магазин', q) },
+            { id: 'vkusvill', name: 'ВкусВилл', mono: 'VV', color: '#6FBE44', hint: 'Сеть магазинов', buildUrl: q => ddsGoogle('ВкусВилл', q) }
+        ]
     },
     {
-        id: 'other',
-        name: 'Другие магазины',
-        hint: 'Поиск в интернете',
-        icon: 'fas fa-magnifying-glass',
-        color: '#64748B',
-        buildUrl: (q) => `https://www.google.com/search?q=${encodeURIComponent(q + ' купить с доставкой')}`
+        id: 'web',
+        label: 'Интернет',
+        icon: 'fa-globe',
+        items: [
+            { id: 'google', name: 'Google', mono: 'G', color: '#4285F4', hint: 'Общий поиск', buildUrl: q => `https://www.google.com/search?q=${encodeURIComponent(q + ' купить с доставкой')}` },
+            { id: 'yandex-search', name: 'Яндекс', mono: 'Я', color: '#FC3F1D', hint: 'Поиск в Яндексе', buildUrl: q => `https://ya.ru/search/?text=${encodeURIComponent(q + ' купить с доставкой')}` }
+        ]
     }
 ];
 
 let currentDeliverySearchQuery = '';
+let currentDeliveryCategoryId = 'marketplaces';
 
 function openDeliverySearch(productName) {
     if (!productName) return;
     currentDeliverySearchQuery = productName;
+    currentDeliveryCategoryId = 'marketplaces';
 
     const nameEl = document.getElementById('delivery-search-product-name');
     if (nameEl) nameEl.textContent = productName;
 
-    const grid = document.getElementById('delivery-search-grid');
-    if (grid) {
-        grid.innerHTML = DELIVERY_MARKETPLACES.map(m => `
-            <div class="market-option" style="--market-color:${m.color}" onclick="goToDeliveryMarketplace('${m.id}')">
-                <div class="market-icon"><i class="${m.icon}"></i></div>
-                <span>${m.name}<small>${m.hint}</small></span>
-            </div>
-        `).join('');
-    }
+    renderDeliveryTabs();
+    renderDeliveryGrid();
 
     showModal('delivery-search-modal');
 }
 
-function goToDeliveryMarketplace(marketId) {
-    const market = DELIVERY_MARKETPLACES.find(m => m.id === marketId);
-    if (!market || !currentDeliverySearchQuery) return;
+function renderDeliveryTabs() {
+    const tabsEl = document.getElementById('delivery-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = DELIVERY_CATEGORIES.map(cat => `
+        <button type="button" class="delivery-tab ${cat.id === currentDeliveryCategoryId ? 'active' : ''}" onclick="switchDeliveryCategory('${cat.id}')">
+            <i class="fas ${cat.icon}"></i> ${cat.label}
+        </button>
+    `).join('');
+}
 
-    const url = market.buildUrl(currentDeliverySearchQuery);
+function switchDeliveryCategory(catId) {
+    if (catId === currentDeliveryCategoryId) return;
+    currentDeliveryCategoryId = catId;
+    renderDeliveryTabs();
+    renderDeliveryGrid();
+}
 
-    if (isTelegramEnv() && window.Telegram.WebApp.openLink) {
+function renderDeliveryGrid() {
+    const grid = document.getElementById('delivery-search-grid');
+    if (!grid) return;
+    const cat = DELIVERY_CATEGORIES.find(c => c.id === currentDeliveryCategoryId);
+    if (!cat) return;
+
+    // Перезапускаем анимацию появления карточек
+    grid.style.animation = 'none';
+    void grid.offsetWidth;
+    grid.style.animation = '';
+
+    grid.innerHTML = cat.items.map(m => `
+        <div class="market-option" style="--market-color:${m.color}" onclick="goToDeliveryOption('${cat.id}','${m.id}')">
+            <div class="market-icon">${m.mono}</div>
+            <span>${m.name}${m.hint ? `<small>${m.hint}</small>` : ''}</span>
+            <i class="fas fa-chevron-right market-arrow"></i>
+        </div>
+    `).join('');
+}
+
+function goToDeliveryOption(catId, itemId) {
+    const cat = DELIVERY_CATEGORIES.find(c => c.id === catId);
+    const item = cat && cat.items.find(i => i.id === itemId);
+    if (!item || !currentDeliverySearchQuery) return;
+
+    const url = item.buildUrl(currentDeliverySearchQuery);
+
+    if (isTelegramEnv() && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
         window.Telegram.WebApp.openLink(url);
     } else {
         window.open(url, '_blank');
@@ -10972,18 +11028,25 @@ function fallbackCopy(text) {
 </div>
 
 <div id="delivery-search-modal" class="modal" onclick="if(event.target.id === 'delivery-search-modal') hideModal('delivery-search-modal')">
-    <div class="modal-content" style="max-width: 380px;">
+    <div class="modal-content delivery-modal-content">
         <div class="modal-header">
             <h4><i class="fas fa-truck-fast"></i> Заказать с доставкой</h4>
             <span class="modal-close" onclick="hideModal('delivery-search-modal')"><i class="fas fa-times"></i></span>
         </div>
 
-        <p class="delivery-product-label">Ищем: <b id="delivery-search-product-name">—</b></p>
+        <div class="delivery-product-chip-wrap">
+            <div class="delivery-product-chip">
+                <i class="fas fa-magnifying-glass"></i>
+                <span>Ищем: <b id="delivery-search-product-name">—</b></span>
+            </div>
+        </div>
+
+        <div class="delivery-tabs" id="delivery-tabs"></div>
 
         <div class="market-grid" id="delivery-search-grid"></div>
 
-        <p style="font-size: 0.75em; color: var(--text-secondary); text-align: center; margin-top: 5px;">
-            Откроется поиск по этому товару на выбранной площадке
+        <p class="delivery-hint-text">
+            <i class="fas fa-circle-info"></i> Откроется поиск по этому товару на выбранной площадке
         </p>
     </div>
 </div>
