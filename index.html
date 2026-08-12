@@ -274,6 +274,12 @@
                     </div>
                 </div>
 
+                <button id="fridge-selector-btn" class="fridge-selector-btn" onclick="openFridgeSelector()">
+                    <span id="fridge-selector-icon">🏠</span>
+                    <span id="fridge-selector-name">Мой холодильник</span>
+                    <i class="fas fa-chevron-down fridge-selector-chevron"></i>
+                </button>
+
                 <div class="header-stats">
                     <div class="stat-item">
                         <div class="count" id="stat-products">0</div>
@@ -957,6 +963,69 @@
 </div>
         </div>
 
+        <div id="fridge-select-modal" class="modal" onclick="if(event.target.id === 'fridge-select-modal') hideModal('fridge-select-modal')">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h4 id="fridge-modal-title"><i class="fas fa-igloo"></i> Мои холодильники</h4>
+                    <span class="modal-close" onclick="hideModal('fridge-select-modal')">&times;</span>
+                </div>
+
+                <div id="fridge-view-list">
+                    <div id="fridge-list-container"></div>
+
+                    <div class="fridge-action-row">
+                        <button class="btn btn-secondary fridge-action-btn" onclick="showFridgeView('create')">
+                            <i class="fas fa-plus"></i> Создать новый
+                        </button>
+                        <button class="btn btn-secondary fridge-action-btn" onclick="showFridgeView('join')">
+                            <i class="fas fa-key"></i> Присоединиться по коду
+                        </button>
+                    </div>
+                </div>
+
+                <div id="fridge-view-create" style="display:none;">
+                    <div class="form-group">
+                        <label>Название</label>
+                        <input type="text" id="new-fridge-name" maxlength="30" placeholder="Например, Дача">
+                    </div>
+                    <div class="form-group">
+                        <label>Тип</label>
+                        <div class="fridge-type-picker" id="new-fridge-type-picker">
+                            <div class="fridge-type-option active" data-type="personal" data-icon="🏠" onclick="selectFridgeType(this)">🏠<span>Личный</span></div>
+                            <div class="fridge-type-option" data-type="family" data-icon="👨‍👩‍👧" onclick="selectFridgeType(this)">👨‍👩‍👧<span>Семья</span></div>
+                            <div class="fridge-type-option" data-type="dacha" data-icon="🏡" onclick="selectFridgeType(this)">🏡<span>Дача</span></div>
+                            <div class="fridge-type-option" data-type="custom" data-icon="📦" onclick="selectFridgeType(this)">📦<span>Другое</span></div>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="showFridgeView('list')">Назад</button>
+                        <button class="btn btn-primary" onclick="submitCreateFridge()">Создать</button>
+                    </div>
+                </div>
+
+                <div id="fridge-view-join" style="display:none;">
+                    <div class="form-group">
+                        <label>Код приглашения</label>
+                        <input type="text" id="join-fridge-code" maxlength="8" placeholder="Например, A1B2C3" style="text-transform:uppercase; letter-spacing: 2px;">
+                    </div>
+                    <p style="color:var(--text-secondary); font-size:13px;">Попросите код у владельца холодильника — он находится в настройках холодильника.</p>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="showFridgeView('list')">Назад</button>
+                        <button class="btn btn-primary" onclick="submitJoinFridge()">Присоединиться</button>
+                    </div>
+                </div>
+
+                <div id="fridge-view-manage" style="display:none;">
+                    <div id="fridge-manage-body"></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="showFridgeView('list')">Назад</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
         <div id="settings-modal" class="modal" onclick="if(event.target.id === 'settings-modal') hideModal('settings-modal')">
     <div class="modal-content">
         <div class="modal-header">
@@ -1086,6 +1155,17 @@
         let pendingDislikeId = null;
         let userInventory = [];
         let userShopping = [];
+        // --- MULTI-FRIDGE STATE ---
+        let userFridges = [];      // list of fridge metadata docs the user belongs to
+        let activeFridgeId = null; // id of the currently selected fridge
+        let activeFridgeData = null; // full doc of the currently selected fridge
+        let selectedNewFridgeType = 'personal';
+        const FRIDGE_TYPE_META = {
+            personal: { icon: '🏠', label: 'Личный' },
+            family:   { icon: '👨‍👩‍👧', label: 'Семья' },
+            dacha:    { icon: '🏡', label: 'Дача' },
+            custom:   { icon: '📦', label: 'Другое' }
+        };
         let userAchievements = [];
         let userNotifications = [];
         let lastNotificationDate = new Date().toISOString().split('T')[0];
@@ -1685,6 +1765,7 @@ async function trackStat(type) {
             auth.signOut().then(() => {
                 userInventory = []; userShopping = []; userAchievements = []; userNotifications = [];
                 userFavorites = []; userDislikes = []; 
+                userFridges = []; activeFridgeId = null; activeFridgeData = null;
                 currentUser = null;
                 // Full reload to reset captcha states cleanly
                 window.location.reload();
@@ -1695,9 +1776,16 @@ async function trackStat(type) {
         async function saveData(fullUpdate = false) {
     if (!currentUser) return;
     try {
+        // Инвентарь и список покупок теперь принадлежат активному холодильнику,
+        // а не пользователю напрямую — сохраняем их отдельным запросом.
+        if (activeFridgeId) {
+            db.collection('fridges').doc(activeFridgeId).update({
+                items: userInventory,
+                shopping: userShopping
+            }).catch(e => console.error("Fridge save error", e));
+        }
+
         await db.collection(USER_COLLECTION).doc(currentUser.uid).set({
-            inventory: userInventory, 
-            shopping: userShopping,
             deletedRecipes: userDeletedRecipes,
             blacklist: userBlacklist,
             adsWatched: adsWatchedCount, 
@@ -1750,7 +1838,10 @@ async function trackStat(type) {
             const data = doc.data();
             
             currentUser.tutorialCompleted = data.tutorialCompleted || false;
-            userInventory = data.inventory || [];
+            // legacyInventory/legacyShopping used only once, to migrate old single-fridge
+            // users into the new fridges/{fridgeId} model — see initFridges().
+            var legacyInventory = data.inventory || [];
+            var legacyShopping = data.shopping || [];
             userDeletedRecipes = data.deletedRecipes || [];
             userShopping = data.shopping || [];
             userHistory = data.history || [];
@@ -1794,8 +1885,10 @@ async function trackStat(type) {
             }
 
         } else {
+            var legacyInventory = [];
+            var legacyShopping = [];
             const initialData = {
-                inventory: [], shopping: [], history: [], notifications: [], favorites: [], dislikes: [],
+                history: [], notifications: [], favorites: [], dislikes: [],
                 xp: 0, level: 1, cookedDishes: 0, theme: 'dark', lang: currentLang,
                 editedRecipes: {},
                 achievements: JSON.parse(JSON.stringify(achievementsDB)),
@@ -1805,12 +1898,319 @@ async function trackStat(type) {
             userAchievements = initialData.achievements;
         }
 
+        // Загружаем/мигрируем холодильники пользователя и подставляем инвентарь
+        // активного холодильника в userInventory / userShopping.
+        await initFridges(legacyInventory, legacyShopping);
+
         checkDailyNotifications();
         updateUI();
 
     } catch (error) {
         console.error("Load error", error);
         showToast("Ошибка загрузки данных", "error");
+    }
+}
+
+/* ============================================================
+   МУЛЬТИ-ХОЛОДИЛЬНИКИ (fridges/{fridgeId})
+   ============================================================
+   Каждый холодильник — отдельный документ в коллекции `fridges`:
+     { name, icon, type, owner, members: [uid...], inviteCode, items: [...], shopping: [...], createdAt }
+   userInventory / userShopping всегда отражают items/shopping активного холодильника,
+   поэтому вся существующая логика (рецепты, достижения, статистика и т.д.),
+   которая читает userInventory, продолжает работать без изменений.
+   ============================================================ */
+
+function lastFridgeStorageKey() {
+    return currentUser ? `axio_last_fridge_${currentUser.uid}` : null;
+}
+
+// Загружает список холодильников пользователя; если их еще нет (старый аккаунт
+// или совсем новый пользователь) — создает дефолтный "Личный" холодильник,
+// перенося туда старый инвентарь/список покупок (миграция).
+async function initFridges(legacyInventory, legacyShopping) {
+    if (!currentUser) return;
+    try {
+        const snap = await db.collection('fridges')
+            .where('members', 'array-contains', currentUser.uid)
+            .get();
+
+        userFridges = [];
+        snap.forEach(d => userFridges.push({ id: d.id, ...d.data() }));
+
+        if (userFridges.length === 0) {
+            // Миграция: первый заход в новой модели — создаем личный холодильник
+            const newRef = db.collection('fridges').doc();
+            const fridgeDoc = {
+                name: 'Личный',
+                icon: FRIDGE_TYPE_META.personal.icon,
+                type: 'personal',
+                owner: currentUser.uid,
+                members: [currentUser.uid],
+                inviteCode: generateInviteCode(),
+                items: legacyInventory || [],
+                shopping: legacyShopping || [],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            await newRef.set(fridgeDoc);
+            fridgeDoc.id = newRef.id;
+            userFridges = [fridgeDoc];
+        }
+
+        // Определяем, какой холодильник должен быть активным
+        const savedId = localStorage.getItem(lastFridgeStorageKey());
+        let targetId = userFridges.find(f => f.id === savedId) ? savedId : null;
+        if (!targetId) {
+            const own = userFridges.find(f => f.type === 'personal' && f.owner === currentUser.uid);
+            targetId = own ? own.id : userFridges[0].id;
+        }
+
+        applyActiveFridge(userFridges.find(f => f.id === targetId));
+        renderFridgeSelector();
+    } catch (error) {
+        console.error("Fridges load error", error);
+        // Отказоустойчивость: не даем всему приложению упасть, если холодильники не загрузились
+        userInventory = legacyInventory || [];
+        userShopping = legacyShopping || [];
+    }
+}
+
+function applyActiveFridge(fridge) {
+    if (!fridge) return;
+    activeFridgeId = fridge.id;
+    activeFridgeData = fridge;
+    userInventory = fridge.items || [];
+    userShopping = fridge.shopping || [];
+    if (lastFridgeStorageKey()) localStorage.setItem(lastFridgeStorageKey(), fridge.id);
+}
+
+function generateInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // без похожих символов (0/O, 1/I)
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+}
+
+// Переключение на другой холодильник: сохраняем текущий инвентарь, подгружаем новый
+async function switchActiveFridge(fridgeId) {
+    if (fridgeId === activeFridgeId) return hideModal('fridge-select-modal');
+    const target = userFridges.find(f => f.id === fridgeId);
+    if (!target) return;
+
+    try {
+        if (activeFridgeId) await saveData(); // флашим текущий холодильник перед переключением
+        const freshDoc = await db.collection('fridges').doc(fridgeId).get();
+        if (!freshDoc.exists) { showToast('Холодильник не найден', 'error'); return; }
+        applyActiveFridge({ id: freshDoc.id, ...freshDoc.data() });
+        renderFridgeSelector();
+        updateUI();
+        hideModal('fridge-select-modal');
+        showToast(`Переключено: ${activeFridgeData.name}`, 'success');
+    } catch (e) {
+        console.error("Switch fridge error", e);
+        showToast('Не удалось переключить холодильник', 'error');
+    }
+}
+
+function openFridgeSelector() {
+    showFridgeView('list');
+    showModal('fridge-select-modal');
+}
+
+function showFridgeView(view) {
+    ['list', 'create', 'join', 'manage'].forEach(v => {
+        const el = document.getElementById(`fridge-view-${v}`);
+        if (el) el.style.display = (v === view) ? 'block' : 'none';
+    });
+    if (view === 'list') renderFridgeSelector();
+    if (view === 'create') {
+        document.getElementById('new-fridge-name').value = '';
+        selectedNewFridgeType = 'personal';
+        document.querySelectorAll('#new-fridge-type-picker .fridge-type-option').forEach((el, i) => {
+            el.classList.toggle('active', i === 0);
+        });
+    }
+    if (view === 'join') {
+        document.getElementById('join-fridge-code').value = '';
+    }
+}
+
+function selectFridgeType(el) {
+    document.querySelectorAll('#new-fridge-type-picker .fridge-type-option').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    selectedNewFridgeType = el.dataset.type;
+}
+
+function renderFridgeSelector() {
+    if (!activeFridgeData) return;
+    const meta = FRIDGE_TYPE_META[activeFridgeData.type] || FRIDGE_TYPE_META.custom;
+    const iconEl = document.getElementById('fridge-selector-icon');
+    const nameEl = document.getElementById('fridge-selector-name');
+    if (iconEl) iconEl.textContent = activeFridgeData.icon || meta.icon;
+    if (nameEl) nameEl.textContent = activeFridgeData.name;
+
+    const listEl = document.getElementById('fridge-list-container');
+    if (!listEl) return;
+    listEl.innerHTML = userFridges.map(f => {
+        const m = FRIDGE_TYPE_META[f.type] || FRIDGE_TYPE_META.custom;
+        const isActive = f.id === activeFridgeId;
+        const memberCount = (f.members || []).length;
+        return `
+        <div class="fridge-item ${isActive ? 'active' : ''}" onclick="switchActiveFridge('${f.id}')">
+            <div class="fridge-item-icon">${f.icon || m.icon}</div>
+            <div class="fridge-item-body">
+                <div class="fridge-item-name">${escapeHtml(f.name)}</div>
+                <div class="fridge-item-meta">${memberCount} ${memberCount === 1 ? 'участник' : 'участников'}</div>
+            </div>
+            ${isActive ? '<i class="fas fa-check fridge-item-active-badge"></i>' : ''}
+            <i class="fas fa-ellipsis-v fridge-item-manage" onclick="event.stopPropagation(); openFridgeManage('${f.id}')"></i>
+        </div>`;
+    }).join('');
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str == null ? '' : str);
+    return div.innerHTML;
+}
+
+async function submitCreateFridge() {
+    const nameInput = document.getElementById('new-fridge-name');
+    const name = nameInput.value.trim();
+    if (!name) return showToast('Введите название', 'warning');
+    if (!currentUser) return;
+
+    try {
+        if (activeFridgeId) await saveData();
+        const meta = FRIDGE_TYPE_META[selectedNewFridgeType] || FRIDGE_TYPE_META.custom;
+        const newRef = db.collection('fridges').doc();
+        const fridgeDoc = {
+            name, icon: meta.icon, type: selectedNewFridgeType,
+            owner: currentUser.uid, members: [currentUser.uid],
+            inviteCode: generateInviteCode(),
+            items: [], shopping: [],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await newRef.set(fridgeDoc);
+        // Публичная запись для поиска по коду приглашения (без доступа к содержимому холодильника)
+        await db.collection('fridge_invites').doc(fridgeDoc.inviteCode).set({
+            fridgeId: newRef.id, owner: currentUser.uid, name, icon: meta.icon
+        });
+
+        fridgeDoc.id = newRef.id;
+        userFridges.push(fridgeDoc);
+        applyActiveFridge(fridgeDoc);
+        renderFridgeSelector();
+        updateUI();
+        showFridgeView('list');
+        showToast('Холодильник создан!', 'success');
+    } catch (e) {
+        console.error("Create fridge error", e);
+        showToast('Не удалось создать холодильник', 'error');
+    }
+}
+
+async function submitJoinFridge() {
+    const codeInput = document.getElementById('join-fridge-code');
+    const code = codeInput.value.trim().toUpperCase();
+    if (!code) return showToast('Введите код', 'warning');
+    if (!currentUser) return;
+
+    try {
+        const inviteDoc = await db.collection('fridge_invites').doc(code).get();
+        if (!inviteDoc.exists) return showToast('Код не найден', 'error');
+        const { fridgeId } = inviteDoc.data();
+
+        if (userFridges.find(f => f.id === fridgeId)) {
+            showToast('Вы уже в этом холодильнике', 'warning');
+            return switchActiveFridge(fridgeId);
+        }
+
+        if (activeFridgeId) await saveData();
+
+        await db.collection('fridges').doc(fridgeId).update({
+            members: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+        });
+
+        const freshDoc = await db.collection('fridges').doc(fridgeId).get();
+        const fridgeDoc = { id: freshDoc.id, ...freshDoc.data() };
+        userFridges.push(fridgeDoc);
+        applyActiveFridge(fridgeDoc);
+        renderFridgeSelector();
+        updateUI();
+        showFridgeView('list');
+        showToast(`Вы присоединились: ${fridgeDoc.name}`, 'success');
+    } catch (e) {
+        console.error("Join fridge error", e);
+        showToast('Не удалось присоединиться', 'error');
+    }
+}
+
+function openFridgeManage(fridgeId) {
+    const f = userFridges.find(fr => fr.id === fridgeId);
+    if (!f) return;
+    const isOwner = f.owner === currentUser.uid;
+    const memberCount = (f.members || []).length;
+
+    let html = `
+        <div class="fridge-code-display">
+            <span>${f.inviteCode || '—'}</span>
+            ${f.inviteCode ? `<i class="fas fa-copy" onclick="navigator.clipboard && navigator.clipboard.writeText('${f.inviteCode}'); showToast('Код скопирован','success')"></i>` : ''}
+        </div>
+        <div class="fridge-member-row"><span>Участников</span><strong>${memberCount}</strong></div>
+    `;
+
+    if (isOwner) {
+        html += `<button class="btn btn-secondary" style="width:100%; margin-top:14px; color:var(--error);" onclick="confirmDeleteFridge('${f.id}')"><i class="fas fa-trash-alt"></i> Удалить холодильник</button>`;
+    } else {
+        html += `<button class="btn btn-secondary" style="width:100%; margin-top:14px; color:var(--error);" onclick="confirmLeaveFridge('${f.id}')"><i class="fas fa-sign-out-alt"></i> Покинуть холодильник</button>`;
+    }
+
+    document.getElementById('fridge-manage-body').innerHTML = html;
+    showFridgeView('manage');
+}
+
+async function confirmLeaveFridge(fridgeId) {
+    if (userFridges.length <= 1) return showToast('Нельзя покинуть последний холодильник', 'warning');
+    if (!confirm('Покинуть этот холодильник?')) return;
+    try {
+        await db.collection('fridges').doc(fridgeId).update({
+            members: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+        });
+        userFridges = userFridges.filter(f => f.id !== fridgeId);
+        if (activeFridgeId === fridgeId) {
+            applyActiveFridge(userFridges[0]);
+            updateUI();
+        }
+        renderFridgeSelector();
+        showFridgeView('list');
+        showToast('Вы покинули холодильник', 'success');
+    } catch (e) {
+        console.error("Leave fridge error", e);
+        showToast('Не удалось покинуть холодильник', 'error');
+    }
+}
+
+async function confirmDeleteFridge(fridgeId) {
+    if (userFridges.length <= 1) return showToast('Нельзя удалить последний холодильник', 'warning');
+    if (!confirm('Удалить холодильник безвозвратно? Все продукты в нем будут потеряны.')) return;
+    try {
+        const f = userFridges.find(fr => fr.id === fridgeId);
+        await db.collection('fridges').doc(fridgeId).delete();
+        if (f && f.inviteCode) {
+            db.collection('fridge_invites').doc(f.inviteCode).delete().catch(() => {});
+        }
+        userFridges = userFridges.filter(fr => fr.id !== fridgeId);
+        if (activeFridgeId === fridgeId) {
+            applyActiveFridge(userFridges[0]);
+            updateUI();
+        }
+        renderFridgeSelector();
+        showFridgeView('list');
+        showToast('Холодильник удален', 'success');
+    } catch (e) {
+        console.error("Delete fridge error", e);
+        showToast('Не удалось удалить холодильник', 'error');
     }
 }
 
