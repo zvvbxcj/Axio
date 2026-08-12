@@ -2277,6 +2277,144 @@ adsgram-task {
     gap: 8px;
 }
 
+/* --- Кликабельные плитки статистики --- */
+.stat-box-clickable {
+    cursor: pointer;
+    position: relative;
+}
+.stat-box-chevron {
+    margin-left: auto;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-size: 0.8em;
+}
+
+/* --- Модалка детальной аналитики (клик по плитке статистики) --- */
+#stat-detail-modal .modal-content.stat-detail-content {
+    max-width: 460px;
+    background: var(--surface);
+    max-height: 88vh;
+    overflow-y: auto;
+}
+
+.sd-body { padding: 4px 2px 10px; }
+
+.sd-hero {
+    text-align: center;
+    padding: 18px 15px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(139, 92, 246, 0.1));
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    margin-bottom: 16px;
+}
+.sd-hero-red {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(245, 158, 11, 0.1));
+    border-color: rgba(239, 68, 68, 0.25);
+}
+.sd-hero-co2 {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(52, 211, 153, 0.08));
+    border-color: rgba(16, 185, 129, 0.3);
+}
+.sd-hero-value { font-size: 2.2em; font-weight: 900; color: var(--primary); line-height: 1.1; }
+.sd-hero-red .sd-hero-value { color: var(--error); }
+.sd-hero-label { font-size: 0.85em; color: var(--text-secondary); margin-top: 6px; }
+
+.sd-equiv-highlight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: var(--surface-light);
+    border: 1px solid var(--border-color);
+    font-weight: 700;
+    margin-bottom: 18px;
+}
+.sd-equiv-highlight i { font-size: 1.5em; color: var(--primary); }
+
+.sd-section-title {
+    font-size: 0.85em;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 18px 0 10px;
+}
+.sd-section-title:first-of-type { margin-top: 0; }
+
+.sd-equiv-list { display: flex; flex-direction: column; gap: 8px; }
+.sd-equiv-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-light);
+    font-size: 0.88em;
+    color: var(--text-secondary);
+}
+.sd-equiv-row i { color: var(--primary); width: 18px; text-align: center; }
+.sd-equiv-row b { color: var(--text-primary); }
+
+.sd-bar-list { display: flex; flex-direction: column; gap: 10px; }
+.sd-bar-row { display: flex; align-items: center; gap: 10px; }
+.sd-bar-label { flex: 0 0 auto; min-width: 70px; font-size: 0.8em; color: var(--text-secondary); }
+.sd-bar-track { flex: 1; height: 8px; background: var(--surface-light); border-radius: 4px; overflow: hidden; }
+.sd-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-light)); border-radius: 4px; transition: width 0.4s ease; }
+.sd-bar-fill-red { background: linear-gradient(90deg, #EF4444, #F59E0B); }
+.sd-bar-val { flex: 0 0 auto; min-width: 28px; text-align: right; font-size: 0.8em; font-weight: 700; color: var(--text-primary); }
+
+.sd-record-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-light);
+    font-size: 0.88em;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.sd-record-row i { width: 18px; text-align: center; }
+.sd-record-row b { color: var(--text-primary); }
+
+.sd-top-list { display: flex; flex-direction: column; gap: 8px; }
+.sd-top-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-light);
+}
+.sd-top-rank { font-weight: 900; color: var(--primary); width: 26px; }
+.sd-top-name { flex: 1; font-weight: 700; font-size: 0.9em; }
+.sd-top-count { font-size: 0.78em; color: var(--text-secondary); }
+
+.sd-discovery-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.sd-discovery-chip {
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.sd-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.sd-footnote {
+    font-size: 0.72em;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    margin-top: 14px;
+    text-align: center;
+}
+
 .fullscreen-modal .modal-content {
     width: 100%;
     height: 100%;
