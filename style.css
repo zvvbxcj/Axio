@@ -4233,9 +4233,51 @@ adsgram-task {
     border: 1px dashed var(--border-color); font-family: monospace; font-size: 18px;
     letter-spacing: 3px; font-weight: 700; color: var(--primary); margin-bottom: 14px;
 }
-.fridge-code-display i { cursor: pointer; color: var(--text-secondary); font-size: 14px; }
+.fridge-code-display i { cursor: pointer; color: var(--text-secondary); font-size: 14px; transition: color 0.2s; }
+.fridge-code-display i:hover { color: var(--primary); }
 .fridge-member-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px; }
 .fridge-member-row:last-child { border-bottom: none; }
+
+/* --- Fridge manage: avatar, name, members --- */
+.fridge-manage-header { display: flex; justify-content: center; margin-bottom: 14px; }
+.fridge-avatar-big {
+    position: relative; width: 72px; height: 72px; border-radius: 20px;
+    background: var(--surface-light); border: 1px solid var(--border-color);
+    display: flex; align-items: center; justify-content: center; font-size: 34px;
+    cursor: pointer;
+}
+.fridge-avatar-edit-badge {
+    position: absolute; bottom: -4px; right: -4px; width: 22px; height: 22px;
+    border-radius: 50%; background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 10px;
+    border: 2px solid var(--surface);
+}
+.fridge-avatar-picker {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+    margin-bottom: 16px; padding: 10px; border-radius: 10px; background: var(--surface-light);
+}
+.avatar-option {
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    padding: 8px 0; border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+}
+.avatar-option:hover { background: var(--surface-lighter); }
+.avatar-option.active { border-color: var(--primary); background: rgba(16, 185, 129, 0.12); }
+
+.fridge-members-section { margin-top: 4px; }
+.fridge-members-section label { display: block; margin-bottom: 8px; font-size: 0.9em; color: var(--text-secondary); font-weight: 500; }
+#fridge-members-list { max-height: 220px; overflow-y: auto; }
+.fridge-member-avatar {
+    width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+    background: var(--surface-lighter);
+}
+.fridge-member-avatar-fallback { display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 13px; }
+.fridge-member-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.fridge-member-owner-badge {
+    font-size: 10px; font-weight: 700; color: var(--primary); background: rgba(16, 185, 129, 0.15);
+    padding: 2px 7px; border-radius: 6px; flex-shrink: 0;
+}
+.fridge-member-remove { color: var(--text-secondary); cursor: pointer; padding: 6px; flex-shrink: 0; }
+.fridge-member-remove:hover { color: var(--error); }
 
 /* =====================================================
    3D-ХОЛОДИЛЬНИК ДЛЯ ИНВЕНТАРЯ (вдохновлено концептом Premium Smart Fridge)
