@@ -3649,10 +3649,10 @@ function openCO2Detail() {
     showModal('stat-detail-modal');
 }
 
-// --- 🍳 "Твой кулинарный профиль" (Приготовлено / Время на кухне / Любимое время) ---
+// --- 🍳 "Твой кулинарный профиль" (Приготовлено) ---
 const WEEKDAY_SHORT_RU = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-function openCookingProfile() {
+function openCookedOverviewProfile() {
     const period = currentStatsPeriod || 'week';
     const { cookedItems } = getStatsPeriodData(period);
 
@@ -3678,30 +3678,6 @@ function openCookingProfile() {
             <span class="sd-bar-val">${c}</span>
         </div>`).join('');
 
-    // Самое быстрое / самое долгое блюдо
-    const withTime = cookedItems.map(i => ({ ...i, time: i.time || 30 }));
-    const fastest = withTime.reduce((a, b) => (a.time <= b.time ? a : b));
-    const slowest = withTime.reduce((a, b) => (a.time >= b.time ? a : b));
-
-    // Момент готовки (приблизительно, по времени суток)
-    const moments = { 'Завтрак': 0, 'Обед': 0, 'Ужин': 0, 'Перекус': 0 };
-    cookedItems.forEach(i => {
-        const hour = new Date(i.date).getHours();
-        if (hour >= 6 && hour < 11) moments['Завтрак']++;
-        else if (hour >= 11 && hour < 16) moments['Обед']++;
-        else if (hour >= 16 && hour < 22) moments['Ужин']++;
-        else moments['Перекус']++;
-    });
-    const momentTotal = cookedItems.length;
-    const momentRows = Object.entries(moments)
-        .filter(([, c]) => c > 0)
-        .map(([label, c]) => `
-            <div class="sd-bar-row">
-                <span class="sd-bar-label">${label}</span>
-                <div class="sd-bar-track"><div class="sd-bar-fill" style="width:${(c / momentTotal * 100)}%"></div></div>
-                <span class="sd-bar-val">${Math.round(c / momentTotal * 100)}%</span>
-            </div>`).join('');
-
     const streak = computeStreakDays();
 
     document.getElementById('sd-body').innerHTML = `
@@ -3713,12 +3689,172 @@ function openCookingProfile() {
         <div class="sd-section-title">📈 Активность по дням недели</div>
         <div class="sd-bar-list">${weekdayBars}</div>
 
+        <div class="sd-record-row"><i class="fas fa-utensils" style="color:var(--primary)"></i> Всего приготовлено блюд за период: <b>${cookedItems.length}</b></div>
+    `;
+    showModal('stat-detail-modal');
+}
+
+// --- ⏱️ "Скорость и Скороварка" (Среднее время готовки) ---
+function openSpeedProfile() {
+    const period = currentStatsPeriod || 'week';
+    const { cookedItems } = getStatsPeriodData(period);
+
+    document.getElementById('sd-title').innerHTML = '⏱️ Скорость и Скороварка';
+
+    if (cookedItems.length === 0) {
+        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Пока нет приготовленных блюд за этот период.</div>`;
+        showModal('stat-detail-modal');
+        return;
+    }
+
+    // Самое быстрое / самое долгое блюдо
+    const withTime = cookedItems.map(i => ({ ...i, time: i.time || 30 }));
+    const fastest = withTime.reduce((a, b) => (a.time <= b.time ? a : b));
+    const slowest = withTime.reduce((a, b) => (a.time >= b.time ? a : b));
+    const userAvg = withTime.reduce((sum, i) => sum + i.time, 0) / withTime.length;
+
+    // Сравнение со средним временем по всей библиотеке рецептов
+    const libTimes = (typeof recipesDB !== 'undefined' ? recipesDB : [])
+        .map(r => parseInt(r.time))
+        .filter(t => !isNaN(t));
+    const libAvg = libTimes.length ? libTimes.reduce((a, b) => a + b, 0) / libTimes.length : userAvg;
+    const diffPct = libAvg > 0 ? Math.round(((libAvg - userAvg) / libAvg) * 100) : 0;
+
+    let compareText;
+    if (Math.abs(diffPct) < 3) {
+        compareText = `Вы готовите примерно со средней скоростью рецептов из каталога.`;
+    } else if (diffPct > 0) {
+        compareText = `Вы готовите на <b>${diffPct}%</b> быстрее средних рецептов!`;
+    } else {
+        compareText = `Вы готовите на <b>${Math.abs(diffPct)}%</b> медленнее средних рецептов — не спешите, это тоже неплохо 😌`;
+    }
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-hero">
+            <div class="sd-hero-value">${Math.round(userAvg)} мин</div>
+            <div class="sd-hero-label">среднее время готовки за период</div>
+        </div>
+
+        <div class="sd-section-title">📊 Сравнение со средним</div>
+        <div class="sd-record-row"><i class="fas fa-gauge-high" style="color:var(--primary)"></i> ${compareText}</div>
+
         <div class="sd-section-title">⏱️ Рекорды скорости</div>
         <div class="sd-record-row"><i class="fas fa-bolt" style="color:#10B981"></i> Самое быстрое: <b>${fastest.recipeName || 'Блюдо'}</b> (${fastest.time} мин)</div>
-        <div class="sd-record-row"><i class="fas fa-crown" style="color:#F59E0B"></i> Самый шедевр: <b>${slowest.recipeName || 'Блюдо'}</b> (${slowest.time} мин)</div>
+        <div class="sd-record-row"><i class="fas fa-crown" style="color:#F59E0B"></i> Самое долгое: <b>${slowest.recipeName || 'Блюдо'}</b> (${slowest.time} мин)</div>
+    `;
+    showModal('stat-detail-modal');
+}
 
-        <div class="sd-section-title">🍽️ Когда вы готовите</div>
+// --- ⌛ "Кулинарный марафон" (Всего времени на кухне) ---
+function openKitchenMarathonProfile() {
+    const period = currentStatsPeriod || 'week';
+    const { cookedItems } = getStatsPeriodData(period);
+
+    document.getElementById('sd-title').innerHTML = '⌛ Кулинарный марафон';
+
+    if (cookedItems.length === 0) {
+        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Пока нет приготовленных блюд за этот период.</div>`;
+        showModal('stat-detail-modal');
+        return;
+    }
+
+    const withTime = cookedItems.map(i => ({ ...i, time: i.time || 30 }));
+    const totalMinutes = withTime.reduce((sum, i) => sum + i.time, 0);
+    const totalHours = totalMinutes / 60;
+
+    // Эквивалент в медиа (полнометражный фильм ~110 мин)
+    const movies = totalMinutes / 110;
+    const moviesRounded = Math.round(movies * 10) / 10;
+    const mediaText = movies >= 1
+        ? `это как посмотреть ${moviesRounded} полнометражных фильма!`
+        : `это как посмотреть примерно ${Math.round(movies * 100)}% фильма`;
+
+    // Динамика по неделям в рамках периода
+    const weekBuckets = {};
+    cookedItems.forEach(i => {
+        const d = new Date(i.date);
+        const weekStart = new Date(d);
+        weekStart.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+        const key = weekStart.toISOString().slice(0, 10);
+        weekBuckets[key] = (weekBuckets[key] || 0) + (i.time || 30);
+    });
+    const sortedWeeks = Object.entries(weekBuckets).sort((a, b) => a[0].localeCompare(b[0]));
+    const maxWeekMinutes = Math.max(...sortedWeeks.map(([, m]) => m), 1);
+    const weekRows = sortedWeeks.map(([, m], idx) => `
+        <div class="sd-bar-row">
+            <span class="sd-bar-label">Нед. ${idx + 1}</span>
+            <div class="sd-bar-track"><div class="sd-bar-fill" style="width:${(m / maxWeekMinutes * 100)}%"></div></div>
+            <span class="sd-bar-val">${Math.round(m / 60 * 10) / 10} ч</span>
+        </div>`).join('');
+
+    // Ачивка / статус
+    const weekendMinutes = cookedItems
+        .filter(i => [0, 6].includes(new Date(i.date).getDay()))
+        .reduce((sum, i) => sum + (i.time || 30), 0);
+    const weekendShare = totalMinutes > 0 ? weekendMinutes / totalMinutes : 0;
+    let badge;
+    if (weekendShare >= 0.4) badge = { icon: '🏆', text: 'Шеф-Повар выходного дня' };
+    else if (totalMinutes / withTime.length <= 20) badge = { icon: '⚡', text: 'Мастер быстрых перекусов' };
+    else badge = { icon: '🍳', text: 'Кухонный марафонец' };
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-hero">
+            <div class="sd-hero-value">${Math.round(totalHours * 10) / 10} ч</div>
+            <div class="sd-hero-label">вы провели на кухне — ${mediaText}</div>
+        </div>
+
+        <div class="sd-section-title">📅 Динамика по неделям</div>
+        <div class="sd-bar-list">${weekRows || '<div class="sd-empty">Недостаточно данных</div>'}</div>
+
+        <div class="sd-section-title">🏅 Ваш статус</div>
+        <div class="sd-record-row"><span style="font-size:1.3em; margin-right:4px;">${badge.icon}</span> <b>${badge.text}</b></div>
+    `;
+    showModal('stat-detail-modal');
+}
+
+// --- 🌙 "Кулинарные ритмы" (Любимое время) ---
+function openRhythmProfile() {
+    const period = currentStatsPeriod || 'week';
+    const { cookedItems } = getStatsPeriodData(period);
+
+    document.getElementById('sd-title').innerHTML = '🌙 Кулинарные ритмы';
+
+    if (cookedItems.length === 0) {
+        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Пока нет приготовленных блюд за этот период.</div>`;
+        showModal('stat-detail-modal');
+        return;
+    }
+
+    // Момент готовки (приблизительно, по времени суток)
+    const moments = { 'Завтрак': 0, 'Обед': 0, 'Ужин': 0, 'Ночной дожор': 0 };
+    cookedItems.forEach(i => {
+        const hour = new Date(i.date).getHours();
+        if (hour >= 6 && hour < 11) moments['Завтрак']++;
+        else if (hour >= 11 && hour < 16) moments['Обед']++;
+        else if (hour >= 16 && hour < 22) moments['Ужин']++;
+        else moments['Ночной дожор']++;
+    });
+    const momentTotal = cookedItems.length;
+    const momentRows = Object.entries(moments)
+        .filter(([, c]) => c > 0)
+        .map(([label, c]) => `
+            <div class="sd-bar-row">
+                <span class="sd-bar-label">${label}</span>
+                <div class="sd-bar-track"><div class="sd-bar-fill" style="width:${(c / momentTotal * 100)}%"></div></div>
+                <span class="sd-bar-val">${Math.round(c / momentTotal * 100)}%</span>
+            </div>`).join('');
+
+    const hourCounts = new Array(24).fill(0);
+    cookedItems.forEach(i => { hourCounts[new Date(i.date).getHours()]++; });
+    const busiestHour = hourCounts.indexOf(Math.max(...hourCounts));
+    const nextHour = (busiestHour + 1) % 24;
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-section-title">🍳 По приёмам пищи</div>
         <div class="sd-bar-list">${momentRows}</div>
+
+        <div class="sd-section-title">⏰ Пик активности</div>
+        <div class="sd-record-row"><i class="fas fa-fire" style="color:#F59E0B"></i> Чаще всего вы стоите у плиты с <b>${String(busiestHour).padStart(2, '0')}:00</b> до <b>${String(nextHour).padStart(2, '0')}:00</b></div>
         <div class="sd-footnote">Приём пищи определён приблизительно, по времени суток.</div>
     `;
     showModal('stat-detail-modal');
@@ -3773,31 +3909,20 @@ function openWasteAnalysis() {
     showModal('stat-detail-modal');
 }
 
-// --- 🥩 "Гастрономический портрет" (Любимая категория / Самый частый ингредиент) ---
-function openFavoriteProfile() {
+// --- 🧀 "Структура рациона" (Любимая категория) ---
+const PLANT_CATEGORIES = ['Vegetables', 'Fruits', 'Bakery', 'Cereals', 'Condiments'];
+
+function openDietStructureProfile() {
     const period = currentStatsPeriod || 'week';
     const { cookedItems } = getStatsPeriodData(period);
 
-    document.getElementById('sd-title').innerHTML = '🥩 Гастрономический портрет';
+    document.getElementById('sd-title').innerHTML = '🧀 Структура рациона';
 
     if (cookedItems.length === 0) {
-        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Приготовьте что-нибудь, чтобы увидеть свой портрет!</div>`;
+        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Приготовьте что-нибудь, чтобы увидеть структуру рациона!</div>`;
         showModal('stat-detail-modal');
         return;
     }
-
-    const ingCounts = {};
-    cookedItems.forEach(i => (i.ingredients || []).forEach(ing => {
-        ingCounts[ing] = (ingCounts[ing] || 0) + 1;
-    }));
-    const topIngredients = Object.entries(ingCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-    const ingRows = topIngredients.map(([name, count], idx) => `
-        <div class="sd-top-item">
-            <span class="sd-top-rank">#${idx + 1}</span>
-            <span class="sd-top-name">${name.charAt(0).toUpperCase() + name.slice(1)}</span>
-            <span class="sd-top-count">${count} ${pluralizeTimes(count)}</span>
-        </div>`).join('');
 
     const catCounts = {};
     cookedItems.forEach(i => {
@@ -3816,12 +3941,60 @@ function openFavoriteProfile() {
             </div>`;
     }).join('');
 
-    document.getElementById('sd-body').innerHTML = `
-        <div class="sd-section-title">🏆 Топ-5 любимых продуктов</div>
-        <div class="sd-top-list">${ingRows || '<div class="sd-empty">Нет данных об ингредиентах</div>'}</div>
+    const plantCount = Object.entries(catCounts)
+        .filter(([cat]) => PLANT_CATEGORIES.includes(cat))
+        .reduce((s, [, c]) => s + c, 0);
+    const plantPct = Math.round(plantCount / total * 100);
+    const animalPct = 100 - plantPct;
 
-        <div class="sd-section-title">📊 Баланс категорий блюд</div>
+    const veggieShare = ((catCounts['Vegetables'] || 0) + (catCounts['Fruits'] || 0)) / total;
+    const tip = veggieShare < 0.15
+        ? '💡 В этом периоде вы съели мало свежей зелени и овощей!'
+        : '💡 Хороший баланс овощей и фруктов в рационе — так держать!';
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-section-title">📊 Категории блюд</div>
         <div class="sd-bar-list">${catRows}</div>
+
+        <div class="sd-section-title">⚖️ Эко-баланс</div>
+        <div class="sd-record-row"><i class="fas fa-seedling" style="color:#10B981"></i> Растительная пища: <b>${plantPct}%</b> / Животная: <b>${animalPct}%</b></div>
+
+        <div class="sd-section-title">💡 Совет</div>
+        <div class="sd-record-row">${tip}</div>
+    `;
+    showModal('stat-detail-modal');
+}
+
+// --- 🥩 "Топ продуктовой корзины" (Самый частый ингредиент) ---
+function openTopIngredientsProfile() {
+    const period = currentStatsPeriod || 'week';
+    const { cookedItems } = getStatsPeriodData(period);
+
+    document.getElementById('sd-title').innerHTML = '🥩 Топ продуктовой корзины';
+
+    if (cookedItems.length === 0) {
+        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Приготовьте что-нибудь, чтобы увидеть свой топ продуктов!</div>`;
+        showModal('stat-detail-modal');
+        return;
+    }
+
+    const ingCounts = {};
+    cookedItems.forEach(i => (i.ingredients || []).forEach(ing => {
+        ingCounts[ing] = (ingCounts[ing] || 0) + 1;
+    }));
+    const topIngredients = Object.entries(ingCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    const ingRows = topIngredients.map(([name, count], idx) => `
+        <div class="sd-top-item">
+            <span class="sd-top-rank">#${idx + 1}</span>
+            <span class="sd-top-name">${name.charAt(0).toUpperCase() + name.slice(1)}</span>
+            <span class="sd-top-count">${count} ${pluralizeTimes(count)}</span>
+        </div>`).join('');
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-section-title">🏆 Топ-5 продуктов</div>
+        <div class="sd-top-list">${ingRows || '<div class="sd-empty">Нет данных об ингредиентах</div>'}</div>
+        <div class="sd-footnote">Показано число блюд за период, в которые входил каждый продукт.</div>
     `;
     showModal('stat-detail-modal');
 }
@@ -3886,12 +4059,60 @@ function openVarietyProfile() {
     showModal('stat-detail-modal');
 }
 
-// --- ⚡ "Привычки и мастерство" (Сложность блюд / Активный день) ---
-function openHabitsProfile() {
+// --- 📅 "График кулинара" (Активный день) ---
+const WEEKDAY_FULL_RU = ['понедельникам', 'вторникам', 'средам', 'четвергам', 'пятницам', 'субботам', 'воскресеньям'];
+const WEEKDAY_NOM_RU = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+
+function openActiveDayProfile() {
     const period = currentStatsPeriod || 'week';
     const { cookedItems } = getStatsPeriodData(period);
 
-    document.getElementById('sd-title').innerHTML = '⚡ Привычки и мастерство';
+    document.getElementById('sd-title').innerHTML = '📅 График кулинара';
+
+    if (cookedItems.length === 0) {
+        document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Пока нет данных за этот период.</div>`;
+        showModal('stat-detail-modal');
+        return;
+    }
+
+    const weekdayCounts = [0, 0, 0, 0, 0, 0, 0];
+    cookedItems.forEach(i => {
+        const idx = (new Date(i.date).getDay() + 6) % 7;
+        weekdayCounts[idx]++;
+    });
+    const total = cookedItems.length;
+    const maxWeekday = Math.max(...weekdayCounts, 1);
+    const weekdayBars = weekdayCounts.map((c, idx) => `
+        <div class="sd-bar-row">
+            <span class="sd-bar-label">${WEEKDAY_SHORT_RU[idx]}</span>
+            <div class="sd-bar-track"><div class="sd-bar-fill" style="width:${(c / maxWeekday * 100)}%"></div></div>
+            <span class="sd-bar-val">${c}</span>
+        </div>`).join('');
+
+    const maxIdx = weekdayCounts.indexOf(Math.max(...weekdayCounts));
+    const leaderPct = Math.round(weekdayCounts[maxIdx] / total * 100);
+    const minCount = Math.min(...weekdayCounts);
+    const minIdx = weekdayCounts.indexOf(minCount);
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-section-title">📊 Активность по дням недели</div>
+        <div class="sd-bar-list">${weekdayBars}</div>
+
+        <div class="sd-section-title">👑 День-лидер</div>
+        <div class="sd-record-row"><i class="fas fa-crown" style="color:#F59E0B"></i> <b>${WEEKDAY_NOM_RU[maxIdx]}</b> — главный день ваших кулинарных экспериментов (${leaderPct}% всех блюд)</div>
+
+        <div class="sd-section-title">🛋️ День отдыха</div>
+        <div class="sd-record-row"><i class="fas fa-couch"></i> ${minCount === 0 ? `По ${WEEKDAY_FULL_RU[minIdx]} вы отдыхаете от кухни` : `Меньше всего вы готовите по ${WEEKDAY_FULL_RU[minIdx]}`}</div>
+    `;
+    showModal('stat-detail-modal');
+}
+
+// --- ⭐ "Уровень кулинарного мастерства" (Сложность блюд) ---
+function openComplexityProfile() {
+    const period = currentStatsPeriod || 'week';
+    const { cookedItems } = getStatsPeriodData(period);
+
+    document.getElementById('sd-title').innerHTML = '⭐ Уровень кулинарного мастерства';
 
     if (cookedItems.length === 0) {
         document.getElementById('sd-body').innerHTML = `<div class="sd-empty">Пока нет данных за этот период.</div>`;
@@ -3905,34 +4126,27 @@ function openHabitsProfile() {
         diffCounts[d] = (diffCounts[d] || 0) + 1;
     });
     const total = cookedItems.length;
-    const diffLabels = { 1: '🟢 Лёгкие', 2: '🟡 Средние', 3: '🔴 Шеф-повар' };
+    const diffLabels = { 1: '🟢 Простые', 2: '🟡 Средние', 3: '🔴 Шеф-уровень' };
     const diffRows = [1, 2, 3].map(d => {
         const pct = Math.round((diffCounts[d] || 0) / total * 100);
         return `<div class="sd-bar-row"><span class="sd-bar-label">${diffLabels[d]}</span><div class="sd-bar-track"><div class="sd-bar-fill" style="width:${pct}%"></div></div><span class="sd-bar-val">${pct}%</span></div>`;
     }).join('');
 
-    const hourCounts = new Array(24).fill(0);
-    cookedItems.forEach(i => { hourCounts[new Date(i.date).getHours()]++; });
-    const busiestHour = hourCounts.indexOf(Math.max(...hourCounts));
-
-    const weekdayCounts = {};
-    cookedItems.forEach(i => {
-        const day = new Date(i.date).toLocaleDateString(currentLang, { weekday: 'long' });
-        weekdayCounts[day] = (weekdayCounts[day] || 0) + 1;
-    });
-    const sortedDays = Object.entries(weekdayCounts).sort((a, b) => b[1] - a[1]);
-    const topDay = sortedDays[0];
-    const topDayPct = topDay ? Math.round(topDay[1] / total * 100) : 0;
+    // Главный шедевр периода: самое сложное блюдо (при равенстве — самое долгое)
+    const masterpiece = cookedItems.reduce((best, i) => {
+        const d = i.difficulty || 1;
+        const bd = best.difficulty || 1;
+        if (d > bd) return i;
+        if (d === bd && (i.time || 0) > (best.time || 0)) return i;
+        return best;
+    }, cookedItems[0]);
 
     document.getElementById('sd-body').innerHTML = `
-        <div class="sd-section-title">⭐ Распределение сложности</div>
+        <div class="sd-section-title">⭐ Градация сложности</div>
         <div class="sd-bar-list">${diffRows}</div>
 
-        <div class="sd-section-title">⏰ Любимые часы готовки</div>
-        <div class="sd-record-row"><i class="fas fa-clock"></i> Чаще всего вы готовите около <b>${busiestHour}:00</b></div>
-
-        <div class="sd-section-title">🗓️ День-повар</div>
-        <div class="sd-record-row"><i class="fas fa-calendar-days"></i> <b>${topDay ? topDay[0].charAt(0).toUpperCase() + topDay[0].slice(1) : '—'}</b> — ваш самый активный день (${topDayPct}% готовки)</div>
+        <div class="sd-section-title">🏆 Главный шедевр периода</div>
+        <div class="sd-record-row"><i class="fas fa-trophy" style="color:#F59E0B"></i> <b>${masterpiece.recipeName || 'Блюдо'}</b> — самый сложный рецепт, который вы успешно закрыли!</div>
     `;
     showModal('stat-detail-modal');
 }
@@ -4393,6 +4607,15 @@ function editShoppingItemQty(id) {
     }
 }
 
+// --- УМНЫЕ ПОИСКОВЫЕ КАРТОЧКИ ДОСТАВКИ (DEEP SEARCH) ---
+// 4 категории, отображаются сеткой 2×2 (сверху Маркетплейсы/Доставка, снизу Магазины/Интернет):
+// - Маркетплейсы: прямой поиск по товару через собственную строку поиска сайта.
+// - Доставка и Магазины: большинство сервисов доставки и продуктовых сетей в РФ показывают
+//   каталог только после выбора города/адреса и не имеют публичного URL для поиска по тексту,
+//   поэтому вместо поиска по всему интернету используется поиск, ограниченный конкретным
+//   доменом сервиса (site:) — результат ведёт именно на этот сайт/приложение, а не куда попало.
+// Иконки — реальные favicon сервисов (с фолбэком на цветной инициал, если картинка не загрузилась).
+
 function ddsSite(domain, brand, q) {
     return `https://www.google.com/search?q=${encodeURIComponent('site:' + domain + ' ' + brand + ' ' + q)}`;
 }
@@ -4418,9 +4641,9 @@ const DELIVERY_CATEGORIES = [
         label: 'Доставка',
         icon: 'fa-truck-fast',
         items: [
-            { id: 'eda', name: 'Яндекс Еда', domain: 'eda.yandex.ru', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны',  buildUrl: q => `https://lavka.yandex.ru/search?text=${encodeURIComponent(q)}` },
-            { id: 'samokat', name: 'Самокат', domain: 'samokat.ru', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('samoka', 'Самокат', q) },
-            { id: 'lavka', name: 'Яндекс Лавка', domain: 'lavka.yandex.ru', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Лавка', q) },
+            { id: 'eda', name: 'Яндекс Еда', domain: 'eda.yandex.ru', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Еда', q) },
+            { id: 'samokat', name: 'Самокат', domain: 'samokat.ru', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('samokat.ru', 'Самокат', q) },
+            { id: 'lavka', name: 'Яндекс Лавка', domain: 'eda.yandex.ru', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Лавка', q) },
             { id: 'kuper', name: 'Купер', domain: 'kuper.ru', mono: 'К', color: '#7A2FF0', hint: 'Из супермаркетов', buildUrl: q => ddsSite('kuper.ru', 'Купер', q) },
             { id: 'market-delivery', name: 'Маркет Деливери', domain: 'market-delivery.yandex.ru', mono: 'МД', color: '#4CAF50', hint: 'Доставка еды (бывш. Delivery Club)', buildUrl: q => ddsSite('market-delivery.yandex.ru', 'Маркет Деливери', q) }
         ]
@@ -10701,7 +10924,7 @@ async function runTest(type) {
 </div>
 
             <div class="stats-grid">
-                <div class="stat-box highlight stat-box-clickable" onclick="openCookingProfile()">
+                <div class="stat-box highlight stat-box-clickable" onclick="openCookedOverviewProfile()">
                     <div class="stat-icon"><i class="fas fa-utensils"></i></div>
                     <div class="stat-info">
                         <span class="stat-label" data-translate="StatCooked">Приготовлено</span>
@@ -10719,32 +10942,32 @@ async function runTest(type) {
                     <i class="fas fa-chevron-right stat-box-chevron"></i>
                 </div>
 
-                <div class="stat-box stat-box-clickable" onclick="openFavoriteProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openDietStructureProfile()">
                     <small>Любимая категория</small>
                     <div class="stat-big-text" id="st-fav-category">-</div>
                 </div>
 
-                <div class="stat-box stat-box-clickable" onclick="openFavoriteProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openTopIngredientsProfile()">
                     <small>Самый частый ингредиент</small>
                     <div class="stat-big-text" id="st-top-ingredient">-</div>
                 </div>
 
-                <div class="stat-box stat-box-clickable" onclick="openCookingProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openSpeedProfile()">
                     <small>Среднее время готовки</small>
                     <div class="stat-big-text" id="st-avg-time">0 мин</div>
                 </div>
 
-                <div class="stat-box stat-box-clickable" onclick="openCookingProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openKitchenMarathonProfile()">
                     <small>Всего времени на кухне</small>
                     <div class="stat-big-text" id="st-total-time">0 ч</div>
                 </div>
 
-                <div class="stat-box stat-box-clickable" onclick="openHabitsProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openActiveDayProfile()">
                     <small>Активный день</small>
                     <div class="stat-big-text" id="st-busy-day">-</div>
                 </div>
 
-                <div class="stat-box stat-box-clickable" onclick="openHabitsProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openComplexityProfile()">
                     <small>Сложность блюд</small>
                     <div class="stat-progress">
                         <div class="stat-progress-bar" id="st-complexity-bar" style="width: 0%"></div>
@@ -10752,7 +10975,7 @@ async function runTest(type) {
                     <span class="stat-sub" id="st-complexity-text">Легкие</span>
                 </div>
                 
-                <div class="stat-box stat-box-clickable" onclick="openCookingProfile()">
+                <div class="stat-box stat-box-clickable" onclick="openRhythmProfile()">
         <small>Любимое время</small>
         <div class="stat-big-text" id="st-time-of-day">-</div>
     </div>
