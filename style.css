@@ -2989,16 +2989,18 @@ adsgram-task {
             font-size: 0.7em; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid var(--surface);
         }
 
-        .header-stats { display: flex; justify-content: space-between; background-color: var(--surface-light); padding: 15px; border-radius: var(--radius); margin-bottom: 15px; }
-        .stat-item { text-align: center; flex-grow: 1; border-right: 1px solid var(--border-color); }
+        .fridge-stats-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+        .fridge-stats-row .fridge-selector-btn { margin: 0; flex-shrink: 0; }
+        .header-stats { display: flex; justify-content: flex-end; background-color: var(--surface-light); padding: 8px 12px; border-radius: var(--radius); gap: 10px; }
+        .stat-item { text-align: center; padding: 0 8px; border-right: 1px solid var(--border-color); }
         .stat-item:last-child { border-right: none; }
-        .stat-item .count { font-size: 1.2em; font-weight: 800; color: var(--primary); }
-        .stat-item .label { font-size: 0.75em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+        .stat-item .count { font-size: 1em; font-weight: 800; color: var(--primary); line-height: 1.1; }
+        .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
         /* Level Bar */
-        .level-stat { width: 100%; margin-top: 5px; }
-        .level-info { display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 6px; color: var(--text-primary); font-weight: 600; }
-        .level-progress-bar-container { height: 8px; background-color: var(--surface-lighter); border-radius: 4px; overflow: hidden; }
+        .level-stat { width: 100%; margin-top: 2px; }
+        .level-info { display: flex; justify-content: space-between; font-size: 0.7em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; }
+        .level-progress-bar-container { height: 5px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
         /* --- Main Content --- */
