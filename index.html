@@ -274,7 +274,7 @@
                             <i class="fas fa-bell"></i>
                             <span id="notification-badge" style="display: none;"></span>
                         </button>
-                        <button id="settings-btn" onclick="showModal('settings-modal')">
+                        <button id="settings-btn" onclick="showModal('settings-modal'); initNotificationToggle();">
                             <i class="fas fa-cog"></i>
                         </button>
                     </div>
@@ -318,13 +318,12 @@
             <div class="main-content">
                 
                 <section id="inventory-section" class="section active">
-                    <h3><i class="fas fa-utensils"></i> <span data-translate="InventoryHeader">Мои продукты</span></h3>
-
-                    <div class="section-header-actions">
-    <button class="small-action-btn" onclick="prepareShare('inventory')">
-        <i class="fas fa-share-alt"></i> Поделиться
-    </button>
-</div>
+                    <div class="section-title-row">
+                        <h3><i class="fas fa-utensils"></i> <span data-translate="InventoryHeader">Мои продукты</span></h3>
+                        <button class="small-action-btn" onclick="prepareShare('inventory')">
+                            <i class="fas fa-share-alt"></i> Поделиться
+                        </button>
+                    </div>
 
                     <div class="inventory-controls">
         <div class="category-slider" id="inventory-filters">
@@ -1110,12 +1109,20 @@
                 </label>
             </div>
 
-            <div class="settings-row">
-    <div class="sticker-label">Уведомления</div>
-    <button class="btn btn-primary" onclick="requestPushPermission()" style="width:auto;">
-        <i class="fas fa-bell"></i> Включить
-    </button>
-</div>
+            <div class="settings-row notif-settings-row" id="push-notif-row">
+                <div class="notif-row-left">
+                    <div class="notif-icon-badge"><i class="fas fa-bell"></i></div>
+                    <div class="notif-row-text">
+                        <div class="notif-row-title">Push-уведомления</div>
+                        <div class="notif-row-desc">Сроки годности, советы шефа и напоминания</div>
+                        <div class="push-notif-status" id="push-notif-status"><i class="fas fa-circle-notch fa-spin"></i> Проверка статуса…</div>
+                    </div>
+                </div>
+                <label class="premium-switch">
+                    <input type="checkbox" id="push-notif-toggle" onchange="togglePushNotifications(this)">
+                    <span class="premium-switch-track"><span class="premium-switch-thumb"><i class="fas fa-bell"></i></span></span>
+                </label>
+            </div>
             
             <div class="settings-row luxury-lang-row">
     <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
@@ -8776,6 +8783,91 @@ if(localRecipe) {
 }
 
 /* --- TUTORIAL LOGIC --- */
+
+/* --- PREMIUM NOTIFICATION TOGGLE --- */
+function updateNotifStatusUI(perm, isOn) {
+    const statusEl = document.getElementById('push-notif-status');
+    const row = document.getElementById('push-notif-row');
+    if (!statusEl) return;
+
+    if (perm === 'unsupported') {
+        statusEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Не поддерживается браузером';
+        statusEl.className = 'push-notif-status blocked';
+    } else if (perm === 'denied') {
+        statusEl.innerHTML = '<i class="fas fa-ban"></i> Заблокировано в браузере';
+        statusEl.className = 'push-notif-status blocked';
+    } else if (isOn) {
+        statusEl.innerHTML = '<i class="fas fa-circle-check"></i> Включены';
+        statusEl.className = 'push-notif-status on';
+    } else {
+        statusEl.innerHTML = '<i class="fas fa-bell-slash"></i> Выключены';
+        statusEl.className = 'push-notif-status off';
+    }
+
+    if (row) row.classList.toggle('is-on', !!isOn);
+}
+
+function initNotificationToggle() {
+    const toggle = document.getElementById('push-notif-toggle');
+    if (!toggle) return;
+
+    const supported = ('Notification' in window);
+    const perm = supported ? Notification.permission : 'unsupported';
+    const appPref = localStorage.getItem('notificationsAppEnabled');
+
+    const isOn = supported && perm === 'granted' && appPref !== 'false';
+    toggle.checked = isOn;
+    toggle.disabled = !supported;
+    updateNotifStatusUI(perm, isOn);
+}
+
+function togglePushNotifications(checkboxEl) {
+    const supported = ('Notification' in window);
+
+    if (!supported) {
+        checkboxEl.checked = false;
+        updateNotifStatusUI('unsupported', false);
+        showToast('Ваш браузер не поддерживает push-уведомления', 'error');
+        return;
+    }
+
+    const perm = Notification.permission;
+
+    if (checkboxEl.checked) {
+        // Пользователь включает уведомления
+        if (perm === 'denied') {
+            checkboxEl.checked = false;
+            updateNotifStatusUI(perm, false);
+            showToast('Уведомления заблокированы в настройках браузера/устройства. Разрешите их вручную.', 'error');
+            return;
+        }
+
+        if (perm === 'granted') {
+            localStorage.setItem('notificationsAppEnabled', 'true');
+            updateNotifStatusUI(perm, true);
+            showToast('Уведомления включены', 'success');
+            return;
+        }
+
+        // Разрешение ещё не запрошено — запрашиваем
+        if (typeof requestPushPermission === 'function') requestPushPermission();
+
+        setTimeout(() => {
+            const newPerm = Notification.permission;
+            const granted = newPerm === 'granted';
+            checkboxEl.checked = granted;
+            localStorage.setItem('notificationsAppEnabled', granted ? 'true' : 'false');
+            updateNotifStatusUI(newPerm, granted);
+            showToast(granted ? 'Уведомления включены' : 'Уведомления не были разрешены', granted ? 'success' : 'error');
+        }, 600);
+
+    } else {
+        // Пользователь выключает уведомления (на уровне приложения)
+        localStorage.setItem('notificationsAppEnabled', 'false');
+        updateNotifStatusUI(perm, false);
+        showToast('Уведомления выключены', 'success');
+    }
+}
 
 
 
