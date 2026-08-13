@@ -4393,15 +4393,6 @@ function editShoppingItemQty(id) {
     }
 }
 
-// --- УМНЫЕ ПОИСКОВЫЕ КАРТОЧКИ ДОСТАВКИ (DEEP SEARCH) ---
-// 4 категории, отображаются сеткой 2×2 (сверху Маркетплейсы/Доставка, снизу Магазины/Интернет):
-// - Маркетплейсы: прямой поиск по товару через собственную строку поиска сайта.
-// - Доставка и Магазины: большинство сервисов доставки и продуктовых сетей в РФ показывают
-//   каталог только после выбора города/адреса и не имеют публичного URL для поиска по тексту,
-//   поэтому вместо поиска по всему интернету используется поиск, ограниченный конкретным
-//   доменом сервиса (site:) — результат ведёт именно на этот сайт/приложение, а не куда попало.
-// Иконки — реальные favicon сервисов (с фолбэком на цветной инициал, если картинка не загрузилась).
-
 function ddsSite(domain, brand, q) {
     return `https://www.google.com/search?q=${encodeURIComponent('site:' + domain + ' ' + brand + ' ' + q)}`;
 }
@@ -4427,9 +4418,9 @@ const DELIVERY_CATEGORIES = [
         label: 'Доставка',
         icon: 'fa-truck-fast',
         items: [
-            { id: 'eda', name: 'Яндекс Еда', domain: 'eda.yandex.ru', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Еда', q) },
-            { id: 'samokat', name: 'Самокат', domain: 'samokat.ru', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('samokat.ru', 'Самокат', q) },
-            { id: 'lavka', name: 'Яндекс Лавка', domain: 'eda.yandex.ru', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Лавка', q) },
+            { id: 'eda', name: 'Яндекс Еда', domain: 'eda.yandex.ru', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны',  buildUrl: q => `https://lavka.yandex.ru/catalog/?q=${encodeURIComponent(q)}` },
+            { id: 'samokat', name: 'Самокат', domain: 'samokat.ru', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('samoka', 'Самокат', q) },
+            { id: 'lavka', name: 'Яндекс Лавка', domain: 'lavka.yandex.ru', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Лавка', q) },
             { id: 'kuper', name: 'Купер', domain: 'kuper.ru', mono: 'К', color: '#7A2FF0', hint: 'Из супермаркетов', buildUrl: q => ddsSite('kuper.ru', 'Купер', q) },
             { id: 'market-delivery', name: 'Маркет Деливери', domain: 'market-delivery.yandex.ru', mono: 'МД', color: '#4CAF50', hint: 'Доставка еды (бывш. Delivery Club)', buildUrl: q => ddsSite('market-delivery.yandex.ru', 'Маркет Деливери', q) }
         ]
