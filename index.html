@@ -59,36 +59,46 @@
 <body>
 
 <div id="dislike-reason-modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h4 data-translate="DislikeTitle">Почему не понравилось?</h4>
-            <span class="modal-close" onclick="hideModal('dislike-reason-modal')"><i class="fas fa-times"></i></span>
-        </div>
-        <div class="form-group">
-            <label class="dislike-help-label" data-translate="DislikeHelpLabel">Помогите нам стать лучше:</label>
+    <div class="modal-content dislike-modal-content">
+        <span class="modal-close dislike-modal-close" onclick="hideModal('dislike-reason-modal')"><i class="fas fa-times"></i></span>
 
-            <div class="dislike-options">
-                <label class="radio-option">
-                    <input type="radio" name="dislike-reason" value="taste" checked>
-                    <span data-translate="DislikeReasonTaste">Невкусно / Не понравился рецепт</span>
-                </label>
-                <label class="radio-option">
-                    <input type="radio" name="dislike-reason" value="ingredients">
-                    <span data-translate="DislikeReasonIngredients">Сложные ингредиенты</span>
-                </label>
-                <label class="radio-option">
-                    <input type="radio" name="dislike-reason" value="complexity">
-                    <span data-translate="DislikeReasonComplexity">Слишком сложно готовить</span>
-                </label>
-                <label class="radio-option">
-                    <input type="radio" name="dislike-reason" value="other">
-                    <span data-translate="DislikeReasonOther">Другое</span>
-                </label>
-            </div>
+        <div class="dislike-modal-icon"><i class="fas fa-face-frown"></i></div>
+        <h4 class="dislike-modal-title" data-translate="DislikeTitle">Почему не понравилось?</h4>
+        <p class="dislike-help-label" data-translate="DislikeHelpLabel">Помогите нам стать лучше:</p>
 
-            <input type="text" id="dislike-comment" class="styled-input dislike-comment-input" placeholder="Ваш комментарий (необязательно)" data-translate-placeholder="DislikeCommentPlaceholder">
+        <div class="dislike-options">
+            <label class="radio-option">
+                <input type="radio" name="dislike-reason" value="taste" checked>
+                <span class="radio-option-icon"><i class="fas fa-utensils"></i></span>
+                <span class="radio-option-text" data-translate="DislikeReasonTaste">Невкусно / Не понравился рецепт</span>
+                <span class="radio-option-check"><i class="fas fa-check"></i></span>
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="dislike-reason" value="ingredients">
+                <span class="radio-option-icon"><i class="fas fa-carrot"></i></span>
+                <span class="radio-option-text" data-translate="DislikeReasonIngredients">Сложные ингредиенты</span>
+                <span class="radio-option-check"><i class="fas fa-check"></i></span>
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="dislike-reason" value="complexity">
+                <span class="radio-option-icon"><i class="fas fa-clock"></i></span>
+                <span class="radio-option-text" data-translate="DislikeReasonComplexity">Слишком сложно готовить</span>
+                <span class="radio-option-check"><i class="fas fa-check"></i></span>
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="dislike-reason" value="other">
+                <span class="radio-option-icon"><i class="fas fa-ellipsis"></i></span>
+                <span class="radio-option-text" data-translate="DislikeReasonOther">Другое</span>
+                <span class="radio-option-check"><i class="fas fa-check"></i></span>
+            </label>
         </div>
-        <button class="btn btn-primary dislike-submit-btn" onclick="confirmDislike()" data-translate="DislikeHideButton">Скрыть рецепт</button>
+
+        <input type="text" id="dislike-comment" class="styled-input dislike-comment-input" placeholder="Ваш комментарий (необязательно)" data-translate-placeholder="DislikeCommentPlaceholder">
+
+        <div class="dislike-modal-actions">
+            <button class="btn btn-secondary dislike-cancel-btn" onclick="hideModal('dislike-reason-modal')" data-translate="DislikeCancelButton">Отмена</button>
+            <button class="btn btn-primary dislike-submit-btn" onclick="confirmDislike()" data-translate="DislikeHideButton">Скрыть рецепт</button>
+        </div>
     </div>
 </div>
 

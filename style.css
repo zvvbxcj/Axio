@@ -3939,74 +3939,118 @@ adsgram-task {
         .form-group input:focus, .form-group select:focus { border-color: var(--primary); }
 
         /* --- Окно "Почему не понравилось?" --- */
+        .dislike-modal-content {
+            text-align: center;
+            padding: 28px 22px 22px;
+        }
+        .dislike-modal-close {
+            position: absolute;
+            top: 14px; right: 16px;
+            font-size: 1.4em;
+            z-index: 1;
+        }
+        .dislike-modal-icon {
+            width: 56px; height: 56px;
+            margin: 0 auto 14px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--error);
+            font-size: 1.6em;
+        }
+        .dislike-modal-title {
+            font-size: 1.25em;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
         .dislike-help-label {
-            margin-bottom: 12px;
+            margin: 0 0 18px;
             display: block;
             color: var(--text-secondary);
-            font-size: 0.9em;
+            font-size: 0.88em;
             font-weight: 500;
         }
         .dislike-options {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
+            text-align: left;
         }
         .radio-option {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 12px 14px;
-            border-radius: 12px;
+            border-radius: 14px;
             background: var(--surface-light);
-            border: 1px solid transparent;
+            border: 1.5px solid transparent;
             cursor: pointer;
             transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
         }
         .radio-option:hover {
-            border-color: var(--primary);
             transform: translateX(2px);
         }
-        .radio-option span {
+        .radio-option-icon {
+            flex-shrink: 0;
+            width: 34px; height: 34px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--surface-lighter);
+            color: var(--text-secondary);
             font-size: 0.95em;
-            color: var(--text-primary);
-            font-weight: 500;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
-        .radio-option input[type="radio"] {
-            appearance: none;
-            -webkit-appearance: none;
-            width: 20px;
-            height: 20px;
-            min-width: 20px;
+        .radio-option-text {
+            flex: 1;
+            font-size: 0.92em;
+            color: var(--text-primary);
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        .radio-option-check {
+            flex-shrink: 0;
+            width: 20px; height: 20px;
             border-radius: 50%;
             border: 2px solid var(--border-color);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.6em;
+            color: transparent;
             background: var(--surface);
-            position: relative;
-            cursor: pointer;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
         }
-        .radio-option input[type="radio"]::after {
-            content: "";
+        .radio-option input[type="radio"] {
             position: absolute;
-            top: 50%; left: 50%;
-            width: 10px; height: 10px;
-            border-radius: 50%;
-            background: var(--primary);
-            transform: translate(-50%, -50%) scale(0);
-            transition: transform 0.15s ease;
-        }
-        .radio-option input[type="radio"]:checked {
-            border-color: var(--primary);
-        }
-        .radio-option input[type="radio"]:checked::after {
-            transform: translate(-50%, -50%) scale(1);
+            opacity: 0;
+            width: 0; height: 0;
+            pointer-events: none;
         }
         .radio-option:has(input[type="radio"]:checked) {
             border-color: var(--primary);
             background: rgba(16, 185, 129, 0.1);
         }
+        .radio-option:has(input[type="radio"]:checked) .radio-option-icon {
+            background: var(--primary);
+            color: #fff;
+        }
+        .radio-option:has(input[type="radio"]:checked) .radio-option-check {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: #fff;
+        }
         .dislike-comment-input {
             display: none;
-            margin-top: 15px;
+            margin-top: 14px;
+        }
+        .dislike-modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 22px;
+        }
+        .dislike-modal-actions .btn {
+            width: auto;
+            flex: 1;
+            padding: 13px;
         }
         .dislike-submit-btn {
             background-color: var(--error) !important;
