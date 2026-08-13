@@ -1,8 +1,8 @@
 const ADSGRAM_IDS = {
-    INTERSTITIAL: "int-20297",
-    REWARDED: "20296",
+    INTERSTITIAL: "int-42641",
+    REWARDED: "42640",
     BANNER: "task-20298",
-    NATIVE_TASK: "task-20298" // тот же блок, что и BANNER — используется для <adsgram-task> в списке покупок
+    NATIVE_TASK: "task-42642"
 };
 
 const AdController = {
@@ -31,7 +31,7 @@ const AdController = {
         });
     },
 
-    // 3. Логика вставки баннера в список
+    // 3. Баннер
     getBannerHTML() {
         return `
             <div class="adsgram-banner-container" style="width: 100%; margin: 15px 0; min-height: 100px; display: flex; justify-content: center;">
@@ -39,7 +39,6 @@ const AdController = {
             </div>`;
     },
 
-    // Функция для инициализации баннера после его вставки в DOM
     initBanner() {
         const target = document.getElementById('adsgram-banner-target');
         if (target) {
@@ -49,7 +48,6 @@ const AdController = {
     }
 };
 
-// Функция для определения позиции рекламы в списке
 function shouldInsertAdsgram(index) {
     const pos = index + 1;
     return (pos === 4 || (pos > 4 && (pos - 4) % 16 === 0));

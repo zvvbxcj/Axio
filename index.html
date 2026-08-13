@@ -8492,6 +8492,8 @@ async function openLeaderboard() {
 let currentCookingRecipeId = null;
 let activeTimerInterval = null;
 let remainingTime = 0;
+let totalTimerDuration = 0;
+let activeTimerBtn = null;
 
 // 1. ЗАПУСК РЕЖИМА ГОТОВКИ
 function startCookingMode(id) {
@@ -8504,83 +8506,197 @@ function startCookingMode(id) {
     showModal('cooking-mode-modal');
 
     document.getElementById('cooking-title').textContent = recipe.name[currentLang] || recipe.name.ru;
-    
+
     const stepsContainer = document.getElementById('cooking-steps-list');
     stepsContainer.innerHTML = '';
 
     // Парсим шаги
     const steps = (recipe.steps[currentLang] || recipe.steps.ru);
-    
+
     steps.forEach((step, index) => {
         // Ищем время в тексте (например "10 мин" или "5 min")
         const timeMatch = step.match(/(\d+)\s*(?:мин|min)/i);
         let timerHtml = '';
-        
+
         if (timeMatch) {
             const minutes = parseInt(timeMatch[1]);
-            timerHtml = `<button class="step-timer-btn" onclick="startStepTimer(${minutes * 60})"><i class="fas fa-stopwatch"></i> Засечь ${minutes} мин</button>`;
+            timerHtml = `<button class="step-timer-btn" onclick="startStepTimer(${minutes * 60}, this, '${minutes} мин')"><i class="fas fa-stopwatch"></i> Засечь ${minutes} мин</button>`;
         }
 
         const stepHtml = `
             <div class="cooking-step-item" id="step-${index}">
-                <input type="checkbox" class="step-checkbox" onchange="checkCookingProgress()">
-                <div class="step-content">
-                    <div style="font-weight:bold; margin-bottom:5px;">Шаг ${index + 1}</div>
+                <div class="step-num" onclick="toggleCookingStep(${index})">
+                    <span class="step-num-text">${index + 1}</span>
+                    <i class="fas fa-check step-num-check"></i>
+                </div>
+                <input type="checkbox" class="step-checkbox" id="step-check-${index}" onchange="checkCookingProgress()">
+                <div class="step-content" onclick="toggleCookingStep(${index})">
+                    <div>Шаг ${index + 1}</div>
                     <div>${step}</div>
-                    ${timerHtml}
+                    ${timerHtml ? `<span onclick="event.stopPropagation()">${timerHtml}</span>` : ''}
                 </div>
             </div>
         `;
         stepsContainer.innerHTML += stepHtml;
     });
 
+    document.getElementById('cooking-progress-total').textContent = steps.length;
     document.getElementById('finish-cooking-btn').style.display = 'none';
+    cancelStepTimer();
+    checkCookingProgress();
+}
+
+function toggleCookingStep(index) {
+    const cb = document.getElementById(`step-check-${index}`);
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    checkCookingProgress();
 }
 
 // 2. ТАЙМЕР
-function startStepTimer(seconds) {
+const TIMER_RING_CIRCUMFERENCE = 2 * Math.PI * 28; // r=28
+
+function startStepTimer(seconds, btnEl, label) {
     if (activeTimerInterval) clearInterval(activeTimerInterval);
-    
+    if (activeTimerBtn) activeTimerBtn.classList.remove('timer-active');
+
     remainingTime = seconds;
+    totalTimerDuration = seconds;
+    activeTimerBtn = btnEl || null;
+    if (activeTimerBtn) activeTimerBtn.classList.add('timer-active');
+
+    const bar = document.getElementById('cooking-timer-bar');
+    bar.classList.remove('ringing');
+    bar.classList.add('visible');
+    document.getElementById('cooking-timer-label').textContent = label ? `Таймер · ${label}` : 'Таймер шага';
+
     updateTimerDisplay();
+    updateTimerRing();
 
     activeTimerInterval = setInterval(() => {
         remainingTime--;
         updateTimerDisplay();
-        
+        updateTimerRing();
+
         if (remainingTime <= 0) {
             clearInterval(activeTimerInterval);
-            playNotificationSound(); // Можно добавить звук
-            alert("Время вышло!");
+            activeTimerInterval = null;
+            if (activeTimerBtn) activeTimerBtn.classList.remove('timer-active');
+            document.getElementById('cooking-timer-bar').classList.add('ringing');
+            document.getElementById('cooking-timer-label').textContent = 'Время вышло!';
+            playNotificationSound();
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            showToast('⏰ Таймер сработал: время вышло!', 'success');
         }
     }, 1000);
 }
 
+function cancelStepTimer() {
+    if (activeTimerInterval) clearInterval(activeTimerInterval);
+    activeTimerInterval = null;
+    remainingTime = 0;
+    totalTimerDuration = 0;
+    if (activeTimerBtn) activeTimerBtn.classList.remove('timer-active');
+    activeTimerBtn = null;
+    const bar = document.getElementById('cooking-timer-bar');
+    if (bar) { bar.classList.remove('visible', 'ringing'); }
+}
+
 function updateTimerDisplay() {
-    const m = Math.floor(remainingTime / 60).toString().padStart(2, '0');
-    const s = (remainingTime % 60).toString().padStart(2, '0');
+    const safeTime = Math.max(remainingTime, 0);
+    const m = Math.floor(safeTime / 60).toString().padStart(2, '0');
+    const s = (safeTime % 60).toString().padStart(2, '0');
     document.getElementById('step-timer').textContent = `${m}:${s}`;
+}
+
+function updateTimerRing() {
+    const ring = document.getElementById('timer-ring-fill');
+    if (!ring || !totalTimerDuration) return;
+    const progress = Math.max(0, Math.min(1, remainingTime / totalTimerDuration));
+    const offset = TIMER_RING_CIRCUMFERENCE * (1 - progress);
+    ring.style.strokeDashoffset = offset;
+}
+
+// 2b. ЗВУК ТАЙМЕРА (синтезируем приятный сигнал через Web Audio API — без внешних файлов)
+let cookingAudioCtx = null;
+
+function playNotificationSound() {
+    try {
+        if (!cookingAudioCtx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            cookingAudioCtx = new AudioCtx();
+        }
+        if (cookingAudioCtx.state === 'suspended') cookingAudioCtx.resume();
+
+        const ctx = cookingAudioCtx;
+        const now = ctx.currentTime;
+
+        // Приятный трёхтональный сигнал (мажорное трезвучие), проигрывается дважды
+        const notes = [880.0, 1108.73, 1318.51]; // A5, C#6, E6
+        const chimeAt = (startTime) => {
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const t = startTime + i * 0.09;
+                gain.gain.setValueAtTime(0, t);
+                gain.gain.linearRampToValueAtTime(0.22, t + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+
+                osc.start(t);
+                osc.stop(t + 0.95);
+            });
+        };
+
+        chimeAt(now);
+        chimeAt(now + 1.1);
+    } catch (e) {
+        console.warn('Notification sound unavailable:', e);
+    }
 }
 
 // 3. ПРОВЕРКА ПРОГРЕССА
 function checkCookingProgress() {
     const checkboxes = document.querySelectorAll('.step-checkbox');
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    
+    const total = checkboxes.length;
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const allChecked = total > 0 && checkedCount === total;
+
     const finishBtn = document.getElementById('finish-cooking-btn');
-    finishBtn.style.display = allChecked ? 'block' : 'none';
-    
-    // Подсветка выполненных
+    finishBtn.style.display = allChecked ? 'flex' : 'none';
+
+    // Прогресс-бар
+    const pct = total ? Math.round((checkedCount / total) * 100) : 0;
+    const fill = document.getElementById('cooking-progress-fill');
+    if (fill) fill.style.width = pct + '%';
+    const countEl = document.getElementById('cooking-progress-count');
+    if (countEl) countEl.textContent = checkedCount;
+
+    // Подсветка выполненных + определение текущего активного шага
+    let activeFound = false;
     checkboxes.forEach(cb => {
         const item = cb.closest('.cooking-step-item');
-        if (cb.checked) item.classList.add('completed');
-        else item.classList.remove('completed');
+        item.classList.remove('active-step');
+        if (cb.checked) {
+            item.classList.add('completed');
+        } else {
+            item.classList.remove('completed');
+            if (!activeFound) {
+                item.classList.add('active-step');
+                activeFound = true;
+            }
+        }
     });
 }
 
 function stopCooking() {
     if(confirm("Прервать готовку? Прогресс не сохранится.")) {
         clearInterval(activeTimerInterval);
+        cancelStepTimer();
         hideModal('cooking-mode-modal');
         currentCookingRecipeId = null;
         releaseWakeLock();
@@ -8651,7 +8767,7 @@ if(localRecipe) {
         updateRecipesList();
 
         hideModal('cooking-mode-modal');
-        clearInterval(activeTimerInterval);
+        cancelStepTimer();
         releaseWakeLock();
         showToast("Блюдо готово! Приятного аппетита!", "success");
         triggerLevelUpEffect();
@@ -11366,20 +11482,58 @@ async function runTest(type) {
     </div>
 </div>
 
-<div id="cooking-mode-modal" class="modal fullscreen-modal">
+<div id="cooking-mode-modal" class="modal fullscreen-modal cooking-mode-modal">
     <div class="modal-content cooking-interface">
+
         <div class="cooking-header">
-            <h3 id="cooking-title">Название блюда</h3>
-            <div class="timer-display" id="step-timer">00:00</div>
+            <div class="cooking-header-row">
+                <button class="cooking-back-btn" onclick="stopCooking()" aria-label="Закрыть">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="cooking-header-titles">
+                    <span class="cooking-eyebrow"><i class="fas fa-sparkles"></i> Режим готовки</span>
+                    <h3 id="cooking-title">Название блюда</h3>
+                </div>
+            </div>
+
+            <div class="cooking-progress-wrap">
+                <div class="cooking-progress-track">
+                    <div class="cooking-progress-fill" id="cooking-progress-fill"></div>
+                </div>
+                <div class="cooking-progress-label">
+                    <span id="cooking-progress-count">0</span> из <span id="cooking-progress-total">0</span> шагов
+                </div>
+            </div>
         </div>
-        
+
+        <div class="cooking-timer-bar" id="cooking-timer-bar">
+            <div class="cooking-timer-ring">
+                <svg viewBox="0 0 64 64">
+                    <circle class="timer-ring-track" cx="32" cy="32" r="28"></circle>
+                    <circle class="timer-ring-fill" id="timer-ring-fill" cx="32" cy="32" r="28"></circle>
+                </svg>
+                <i class="fas fa-fire timer-ring-icon"></i>
+            </div>
+            <div class="cooking-timer-info">
+                <span class="cooking-timer-label" id="cooking-timer-label">Таймер шага</span>
+                <div class="timer-display" id="step-timer">00:00</div>
+            </div>
+            <button class="cooking-timer-stop" id="cooking-timer-stop" onclick="cancelStepTimer()" aria-label="Остановить таймер">
+                <i class="fas fa-stop"></i>
+            </button>
+        </div>
+
         <div class="cooking-step-container">
             <div id="cooking-steps-list"></div>
         </div>
 
         <div class="cooking-footer">
-            <button class="btn-secondary" onclick="stopCooking()">Отмена</button>
-            <button class="btn-primary" id="finish-cooking-btn" onclick="finishCooking()" style="display:none;">Завершить и Списать продукты</button>
+            <button class="cooking-btn-secondary" onclick="stopCooking()">
+                <i class="fas fa-xmark"></i> Отмена
+            </button>
+            <button class="cooking-btn-primary" id="finish-cooking-btn" onclick="finishCooking()" style="display:none;">
+                <i class="fas fa-check-double"></i> Завершить и списать продукты
+            </button>
         </div>
     </div>
 </div>
