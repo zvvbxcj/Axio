@@ -5484,8 +5484,14 @@ adsgram-task {
 
 .lang-world-map {
     position: absolute;
-    top: 16px; left: 16px; right: 16px; bottom: 16px;
+    top: 10px; left: 10px; right: 10px; bottom: 10px;
     z-index: 1;
+    /* jsVectorMap вписывает карту по ширине контейнера — из-за этого её реальная высота
+       чуть больше высоты рамки, и крайние точки материков (север/юг, иногда Аляска и Чукотка)
+       обрезаются рамкой с overflow:hidden. Уменьшаем масштаб отрисовки и центрируем,
+       чтобы вся карта гарантированно помещалась внутри рамки с запасом. */
+    transform: scale(0.85);
+    transform-origin: center center;
 }
 .lang-world-map svg { outline: none; }
 
