@@ -1916,72 +1916,125 @@ adsgram-task {
 }
 
 /* --- TUTORIAL MODAL STYLES --- */
-#tutorial-modal .modal-content {
+#tutorial-modal .modal-content.tutorial-modal-content {
     text-align: center;
     max-width: 400px;
     background: var(--surface);
     overflow: hidden;
     position: relative;
-    padding-bottom: 80px; /* Место под кнопки */
+    padding: 30px 24px 20px;
+}
+.tutorial-progress-track {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--surface-light);
+}
+.tutorial-progress-fill {
+    height: 100%;
+    width: 16.66%;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .tutorial-step {
     display: none;
-    animation: fadeIn 0.5s;
 }
 .tutorial-step.active {
     display: flex;
     flex-direction: column;
     align-items: center;
+    animation: tutorialStepIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.tutorial-img {
-    width: 100%;
-    height: 180px;
-    object-fit: contain;
-    margin-bottom: 20px;
-    border-radius: 12px;
-    background: var(--surface-light);
-    padding: 10px;
+@keyframes tutorialStepIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
+.tutorial-badge {
+    position: relative;
+    width: 84px; height: 84px;
+    margin: 10px auto 22px;
+    border-radius: 26px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.1em;
+    color: #fff;
+}
+.tutorial-badge::before {
+    content: "";
+    position: absolute;
+    inset: -18px;
+    border-radius: 50%;
+    filter: blur(18px);
+    opacity: 0.55;
+    background: inherit;
+    z-index: -1;
+}
+.tutorial-badge-primary { background: linear-gradient(140deg, var(--primary) 0%, var(--primary-dark) 100%); box-shadow: 0 10px 24px rgba(16, 185, 129, 0.35); }
+.tutorial-badge-secondary { background: linear-gradient(140deg, var(--secondary) 0%, #B45309 100%); box-shadow: 0 10px 24px rgba(245, 158, 11, 0.35); }
+.tutorial-badge-accent { background: linear-gradient(140deg, var(--accent) 0%, #5B21B6 100%); box-shadow: 0 10px 24px rgba(139, 92, 246, 0.35); }
+.tutorial-badge-gold { background: linear-gradient(140deg, #FFD700 0%, #B8860B 100%); box-shadow: 0 10px 24px rgba(255, 215, 0, 0.35); }
 .tutorial-title {
-    font-size: 1.5em;
-    color: var(--primary);
-    margin-bottom: 10px;
+    font-size: 1.4em;
+    color: var(--text-primary);
+    margin-bottom: 12px;
     font-weight: 800;
+    letter-spacing: -0.2px;
 }
 .tutorial-text {
     color: var(--text-secondary);
     font-size: 0.95em;
-    line-height: 1.5;
-    margin-bottom: 10px;
+    line-height: 1.55;
+    margin-bottom: 6px;
+    padding: 0 4px;
 }
+.tutorial-text b { color: var(--text-primary); font-weight: 700; }
 .tutorial-controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    padding: 20px;
+    margin-top: 26px;
+    padding-top: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--surface);
+    gap: 10px;
     border-top: 1px solid var(--border-color);
 }
-.tutorial-dots {
-    display: flex;
-    gap: 5px;
-}
-.dot {
-    width: 8px;
-    height: 8px;
+.tutorial-nav-btn {
+    width: 38px; height: 38px;
+    flex-shrink: 0;
     border-radius: 50%;
-    background: var(--border-color);
-    transition: 0.3s;
+    border: 1px solid var(--border-color);
+    background: var(--surface-light);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background-color 0.2s ease, transform 0.15s ease;
 }
-.dot.active {
-    background: var(--primary);
-    width: 20px;
-    border-radius: 4px;
+.tutorial-nav-btn:hover { background: var(--surface-lighter); }
+.tutorial-nav-btn:active { transform: scale(0.92); }
+.tutorial-skip-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 4px;
+    transition: color 0.2s ease;
 }
+.tutorial-skip-btn:hover { color: var(--text-primary); }
+.tutorial-step-counter {
+    font-size: 0.78em;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: 0.3px;
+    flex: 1;
+    text-align: center;
+}
+.tutorial-next-btn {
+    width: auto !important;
+    flex-shrink: 0;
+    padding: 11px 20px !important;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.tutorial-nav-hidden { visibility: hidden; pointer-events: none; }
 
 /* --- ИСПРАВЛЕНИЕ 1: Выбор языка (Стрелка и текст) --- */
 .custom-select-trigger {

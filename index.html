@@ -11833,7 +11833,16 @@ function fallbackCopy(text) {
 
     // Логика обучения (Tutorial)
     let currentTutorialStep = 1;
-    const totalTutorialSteps = 5;
+    const totalTutorialSteps = 6;
+
+    // Небольшой хелпер: достаёт перевод по ключу для текущего языка (с фолбэком),
+    // нужен для текста кнопки "Далее/Погнали!", который пересоздаётся при каждом шаге.
+    function tutorialT(key, fallback) {
+        try {
+            const dict = (typeof translations !== 'undefined' && translations[currentLang]) ? translations[currentLang] : {};
+            return typeof dict[key] === 'string' ? dict[key] : fallback;
+        } catch (e) { return fallback; }
+    }
 
     function startTutorial() {
         currentTutorialStep = 1;
@@ -11844,15 +11853,33 @@ function fallbackCopy(text) {
     function updateTutorialUI() {
         document.querySelectorAll('.tutorial-step').forEach(el => el.classList.remove('active'));
         const activeStep = document.querySelector(`.tutorial-step[data-step="${currentTutorialStep}"]`);
-        if(activeStep) activeStep.classList.add('active');
-        
-        const dots = document.getElementById('tutorial-dots').children;
-        for(let i=0; i<dots.length; i++) {
-            dots[i].className = i < currentTutorialStep ? 'dot active' : 'dot';
-        }
+        if (activeStep) activeStep.classList.add('active');
+
+        const progressFill = document.getElementById('tutorial-progress-fill');
+        if (progressFill) progressFill.style.width = `${(currentTutorialStep / totalTutorialSteps) * 100}%`;
+
+        const counter = document.getElementById('tutorial-step-counter');
+        if (counter) counter.textContent = `${currentTutorialStep} / ${totalTutorialSteps}`;
+
+        const backBtn = document.getElementById('tutorial-back-btn');
+        if (backBtn) backBtn.classList.toggle('tutorial-nav-hidden', currentTutorialStep === 1);
+
+        const skipBtn = document.getElementById('tutorial-skip-btn');
+        if (skipBtn) skipBtn.classList.toggle('tutorial-nav-hidden', currentTutorialStep === totalTutorialSteps);
 
         const nextBtn = document.getElementById('tutorial-next-btn');
-        if(nextBtn) nextBtn.textContent = currentTutorialStep === totalTutorialSteps ? "Погнали!" : "Далее";
+        if (nextBtn) {
+            nextBtn.innerHTML = currentTutorialStep === totalTutorialSteps
+                ? `<span data-translate="TutorialFinishButton">${tutorialT('TutorialFinishButton', 'Погнали!')}</span> <i class="fas fa-check"></i>`
+                : `<span data-translate="TutorialNextButton">${tutorialT('TutorialNextButton', 'Далее')}</span> <i class="fas fa-arrow-right"></i>`;
+        }
+    }
+
+    function prevTutorialStep() {
+        if (currentTutorialStep > 1) {
+            currentTutorialStep--;
+            updateTutorialUI();
+        }
     }
 
     function nextTutorialStep() {
@@ -11925,56 +11952,71 @@ function fallbackCopy(text) {
 </div>
 
 <div id="tutorial-modal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content tutorial-modal-content">
+
+        <div class="tutorial-progress-track"><div class="tutorial-progress-fill" id="tutorial-progress-fill"></div></div>
+
         <div class="tutorial-step active" data-step="1">
-            <img src="https://cdn-icons-png.flaticon.com/512/2921/2921822.png" class="tutorial-img" alt="Welcome">
-            <div class="tutorial-title">Добро пожаловать!</div>
+            <div class="tutorial-badge tutorial-badge-primary"><i class="fas fa-kitchen-set"></i></div>
+            <div class="tutorial-title">Добро пожаловать в Axio</div>
             <div class="tutorial-text">
-                Axio — это ваш умный помощник на кухне. <br>
-                Давайте быстро разберемся, как здесь все устроено!
+                Ваш личный AI-помощник на кухне: следит за продуктами, подсказывает, что приготовить,
+                и помогает не выбрасывать еду зря. Покажем главное за минуту.
             </div>
         </div>
 
         <div class="tutorial-step" data-step="2">
-            <img src="https://cdn-icons-png.flaticon.com/512/3082/3082060.png" class="tutorial-img" alt="Inventory">
-            <div class="tutorial-title">Следите за продуктами</div>
+            <div class="tutorial-badge tutorial-badge-primary"><i class="fas fa-boxes-stacked"></i></div>
+            <div class="tutorial-title">Продукты под контролем</div>
             <div class="tutorial-text">
-                Добавляйте продукты в <b>Инвентарь</b>. <br>
-                Мы подсветим цветом то, что скоро испортится.
+                Ведите <b>Инвентарь</b> — то, что скоро испортится, подсветим заранее. Можно завести
+                несколько холодильников (дом, дача, офис) и переключаться между ними одним тапом.
             </div>
         </div>
 
         <div class="tutorial-step" data-step="3">
-            <img src="https://cdn-icons-png.flaticon.com/512/3565/3565418.png" class="tutorial-img" alt="Recipes">
-            <div class="tutorial-title">Умные рецепты</div>
+            <div class="tutorial-badge tutorial-badge-secondary"><i class="fas fa-wand-magic-sparkles"></i></div>
+            <div class="tutorial-title">Добавляйте, как удобно</div>
             <div class="tutorial-text">
-                Перейдите в раздел <b>Рецепты</b>. <br>
-                Фильтр "Могу приготовить" покажет доступные блюда.
+                Вручную, фотографией продукта или чека — распознаем автоматически, или сканером
+                штрих-кода. Любой способ сохранит товар в инвентаре за пару секунд.
             </div>
         </div>
 
         <div class="tutorial-step" data-step="4">
-            <img src="https://cdn-icons-png.flaticon.com/512/3081/3081840.png" class="tutorial-img" alt="Shopping">
-            <div class="tutorial-title">Список покупок</div>
+            <div class="tutorial-badge tutorial-badge-accent"><i class="fas fa-hat-wizard"></i></div>
+            <div class="tutorial-title">Рецепты из того, что есть</div>
             <div class="tutorial-text">
-                Добавляйте покупки и переносите их в холодильник одной кнопкой.
+                Фильтр «Могу приготовить» покажет блюда из ваших продуктов. <b>AI Chef</b> подберёт
+                рецепт под настроение, а <b>Планировщик меню</b> распишет неделю вперёд.
             </div>
         </div>
 
         <div class="tutorial-step" data-step="5">
-            <img src="https://cdn-icons-png.flaticon.com/512/3112/3112946.png" class="tutorial-img" alt="XP">
-            <div class="tutorial-title">Играйте и готовьте</div>
+            <div class="tutorial-badge tutorial-badge-primary"><i class="fas fa-cart-shopping"></i></div>
+            <div class="tutorial-title">Список покупок</div>
             <div class="tutorial-text">
-                Получайте XP за готовку, повышайте уровень и открывайте награды!
+                Чего не хватает — добавляйте в список. Вернулись из магазина —
+                переносите покупки в холодильник одной кнопкой.
+            </div>
+        </div>
+
+        <div class="tutorial-step" data-step="6">
+            <div class="tutorial-badge tutorial-badge-gold"><i class="fas fa-trophy"></i></div>
+            <div class="tutorial-title">Готовьте и прокачивайтесь</div>
+            <div class="tutorial-text">
+                За каждый приготовленный рецепт — опыт и новый уровень. Открывайте награды
+                и достижения, а ваш аватар будет реагировать на порядок в холодильнике.
             </div>
         </div>
 
         <div class="tutorial-controls">
-            <button class="small-action-btn" onclick="skipTutorial()">Пропустить</button>
-            <div class="tutorial-dots" id="tutorial-dots">
-                <div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-            </div>
-            <button class="btn btn-primary" onclick="nextTutorialStep()" style="width: auto; padding: 8px 20px;" id="tutorial-next-btn">Далее</button>
+            <button class="tutorial-nav-btn tutorial-back-btn tutorial-nav-hidden" onclick="prevTutorialStep()" id="tutorial-back-btn">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <button class="tutorial-skip-btn" onclick="skipTutorial()" id="tutorial-skip-btn" data-translate="TutorialSkipButton">Пропустить</button>
+            <span class="tutorial-step-counter" id="tutorial-step-counter">1 / 6</span>
+            <button class="btn btn-primary tutorial-next-btn" onclick="nextTutorialStep()" id="tutorial-next-btn"><span data-translate="TutorialNextButton">Далее</span> <i class="fas fa-arrow-right"></i></button>
         </div>
     </div>
 </div>
