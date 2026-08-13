@@ -41,10 +41,6 @@
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
-/* =========================================================
-   Премиальный скроллбар (глобально, для всего сайта)
-   Тонкий, скруглённый, под цвет темы (тёмная/светлая)
-   ========================================================= */
 * {
     scrollbar-width: thin;
     scrollbar-color: var(--surface-lighter) transparent;
@@ -78,8 +74,6 @@
             transition: background-color 0.4s ease, color 0.4s ease;
         }
 
-        /* На широких экранах — тёмная/светлая подложка вокруг приложения,
-           само приложение выглядит как аккуратная центрированная карточка */
         body {
             display: flex;
             justify-content: center;
@@ -114,8 +108,6 @@
     position: relative;
 }
 
-/* Полноэкранные заставки (загрузка / техработы / бан) — тоже держим в рамках
-   карточки приложения на больших экранах, а не растягиваем на весь монитор */
 .blocking-screen,
 #global-loader,
 #maintenance-screen {
@@ -124,7 +116,6 @@
     max-width: var(--app-max-width);
 }
 
-/* Стили для текстового поля импорта */
 #import-textarea {
     background-color: var(--surface-light);
     color: var(--text-primary);
@@ -141,7 +132,6 @@
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
-/* Уведомление о нехватке */
 .scale-warning-box {
     background: rgba(245, 158, 11, 0.15);
     border: 1px solid #F59E0B;
@@ -171,7 +161,6 @@
     white-space: nowrap;
 }
 
-/* --- СТИЛИ ДЛЯ ШАБЛОНОВ ПОКУПОК --- */
 .template-card {
     background: var(--surface);
     border: 1px solid var(--border-color);
@@ -197,7 +186,6 @@
     display: flex; align-items: center; justify-content: center;
 }
 
-/* --- СТИЛИ ДЛЯ ОТКРЫТОЙ УПАКОВКИ --- */
 .open-package-btn {
     background: transparent;
     border: 1px solid var(--border-color);
@@ -224,7 +212,6 @@
     display: inline-flex; align-items: center; gap: 3px;
 }
 
-/* --- СТИЛИ АЛЛЕРГЕНОВ --- */
 .allergies-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
@@ -314,7 +301,7 @@
     display: flex; align-items: center; gap: 5px;
 }
 
-/* --- СТИЛИ ДЛЯ СУПЕР-АДМИНКИ ПОЛЬЗОВАТЕЛЯ --- */
+/* СТИЛИ ДЛЯ АДМИНКИ ПОЛЬЗОВАТЕЛЯ */
 .adm-user-tabs {
     display: flex;
     gap: 10px;
@@ -369,7 +356,7 @@
     border-radius: 10px;
 }
 
-/* --- Стили для Новой Карточки Админа --- */
+/* Стили для Новой Карточки Админа */
 .adm-user-header {
     display: flex;
     gap: 20px;
@@ -399,10 +386,9 @@
 }
 .adm-user-id-box:hover { color: var(--primary); background: rgba(16, 185, 129, 0.1); }
 
-/* Сетка для редактирования статистики */
 .adm-stats-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr; /* Три колонки */
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 15px;
     margin-bottom: 20px;
     background: var(--surface-light);
@@ -428,7 +414,6 @@
 }
 .adm-input-group input:focus { border-color: var(--primary); outline: none; }
 
-/* Сетка кнопок */
 .adm-actions-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -513,7 +498,6 @@
 .ad-btn-mini i { font-size: 1.5em; margin-bottom: 5px; }
 .ad-btn-mini span { line-height: 1.1; text-align: center; }
 
-/* Цвета кнопок */
 .btn-violet { background: linear-gradient(135deg, #8B5CF6, #6366f1); }
 .btn-green  { background: linear-gradient(135deg, #10B981, #059669); }
 .btn-orange { background: linear-gradient(135deg, #F59E0B, #EA580C); }
@@ -544,7 +528,6 @@
 .state-check { position: absolute; top: 10px; right: 10px; color: var(--primary); display: none; }
 .server-state-btn.active .state-check { display: block; }
 
-/* Цвета для активных состояний */
 #state-btn-maintenance.active { border-color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
 #state-btn-maintenance.active .state-check { color: #F59E0B; }
 #state-btn-readonly.active { border-color: #3B82F6; background: rgba(59, 130, 246, 0.1); }
