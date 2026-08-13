@@ -22,7 +22,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 
 <script src="firebase-config.js"></script>
-
+<script src="push-notifications.js"></script>
 <script src="https://sad.adsgram.ai/js/adsgram-sdk.js"></script>
 
     <link rel="icon" type="image/png" href="icon.png">
@@ -1103,6 +1103,13 @@
                     <div class="theme-toggle-circle"></div>
                 </label>
             </div>
+
+            <div class="settings-row">
+    <div class="sticker-label">Уведомления</div>
+    <button class="btn btn-primary" onclick="requestPushPermission()" style="width:auto;">
+        <i class="fas fa-bell"></i> Включить
+    </button>
+</div>
             
             <div class="settings-row luxury-lang-row">
     <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
@@ -1965,6 +1972,7 @@ async function trackStat(type) {
         await initFridges(legacyInventory, legacyShopping);
 
         checkDailyNotifications();
+        checkExpiringProductsPush();
         updateUI();
 
     } catch (error) {
@@ -2605,8 +2613,9 @@ function checkAuthState() {
                 uid: user.uid, 
                 email: user.email, 
                 name: user.displayName,
-                theme: 'dark' // Временное значение, обновится при загрузке профиля
+                theme: 'dark'
             };
+            initPushNotifications();
 
             // 2. ПРОВЕРКА: Если Тех. работы И юзер НЕ админ
             if (appConfig.maintenanceMode && user.uid !== ADMIN_UID) {
