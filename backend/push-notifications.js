@@ -73,9 +73,6 @@ async function initPushNotifications() {
         _swRegistration = await navigator.serviceWorker.register(PUSH_CONFIG.SW_PATH);
         console.log('[push] Service worker зарегистрирован');
 
-        // Если разрешение уже когда-то дали — тихо восстанавливаем/обновляем подписку,
-        // чтобы Firestore всегда содержал актуальную. Если ещё не спрашивали — не спрашиваем
-        // автоматически (браузеры это не любят). Спроси через requestPushPermission() по клику.
         if (Notification.permission === 'granted') {
             await subscribeWebPush();
         }
@@ -300,3 +297,5 @@ async function checkExpiringProductsPush() {
 setInterval(() => {
     if (typeof checkExpiringProductsPush === 'function') checkExpiringProductsPush();
 }, 60 * 60 * 1000);
+
+window.initPushNotifications = initPushNotifications;
