@@ -109,7 +109,7 @@
     <div class="blocking-content">
         <i class="fas fa-ban blocking-icon" style="color: #EF4444;"></i>
         <h2 style="color: #EF4444;">Доступ ограничен</h2>
-        <p>Ваш аккаунт был заблокирован администратором за нарушение правил сообщества.</p>
+        <p>Ваш аккаунт был заблокирован администратором за нарушение правил.</p>
         <div style="margin-top: 20px; font-size: 0.9em; opacity: 0.7;">
             ID: <span id="banned-user-id">...</span>
         </div>
@@ -410,8 +410,17 @@
                 <section id="recipes-section" class="section">
     <h3><i class="fas fa-book"></i> <span data-translate="RecipesHeader">Рецепты</span></h3>
     
-    <button class="btn btn-primary" onclick="openCreateRecipe()" style="width: 100%; margin-bottom: 15px; background: linear-gradient(45deg, var(--primary), var(--accent));">
-        <i class="fas fa-magic"></i> <span data-translate="CreateRecipeBtn">Создать свой рецепт</span>
+    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button class="btn btn-primary" onclick="openCreateRecipe()" style="width: 50%; margin-bottom: 0; background: linear-gradient(45deg, var(--primary), var(--accent));">
+            <i class="fas fa-magic"></i> <span data-translate="CreateRecipeBtn">Создать свой рецепт</span>
+        </button>
+        <button class="magic-btn" onclick="showModal('ai-chef-modal')" style="width: 50%; margin-bottom: 0;">
+            <i class="fas fa-hat-wizard"></i> <span data-translate="AIChefBtn">AI Chef: Что приготовить?</span>
+        </button>
+    </div>
+
+    <button class="btn btn-secondary" onclick="openMealPlanner()" style="width:100%; margin-bottom:15px; background:var(--surface-light);">
+        <i class="fas fa-calendar-alt"></i> <span data-translate="MealPlannerBtn">Планировщик меню</span>
     </button>
 
     <div class="recipes-controls">
@@ -443,13 +452,6 @@
             <button class="cat-btn" data-cat="disliked" style="color: var(--text-secondary); border-color: var(--border-color);"><i class="fas fa-ban"></i> <span data-translate="CatDisliked">Скрытые</span>
             </button>
         </div>
-
-<button class="magic-btn" onclick="showModal('ai-chef-modal')">
-    <i class="fas fa-hat-wizard"></i> <span data-translate="AIChefBtn">AI Chef: Что приготовить?</span>
-</button>
-<button class="btn btn-secondary" onclick="openMealPlanner()" style="width:100%; margin-bottom:15px; background:var(--surface-light);">
-    <i class="fas fa-calendar-alt"></i> <span data-translate="MealPlannerBtn">Планировщик меню</span>
-</button>
 
         <div class="recipe-toolbar">
             <select id="recipe-sort" class="styled-select" onchange="updateRecipesList()">
@@ -601,11 +603,11 @@
     <i class="fas fa-trophy" style="color: #F59E0B; margin-right: 8px;"></i> Таблица лидеров
 </button>
 
-                        <button class="btn btn-secondary" onclick="openMySubmissions()" style="width: 100%; margin-top: 10px; border: 1px solid var(--border-color); background: var(--surface-light); color: var(--text-primary);">
+                        <button class="btn btn-secondary" onclick="openMySubmissions()" style="width: 100%; margin-top: 10px; border: 1px solid var(--border-color); background: var(--surface-light); color: var(--text-primary); font-weight: 600;">
     <i class="fas fa-clipboard-list" style="color: var(--primary); margin-right: 8px;"></i> Мои публикации
 </button>
 
-                        <button class="action-btn" onclick="openStatistics()" style="background: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); width: 100%; margin-top: 10px; justify-content: center;">
+                        <button class="action-btn" onclick="openStatistics()" style="background: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); width: 100%; margin-top: 10px; justify-content: center; font-weight: 600;">
     <i class="fas fa-chart-pie" style="color: var(--accent);"></i> <span>Статистика и Отчеты</span>
 </button>
 
@@ -1116,7 +1118,6 @@
 
     <!-- Языковой "паспорт" -->
     <div class="lang-picker-luxury" id="lang-picker">
-        <!-- Кнопка-триггер в виде восковой печати -->
         <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
             <div class="lang-seal">
                 <div class="lang-seal-ring"></div>
@@ -1136,7 +1137,6 @@
                 <i class="fas fa-bolt"></i> <span data-translate="QuickLanguageTitle">Быстрый выбор</span>
             </div>
             <div class="lang-options-grid" id="lang-quick-grid">
-                <!-- рендерится в JS (renderLangQuickList) -->
             </div>
 
             <button type="button" class="lang-more-btn" onclick="openLangModal()">
@@ -1150,9 +1150,7 @@
         </div>
     </div>
 
-    <!-- Резервный скрытый нативный селект -->
     <select id="language-select" class="lang-native-fallback" aria-hidden="true">
-        <!-- опции рендерятся в JS (renderLangNativeFallback), чтобы список не расходился с LANG_META -->
     </select>
 </div>
 
@@ -1223,9 +1221,9 @@
         let userInventory = [];
         let userShopping = [];
         // --- MULTI-FRIDGE STATE ---
-        let userFridges = [];      // list of fridge metadata docs the user belongs to
-        let activeFridgeId = null; // id of the currently selected fridge
-        let activeFridgeData = null; // full doc of the currently selected fridge
+        let userFridges = [];
+        let activeFridgeId = null;
+        let activeFridgeData = null;
         let selectedNewFridgeType = 'personal';
         const FRIDGE_TYPE_META = {
             personal: { icon: '🏠', label: 'Личный' },
@@ -1252,7 +1250,7 @@
         let customExpiryDays = null;
         
         // --- NEW CAPTCHA KEYS & STATE ---
-        const HC_SITE_KEY = '1c004086-6d14-450e-b360-76689788c72e'; // Ваш ключ из файла
+        const HC_SITE_KEY = '1c004086-6d14-450e-b360-76689788c72e';
 
 // Tracks if captcha is solved (boolean)
 let captchaVerified = {
@@ -1271,39 +1269,31 @@ function loadAdsgram() {
     if (isTelegramEnv()) {
         console.log("Telegram detected: Loading Adsgram...");
         
-        // Загрузка основного скрипта (Видео)
+        // Загрузка (Видео)
         const scriptSad = document.createElement('script');
         scriptSad.src = "https://sad.adsgram.ai/js/sad.min.js";
         scriptSad.async = true;
         document.head.appendChild(scriptSad);
 
-        // Загрузка скрипта заданий (Tasks)
+        // Загрузка (Tasks)
         const scriptTask = document.createElement('script');
         scriptTask.src = "https://js.adsgram.ai/effect/task.js";
         scriptTask.async = true;
         document.head.appendChild(scriptTask);
     } else {
         console.log("Browser detected: Adsgram disabled.");
-        // Здесь можно в будущем инициализировать Google AdSense или РСЯ
     }
 }
 
-// Запускаем загрузку сразу
 loadAdsgram();
 
-// Функция инициализации ТОЛЬКО hCaptcha
 function initCaptcha(suffix) {
-    // Сброс состояния
     captchaVerified[suffix] = false;
     const renderZoneId = `captcha-render-zone-${suffix}`;
     const loaderId = `loader-ui-${suffix}`;
     const statusLabelId = `status-label-${suffix}`;
-    
-    // Очистка зоны
     const zone = document.getElementById(renderZoneId);
     if(zone) zone.innerHTML = '';
-    
-    // Показываем лоадер "Защита..."
     document.getElementById(loaderId).style.display = 'flex';
     document.getElementById(statusLabelId).innerText = "Проверка...";
 
