@@ -1049,10 +1049,25 @@
                         <label>Код приглашения</label>
                         <input type="text" id="join-fridge-code" maxlength="8" placeholder="Например, A1B2C3" style="text-transform:uppercase; letter-spacing: 2px;">
                     </div>
+                    <button type="button" class="btn btn-secondary" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:4px;" onclick="openFridgeQrScanner()">
+                        <i class="fas fa-qrcode"></i> Сканировать QR-код
+                    </button>
                     <p style="color:var(--text-secondary); font-size:13px;">Попросите код у владельца холодильника — он находится в настройках холодильника.</p>
                     <div class="modal-actions">
                         <button class="btn btn-secondary" onclick="showFridgeView('list')">Назад</button>
                         <button class="btn btn-primary" onclick="submitJoinFridge()">Присоединиться</button>
+                    </div>
+                </div>
+
+                <div id="fridge-qr-scanner-modal" class="modal" style="z-index: 10070;" onclick="if(event.target.id === 'fridge-qr-scanner-modal') closeFridgeQrScanner()">
+                    <div class="modal-content" style="max-width: 400px;">
+                        <div class="modal-header">
+                            <h4><i class="fas fa-qrcode"></i> Сканирование QR-кода</h4>
+                            <span class="modal-close" onclick="closeFridgeQrScanner()"><i class="fas fa-times"></i></span>
+                        </div>
+                        <div id="fridge-qr-reader" style="width:100%; min-height:220px; border-radius:12px; overflow:hidden; background:#000;"></div>
+                        <div id="fridge-qr-scan-status" style="text-align:center; margin-top:14px; color: var(--text-secondary); font-size:0.9em;">Наведите камеру на QR-код холодильника</div>
+                        <div id="fridge-qr-scan-error" style="display:none; text-align:center; margin-top:10px; color: var(--error); font-size:0.9em;"></div>
                     </div>
                 </div>
 
@@ -1984,6 +1999,79 @@ function checkJoinFridgeFromUrl() {
 
 function lastFridgeStorageKey() {
     return currentUser ? `axio_last_fridge_${currentUser.uid}` : null;
+}
+
+// --- Сканирование QR-кода приглашения прямо в приложении ---
+// (использует уже подключенную библиотеку html5-qrcode, так же как сканер штрих-кодов)
+let fridgeQrScannerInstance = null;
+
+// Достаёт код приглашения либо из ссылки вида https://.../?join=CODE, либо принимает
+// отсканированный текст как есть, если это уже голый код (буквы/цифры).
+function extractFridgeCodeFromScan(decodedText) {
+    if (!decodedText) return null;
+    try {
+        const url = new URL(decodedText);
+        const fromUrl = url.searchParams.get('join');
+        if (fromUrl) return fromUrl.trim().toUpperCase();
+    } catch (e) {
+        // Не URL — считаем, что это сам код
+    }
+    const cleaned = decodedText.trim().toUpperCase();
+    return cleaned || null;
+}
+
+async function openFridgeQrScanner() {
+    const modal = document.getElementById('fridge-qr-scanner-modal');
+    const statusEl = document.getElementById('fridge-qr-scan-status');
+    const errorEl = document.getElementById('fridge-qr-scan-error');
+
+    if (typeof Html5Qrcode === 'undefined') {
+        showToast('Сканер недоступен, попробуйте обновить страницу', 'error');
+        return;
+    }
+
+    modal.style.display = 'flex';
+    if (errorEl) errorEl.style.display = 'none';
+    if (statusEl) statusEl.textContent = 'Наведите камеру на QR-код холодильника';
+
+    try {
+        fridgeQrScannerInstance = new Html5Qrcode('fridge-qr-reader');
+        await fridgeQrScannerInstance.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            async (decodedText) => {
+                const code = extractFridgeCodeFromScan(decodedText);
+                if (!code) return;
+                await closeFridgeQrScanner();
+                const input = document.getElementById('join-fridge-code');
+                if (input) input.value = code;
+                showFridgeView('join');
+                showToast('Код считан: ' + code, 'success');
+                submitJoinFridge();
+            },
+            () => { /* кадр без QR-кода — игнорируем, это штатная ситуация */ }
+        );
+    } catch (err) {
+        console.error('Fridge QR scanner start error', err);
+        if (errorEl) {
+            errorEl.textContent = 'Не удалось запустить камеру: ' + err.message + '. Убедитесь, что сайт открыт через HTTPS и дан доступ к камере.';
+            errorEl.style.display = 'block';
+        }
+    }
+}
+
+async function closeFridgeQrScanner() {
+    const modal = document.getElementById('fridge-qr-scanner-modal');
+    if (fridgeQrScannerInstance) {
+        try {
+            await fridgeQrScannerInstance.stop();
+            fridgeQrScannerInstance.clear();
+        } catch (e) {
+            // сканер уже мог быть остановлен — не критично
+        }
+        fridgeQrScannerInstance = null;
+    }
+    if (modal) modal.style.display = 'none';
 }
 
 // Загружает список холодильников пользователя; если их еще нет (старый аккаунт
@@ -3607,7 +3695,7 @@ function openCO2Detail() {
     document.getElementById('sd-body').innerHTML = `
         <div class="sd-hero sd-hero-co2">
             <div class="sd-hero-value">${formatCO2(co2)}</div>
-            <div class="sd-hero-label">углеродного следа не попали в атмосферу благодаря вашим спасённым продуктам</div>
+            <div class="sd-hero-label">углеродного следа не попало в атмосферу благодаря вашим спасённым продуктам</div>
         </div>
 
         <div class="sd-equiv-highlight">
@@ -7220,6 +7308,9 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             if (id === 'settings-modal') {
         renderBlacklistTags();
     }
+            if ((id === 'fridge-select-modal' || id === 'fridge-qr-scanner-modal') && typeof fridgeQrScannerInstance !== 'undefined' && fridgeQrScannerInstance) {
+                closeFridgeQrScanner();
+            }
         }
 
         function applyTheme(theme) { document.body.className = theme === 'light' ? 'light-theme' : ''; const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
@@ -7966,6 +8057,38 @@ function capturePhotoFromStream() {
         // Закрываем интерфейс камеры
         closeCameraInterface();
     }
+}
+
+// Выбор фото из галереи — работает как для карточки товара, так и для ИИ-скана,
+// повторяя ту же логику ветвления, что и capturePhotoFromStream().
+function handleCameraGalleryPick(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = ''; // сбрасываем, чтобы можно было выбрать тот же файл повторно
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const dataUrl = e.target.result;
+
+        if (cameraCaptureMode === 'ai-scan') {
+            closeCameraInterface();
+            if (typeof handleAiScanCapture === 'function') {
+                handleAiScanCapture(dataUrl);
+            }
+            return;
+        }
+
+        currentImageBase64 = dataUrl;
+        const preview = document.getElementById('preview-image');
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+        document.getElementById('remove-image-btn').style.display = 'block';
+        closeCameraInterface();
+    };
+    reader.onerror = function() {
+        showToast('Не удалось прочитать файл', 'error');
+    };
+    reader.readAsDataURL(file);
 }
 
 async function switchCameraFacing() {
@@ -12025,6 +12148,10 @@ function fallbackCopy(text) {
         
         <button id="switch-camera-btn" onclick="switchCameraFacing()" style="margin-top:10px; background:none; border:none; color:var(--text-secondary); cursor:pointer; display:none;">
             <i class="fas fa-sync-alt"></i> <span data-translate="CameraSwitch">Переключить камеру</span></button>
+
+        <button type="button" onclick="document.getElementById('camera-gallery-input').click()" style="margin-top:8px; background:none; border:none; color:var(--text-secondary); cursor:pointer;">
+            <i class="fas fa-images"></i> <span data-translate="CameraFromGallery">Выбрать из галереи</span></button>
+        <input type="file" id="camera-gallery-input" accept="image/*" style="display:none;" onchange="handleCameraGalleryPick(event)">
     </div>
 </div>
 
