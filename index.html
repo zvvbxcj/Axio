@@ -939,7 +939,7 @@
 <div id="import-text-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header"><h4>Вставьте список</h4><span class="modal-close" onclick="hideModal('import-text-modal')">&times;</span></div>
-        <textarea id="import-textarea" class="styled-input" style="height:150px;" placeholder="Молоко&#10;Хлеб&#10;Яйца 10шт..."></textarea>
+        <textarea id="import-textarea-standalone" class="styled-input" style="height:150px;" placeholder="Молоко&#10;Хлеб&#10;Яйца 10шт..."></textarea>
         <button class="btn btn-primary" onclick="processTextImport()" style="margin-top:10px;">Добавить в список</button>
     </div>
 </div>
@@ -10604,7 +10604,7 @@ function processTextImport() {
     
     updateShoppingList();
     saveData();
-    hideModal('import-text-modal');
+    hideModal('add-shopping-modal');
     showToast(`Импортировано ${count} товаров`, "success");
 }
 
