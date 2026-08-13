@@ -280,23 +280,25 @@
                     </div>
                 </div>
 
-                <div class="level-stat" id="level-stat-bar">
-                    <div class="level-info">
-                        <span id="level-label" data-translate="LevelTitle">Уровень 1</span>
-                        <span id="level-xp">0 / 100 XP</span>
-                    </div>
-                    <div class="level-progress-bar-container">
-                        <div class="level-progress-bar" id="level-progress-bar"></div>
-                    </div>
-                </div>
-
-                <div class="fridge-stats-row">
+                <div class="fridge-level-row">
                     <button id="fridge-selector-btn" class="fridge-selector-btn" onclick="openFridgeSelector()">
                         <span id="fridge-selector-icon">🏠</span>
                         <span id="fridge-selector-name">Мой холодильник</span>
                         <i class="fas fa-chevron-down fridge-selector-chevron"></i>
                     </button>
 
+                    <div class="level-stat" id="level-stat-bar">
+                        <div class="level-info">
+                            <span id="level-label" data-translate="LevelTitle">Уровень 1</span>
+                            <span id="level-xp">0 / 100 XP</span>
+                        </div>
+                        <div class="level-progress-bar-container">
+                            <div class="level-progress-bar" id="level-progress-bar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="header-stats-row">
                     <div class="header-stats">
                         <button class="stat-item" onclick="navigateTo('inventory')" title="Перейти к продуктам">
                             <div class="count" id="stat-products">0</div>
@@ -1134,7 +1136,7 @@
         <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
             <div class="lang-seal">
                 <div class="lang-seal-ring"></div>
-                <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img">
+                <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
             </div>
             <div class="lang-info">
                 <span class="lang-picker-name" id="lang-picker-name">Русский</span>
@@ -7316,6 +7318,38 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 
         function applyTheme(theme) { document.body.className = theme === 'light' ? 'light-theme' : ''; const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
 
+        // --- Резервные флаги-эмодзи: подстраховка на случай, если картинка с flagcdn.com не подтянулась
+        // (медленная/нестабильная сеть, блокировка домена во внутреннем браузере и т.п.) ---
+        function ccToFlagEmoji(cc) {
+            if (!cc || cc.length !== 2) return '🏳️';
+            const codePoints = cc.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0));
+            return String.fromCodePoint(...codePoints);
+        }
+        // Картинка не загрузилась — прячем её и показываем эмодзи-флаг рядом, чтобы вместо "битой" иконки
+        // пользователь всё равно видел флаг страны.
+        function handleFlagError(img, cc) {
+            if (!img) return;
+            img.onerror = null;
+            img.style.display = 'none';
+            let fallback = img.nextElementSibling;
+            if (!fallback || !fallback.classList || !fallback.classList.contains('flag-emoji-fallback')) {
+                fallback = document.createElement('span');
+                fallback.className = 'flag-emoji-fallback';
+                img.insertAdjacentElement('afterend', fallback);
+            }
+            fallback.textContent = ccToFlagEmoji(cc);
+            fallback.style.display = '';
+        }
+        // Картинка (пере)загрузилась успешно — убираем эмодзи-заглушку, если она была показана ранее.
+        function handleFlagLoad(img) {
+            if (!img) return;
+            img.style.display = '';
+            const fallback = img.nextElementSibling;
+            if (fallback && fallback.classList && fallback.classList.contains('flag-emoji-fallback')) {
+                fallback.style.display = 'none';
+            }
+        }
+
         // cc = код страны для флага (flagcdn.com), name = название на самом языке, en = название по-английски (для поиска/подписи)
         const LANG_META = {
             ru: { cc: 'ru', name: 'Русский',            en: 'Russian' },
@@ -7413,7 +7447,7 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
                 const m = LANG_META[code];
                 return `
                 <div class="lang-option" data-lang="${code}" onclick="selectLanguage('${code}')">
-                    <div class="lang-flag-badge"><img src="https://flagcdn.com/w40/${m.cc}.png" alt="${m.name}"></div>
+                    <div class="lang-flag-badge"><img src="https://flagcdn.com/w40/${m.cc}.png" alt="${m.name}" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'${m.cc}')"></div>
                     <div class="lang-option-text">
                         <span class="lang-option-name">${m.name}</span>
                         <span class="lang-option-sub">${m.en}</span>
@@ -7437,7 +7471,7 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
                 return `
                 <div class="lang-visa-card ${code === currentLang ? 'active' : ''} ${matches ? '' : 'hidden'}"
                      data-lang="${code}" style="animation-delay:${i * 18}ms" onclick="selectLanguage('${code}')">
-                    <div class="lang-visa-flag"><img src="https://flagcdn.com/w40/${m.cc}.png" alt="${m.name}"></div>
+                    <div class="lang-visa-flag"><img src="https://flagcdn.com/w40/${m.cc}.png" alt="${m.name}" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'${m.cc}')"></div>
                     <div>
                         <div class="lang-visa-name">${m.name}</div>
                         <div class="lang-visa-native">${m.en}</div>
@@ -7478,7 +7512,13 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 
             if (view === 'map') {
                 initLangWorldMap();
+                // Карта иногда инициализируется до того, как flex/aspect-ratio раскладка окончательно
+                // посчитана (особенно сразу после открытия модалки), поэтому подгоняем размер несколько раз.
+                requestAnimationFrame(() => {
+                    if (langWorldMapInstance && langWorldMapInstance.updateSize) langWorldMapInstance.updateSize();
+                });
                 setTimeout(() => { if (langWorldMapInstance && langWorldMapInstance.updateSize) langWorldMapInstance.updateSize(); }, 60);
+                setTimeout(() => { if (langWorldMapInstance && langWorldMapInstance.updateSize) langWorldMapInstance.updateSize(); }, 350);
             }
         }
 
@@ -7517,6 +7557,18 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
                     handleLangMapCountryClick(code);
                 }
             });
+
+            // Держим карту в актуальном размере, если контейнер меняется (доворот экрана,
+            // пересчёт layout модалки и т.п.) — без этого карта могла "застревать" в маленьком размере.
+            if (typeof ResizeObserver !== 'undefined') {
+                const frame = document.querySelector('.lang-map-frame');
+                if (frame) {
+                    const ro = new ResizeObserver(() => {
+                        if (langWorldMapInstance && langWorldMapInstance.updateSize) langWorldMapInstance.updateSize();
+                    });
+                    ro.observe(frame);
+                }
+            }
         }
 
         // --- Клик по стране на карте: подбираем язык и "штампуем" выбор ---
@@ -7536,7 +7588,7 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             const meta = LANG_META[lang] || LANG_META.en;
             holder.innerHTML = `
                 <div class="lang-map-stamp">
-                    <img src="https://flagcdn.com/w80/${meta.cc}.png" alt="${meta.name}">
+                    <img src="https://flagcdn.com/w80/${meta.cc}.png" alt="${meta.name}" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'${meta.cc}')">
                     <span>${meta.name}</span>
                 </div>`;
             holder.classList.remove('show');

@@ -3506,10 +3506,15 @@ adsgram-task {
             font-size: 0.7em; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid var(--surface);
         }
 
-        .fridge-stats-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
-        .fridge-stats-row .fridge-selector-btn { margin: 0; flex-shrink: 0; }
-        .header-stats { display: flex; justify-content: flex-end; background-color: var(--surface-light); padding: 6px 8px; border-radius: var(--radius); gap: 4px; }
+        /* Строка 1: холодильник + уровень в одну строку */
+        .fridge-level-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+        .fridge-level-row .fridge-selector-btn { margin: 0; flex-shrink: 0; }
+
+        /* Строка 2: компактная статистика на всю ширину */
+        .header-stats-row { width: 100%; margin-top: 8px; }
+        .header-stats { display: flex; width: 100%; justify-content: space-between; background-color: var(--surface-light); padding: 6px 8px; border-radius: var(--radius); gap: 4px; }
         .stat-item {
+            flex: 1;
             text-align: center;
             padding: 3px 10px;
             border-right: 1px solid var(--border-color);
@@ -3527,11 +3532,18 @@ adsgram-task {
         .stat-item .count { font-size: 1em; font-weight: 800; color: var(--primary); line-height: 1.1; }
         .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
-        /* Level Bar */
-        .level-stat { width: 100%; margin-top: 10px; }
+        /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
+        .level-stat { flex: 1; min-width: 0; width: auto; margin-top: 0; }
         .level-info { display: flex; justify-content: space-between; font-size: 0.7em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; }
         .level-progress-bar-container { height: 5px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        @media (max-width: 360px) {
+            /* На очень узких экранах название холодильника не должно выталкивать уровень за пределы строки */
+            .fridge-level-row { flex-wrap: wrap; }
+            .fridge-level-row .fridge-selector-btn { max-width: 100%; }
+            .level-stat { flex-basis: 100%; }
+        }
 
         /* --- Main Content --- */
         #app-content { display: none; flex-direction: column; height: 100%; }
@@ -4868,6 +4880,9 @@ adsgram-task {
     overflow: hidden;
     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .lang-flag-img, .lang-flag-badge img {
@@ -4875,6 +4890,17 @@ adsgram-task {
     height: 100%;
     object-fit: cover;
 }
+
+/* Резервный эмодзи-флаг: показывается вместо картинки с flagcdn.com, если она не загрузилась */
+.flag-emoji-fallback {
+    display: none;
+    font-size: 1.15em;
+    line-height: 1;
+}
+.lang-visa-flag .flag-emoji-fallback,
+.lang-flag-badge .flag-emoji-fallback { font-size: 1.3em; }
+.lang-map-stamp .flag-emoji-fallback { font-size: 2.1em; }
+.lang-seal .flag-emoji-fallback { font-size: 1.6em; }
 
 /* Информация о языке */
 .lang-info {
@@ -5200,7 +5226,7 @@ adsgram-task {
     background: rgba(255, 215, 0, 0.06);
     transform: translateY(-2px);
 }
-.lang-visa-flag { width: 30px; height: 22px; border-radius: 5px; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.lang-visa-flag { width: 30px; height: 22px; border-radius: 5px; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; }
 .lang-visa-flag img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .lang-visa-name { font-size: 13.5px; font-weight: 600; color: #fff; line-height: 1.2; }
 .lang-visa-native { font-size: 11px; color: rgba(255, 255, 255, 0.45); }
@@ -5292,8 +5318,13 @@ adsgram-task {
 }
 .lang-map-frame {
     position: relative;
-    flex: 1;
-    min-height: 280px;
+    width: 100%;
+    /* Соотношение сторон подогнано под сетку карты мира в jsVectorMap (Miller ~1.95:1),
+       иначе проекция вписывается "по большей стороне" и оставляет пустые поля сверху/снизу. */
+    aspect-ratio: 1.95 / 1;
+    flex: 0 0 auto;
+    min-height: 200px;
+    max-height: 60vh;
     border-radius: 20px;
     overflow: hidden;
     background:
