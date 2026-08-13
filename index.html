@@ -4729,11 +4729,11 @@ const DELIVERY_CATEGORIES = [
         label: 'Доставка',
         icon: 'fa-truck-fast',
         items: [
-            { id: 'eda', name: 'Яндекс Еда', domain: 'eda.yandex.ru', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Еда', q) },
-            { id: 'samokat', name: 'Самокат', domain: 'samokat.ru', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('samokat.ru', 'Самокат', q) },
-            { id: 'lavka', name: 'Яндекс Лавка', domain: 'eda.yandex.ru', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => ddsSite('eda.yandex.ru', 'Яндекс Лавка', q) },
-            { id: 'kuper', name: 'Купер', domain: 'kuper.ru', mono: 'К', color: '#7A2FF0', hint: 'Из супермаркетов', buildUrl: q => ddsSite('kuper.ru', 'Купер', q) },
-            { id: 'market-delivery', name: 'Маркет Деливери', domain: 'market-delivery.yandex.ru', mono: 'МД', color: '#4CAF50', hint: 'Доставка еды (бывш. Delivery Club)', buildUrl: q => ddsSite('market-delivery.yandex.ru', 'Маркет Деливери', q) }
+            { id: 'eda', name: 'Яндекс Еда', domain: 'eda.yandex.ru', mono: 'ЕД', color: '#FA1E45', hint: 'Продукты и рестораны', buildUrl: q => `https://eda.yandex.ru/search/?from_global=true&hideSelector=true&query=${encodeURIComponent(q)}&text=${encodeURIComponent(q)}&type=all` },
+            { id: 'samokat', name: 'Самокат', domain: 'samokat.ru', mono: 'С', color: '#F0284A', hint: 'Экспресс-доставка', buildUrl: q => `https://samokat.ru/search?value=${encodeURIComponent(q)}` },
+            { id: 'lavka', name: 'Яндекс Лавка', domain: 'lavka.yandex.ru', mono: 'Л', color: '#9ACD32', hint: 'Экспресс-доставка', buildUrl: q => `https://lavka.yandex.ru/search?text=${encodeURIComponent(q)}` },
+            { id: 'kuper', name: 'Купер', domain: 'kuper.ru', mono: 'К', color: '#7A2FF0', hint: 'Из супермаркетов', buildUrl: q => `https://web.kuper.ru/multisearch?q=${encodeURIComponent(q)}` },
+            { id: 'market-delivery', name: 'Маркет Деливери', domain: 'market-delivery.yandex.ru', mono: 'МД', color: '#4CAF50', hint: 'Доставка еды (бывш. Delivery Club)', buildUrl: q => `https://market-delivery.yandex.ru/search?hideSelector=true&query=${encodeURIComponent(q)}` }
         ]
     },
     {
