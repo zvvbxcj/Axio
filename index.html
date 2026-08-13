@@ -31,6 +31,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Axio</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Интерактивная карта мира для выбора языка по стране -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap/dist/jsvectormap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/maps/world.js"></script>
     
     <script src="https://js.hcaptcha.com/1/api.js?render=explicit" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -4741,15 +4746,15 @@ const DELIVERY_CATEGORIES = [
         label: 'Магазины',
         icon: 'fa-basket-shopping',
         items: [
-    { id: '5ka', name: 'Пятёрочка', domain: '5ka.ru', mono: '5', color: '#E4032E', hint: 'Сеть магазинов', buildUrl: q => `https://5d.5ka.ru/search?q=${encodeURIComponent(q)}` },
-    { id: 'perekrestok', name: 'Перекрёсток', domain: 'perekrestok.ru', mono: 'П', color: '#00A650', hint: 'Сеть магазинов', buildUrl: q => `https://www.perekrestok.ru/cat/search?search=${encodeURIComponent(q)}` },
-    { id: 'magnit', name: 'Магнит', domain: 'magnit.ru', mono: 'М', color: '#E4032B', hint: 'Сеть магазинов', buildUrl: q => `https://magnit.ru/search/?q=${encodeURIComponent(q)}` },
-    { id: 'auchan', name: 'Ашан', domain: 'auchan.ru', mono: 'A', color: '#E2001A', hint: 'Гипермаркет', buildUrl: q => `https://www.auchan.ru/search/?query=${encodeURIComponent(q)}` },
-    { id: 'lenta', name: 'Лента', domain: 'lenta.com', mono: 'Л', color: '#D91E36', hint: 'Гипермаркет', buildUrl: q => `https://lenta.com/search/?searchText=${encodeURIComponent(q)}` },
-    { id: 'globus', name: 'Глобус', domain: 'globus.ru', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => `https://online.globus.ru/search/?q=${encodeURIComponent(q)}` },
-    { id: 'spar', name: 'Eurospar', domain: 'myspar.ru', mono: 'SP', color: '#00873E', hint: 'Сеть магазинов', buildUrl: q => `https://myspar.ru/search/?q=${encodeURIComponent(q)}` },
-    { id: 'vkusvill', name: 'ВкусВилл', domain: 'vkusvill.ru', mono: 'VV', color: '#6FBE44', hint: 'Сеть магазинов', buildUrl: q => `https://vkusvill.ru/search/?q=${encodeURIComponent(q)}` }
-]
+            { id: '5ka', name: 'Пятёрочка', domain: '5ka.ru', mono: '5', color: '#E4032E', hint: 'Сеть магазинов', buildUrl: q => ddsSite('5ka.ru', 'Пятёрочка', q) },
+            { id: 'perekrestok', name: 'Перекрёсток', domain: 'perekrestok.ru', mono: 'П', color: '#00A650', hint: 'Сеть магазинов', buildUrl: q => ddsSite('perekrestok.ru', 'Перекрёсток', q) },
+            { id: 'magnit', name: 'Магнит', domain: 'magnit.ru', mono: 'М', color: '#E4032B', hint: 'Сеть магазинов', buildUrl: q => ddsSite('magnit.ru', 'Магнит', q) },
+            { id: 'auchan', name: 'Ашан', domain: 'auchan.ru', mono: 'A', color: '#E2001A', hint: 'Гипермаркет', buildUrl: q => ddsSite('auchan.ru', 'Ашан', q) },
+            { id: 'lenta', name: 'Лента', domain: 'lenta.com', mono: 'Л', color: '#D91E36', hint: 'Гипермаркет', buildUrl: q => ddsSite('lenta.com', 'Лента', q) },
+            { id: 'globus', name: 'Глобус', domain: 'globus.ru', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => ddsSite('globus.ru', 'Глобус', q) },
+            { id: 'spar', name: 'Eurospar', domain: 'myspar.ru', mono: 'SP', color: '#00873E', hint: 'Сеть магазинов', buildUrl: q => ddsSite('spar.ru', 'СПАР', q) },
+            { id: 'vkusvill', name: 'ВкусВилл', domain: 'vkusvill.ru', mono: 'VV', color: '#6FBE44', hint: 'Сеть магазинов', buildUrl: q => ddsSite('vkusvill.ru', 'ВкусВилл', q) }
+        ]
     },
     {
         id: 'web',
@@ -7347,6 +7352,51 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
         const QUICK_LANGS = ['ru', 'en', 'it'];
         const RTL_LANGS = ['ar', 'fa', 'he'];
 
+        // ISO 3166-1 alpha-2 (код страны на карте) -> код официального языка из LANG_META.
+        // Используется картой мира в паспорте языков: клик по стране подбирает её язык.
+        const COUNTRY_LANG = {
+            RU: 'ru', BY: 'ru', KZ: 'ru', KG: 'ru',
+            US: 'en', GB: 'en', CA: 'en', AU: 'en', NZ: 'en', IE: 'en', ZA: 'en',
+            NG: 'en', KE: 'en', GH: 'en', UG: 'en', TZ: 'en', ZM: 'en', ZW: 'en', SG: 'en', PH: 'en', PK: 'en',
+            IT: 'it', SM: 'it', VA: 'it',
+            ES: 'es', MX: 'es', AR: 'es', CO: 'es', PE: 'es', VE: 'es', CL: 'es', EC: 'es', GT: 'es',
+            CU: 'es', BO: 'es', DO: 'es', HN: 'es', PY: 'es', SV: 'es', NI: 'es', CR: 'es', PA: 'es', UY: 'es', GQ: 'es',
+            DE: 'de', AT: 'de', CH: 'de', LI: 'de',
+            FR: 'fr', BE: 'fr', SN: 'fr', CI: 'fr', ML: 'fr', CM: 'fr', CD: 'fr', CG: 'fr', GA: 'fr',
+            NE: 'fr', BF: 'fr', TD: 'fr', GN: 'fr', BJ: 'fr', TG: 'fr', MG: 'fr', HT: 'fr', LU: 'fr', MC: 'fr',
+            PT: 'pt', BR: 'pt', AO: 'pt', MZ: 'pt', CV: 'pt', GW: 'pt', ST: 'pt', TL: 'pt',
+            CN: 'zh', TW: 'zh', HK: 'zh', MO: 'zh',
+            JP: 'ja',
+            KR: 'ko', KP: 'ko',
+            SA: 'ar', AE: 'ar', EG: 'ar', IQ: 'ar', JO: 'ar', KW: 'ar', QA: 'ar', BH: 'ar', OM: 'ar',
+            YE: 'ar', SY: 'ar', LB: 'ar', LY: 'ar', TN: 'ar', DZ: 'ar', MA: 'ar', SD: 'ar', MR: 'ar', SO: 'ar', PS: 'ar',
+            IN: 'hi',
+            TR: 'tr',
+            PL: 'pl',
+            NL: 'nl', SR: 'nl',
+            UA: 'uk',
+            VN: 'vi',
+            TH: 'th',
+            ID: 'id',
+            MY: 'ms', BN: 'ms',
+            IR: 'fa', AF: 'fa', TJ: 'fa',
+            IL: 'he',
+            SE: 'sv',
+            GR: 'el', CY: 'el',
+            CZ: 'cs',
+            RO: 'ro', MD: 'ro'
+        };
+
+        // Обратное соответствие: язык -> "представительская" страна (для подсветки на карте)
+        const LANG_PRIMARY_COUNTRY = {
+            ru: 'RU', en: 'US', it: 'IT', es: 'ES', de: 'DE', fr: 'FR', pt: 'PT',
+            zh: 'CN', ja: 'JP', ko: 'KR', ar: 'SA', hi: 'IN', tr: 'TR', pl: 'PL',
+            nl: 'NL', uk: 'UA', vi: 'VN', th: 'TH', id: 'ID', ms: 'MY', fa: 'IR',
+            he: 'IL', sv: 'SE', el: 'GR', cs: 'CZ', ro: 'RO'
+        };
+
+        let langWorldMapInstance = null;
+
         function toggleLangPicker() {
             document.getElementById('lang-picker').classList.toggle('open');
         }
@@ -7403,6 +7453,7 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 
         function openLangModal() {
             document.getElementById('lang-picker').classList.remove('open');
+            switchLangView('list');
             renderLangFullGrid();
             showModal('lang-modal-full');
             const input = document.getElementById('lang-search-input');
@@ -7410,6 +7461,92 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
         }
 
         function closeLangModal() { hideModal('lang-modal-full'); }
+
+        // --- Переключение "Список" / "Карта мира" внутри паспорта языков ---
+        function switchLangView(view) {
+            const toggle = document.getElementById('lang-view-toggle');
+            if (!toggle) return;
+            toggle.querySelectorAll('.lang-view-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.getAttribute('data-view') === view);
+            });
+            const glider = document.getElementById('lang-view-glider');
+            if (glider) glider.style.transform = view === 'map' ? 'translateX(100%)' : 'translateX(0)';
+
+            const listEl = document.getElementById('lang-full-grid');
+            const mapEl = document.getElementById('lang-map-view');
+            const searchWrap = document.getElementById('lang-search-wrap');
+            if (listEl) listEl.style.display = view === 'list' ? '' : 'none';
+            if (mapEl) mapEl.style.display = view === 'map' ? '' : 'none';
+            if (searchWrap) searchWrap.style.display = view === 'list' ? '' : 'none';
+
+            if (view === 'map') {
+                initLangWorldMap();
+                setTimeout(() => { if (langWorldMapInstance && langWorldMapInstance.updateSize) langWorldMapInstance.updateSize(); }, 60);
+            }
+        }
+
+        // --- Инициализация интерактивной карты мира (один раз, лениво) ---
+        function initLangWorldMap() {
+            const el = document.getElementById('lang-world-map');
+            if (!el || langWorldMapInstance) return;
+            const MapCtor = (typeof window.jsVectorMap !== 'undefined') ? window.jsVectorMap : (typeof window.JsVectorMap !== 'undefined' ? window.JsVectorMap : null);
+            if (!MapCtor) return;
+
+            const initialSelected = LANG_PRIMARY_COUNTRY[currentLang] ? [LANG_PRIMARY_COUNTRY[currentLang]] : [];
+
+            langWorldMapInstance = new MapCtor({
+                selector: '#lang-world-map',
+                map: 'world',
+                backgroundColor: 'transparent',
+                zoomButtons: true,
+                zoomOnScroll: false,
+                selectedRegions: initialSelected,
+                regionStyle: {
+                    initial: { fill: 'rgba(255, 215, 0, 0.16)', stroke: 'rgba(255,255,255,0.22)', strokeWidth: 0.6 },
+                    hover: { fill: 'rgba(255, 215, 0, 0.6)', cursor: 'pointer' },
+                    selected: { fill: '#ffd700', stroke: '#fff3c4' },
+                    selectedHover: { fill: '#ffe98a' }
+                },
+                onRegionTooltipShow: function (tooltip, code) {
+                    const lang = COUNTRY_LANG[code];
+                    const meta = lang ? LANG_META[lang] : null;
+                    try {
+                        if (meta && tooltip && typeof tooltip.text === 'function') {
+                            tooltip.text(tooltip.text() + ' — ' + meta.name);
+                        }
+                    } catch (e) {}
+                },
+                onRegionClick: function (event, code) {
+                    handleLangMapCountryClick(code);
+                }
+            });
+        }
+
+        // --- Клик по стране на карте: подбираем язык и "штампуем" выбор ---
+        function handleLangMapCountryClick(code) {
+            const lang = COUNTRY_LANG[code] || 'en';
+            showLangMapStamp(lang);
+            if (langWorldMapInstance && langWorldMapInstance.setSelectedRegions) {
+                langWorldMapInstance.setSelectedRegions([LANG_PRIMARY_COUNTRY[lang] || code]);
+            }
+            setTimeout(() => selectLanguage(lang), 600);
+        }
+
+        // --- Анимация "печати паспорта" при выборе страны на карте ---
+        function showLangMapStamp(lang) {
+            const holder = document.getElementById('lang-map-stamp-holder');
+            if (!holder) return;
+            const meta = LANG_META[lang] || LANG_META.en;
+            holder.innerHTML = `
+                <div class="lang-map-stamp">
+                    <img src="https://flagcdn.com/w80/${meta.cc}.png" alt="${meta.name}">
+                    <span>${meta.name}</span>
+                </div>`;
+            holder.classList.remove('show');
+            void holder.offsetWidth;
+            holder.classList.add('show');
+            setTimeout(() => holder.classList.remove('show'), 1300);
+        }
 
         // --- Резервный нативный select (для доступности / автозаполнения форм) ---
         function renderLangNativeFallback() {
@@ -7455,6 +7592,9 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             document.querySelectorAll('[data-translate-placeholder]').forEach(el => { const key = el.getAttribute('data-translate-placeholder'); const translation = dict[key]; if (typeof translation === 'string') { el.placeholder = translation; } });
             if (!hasFullTranslation && typeof showToast === 'function') {
                 showToast('Перевод для этого языка ещё дорабатывается — часть интерфейса на английском', 'info');
+            }
+            if (langWorldMapInstance && langWorldMapInstance.setSelectedRegions) {
+                try { langWorldMapInstance.setSelectedRegions(LANG_PRIMARY_COUNTRY[lang] ? [LANG_PRIMARY_COUNTRY[lang]] : []); } catch (e) {}
             }
             updateHeader(); updateInventoryList(); updateRecipesList(); updateShoppingList(); updateAchievementsList();
         }
@@ -12238,7 +12378,17 @@ function fallbackCopy(text) {
             <span class="modal-close" onclick="closeLangModal()"><i class="fas fa-times"></i></span>
         </div>
 
-        <div class="lang-search-wrap">
+        <div class="lang-view-toggle" id="lang-view-toggle">
+            <button type="button" class="lang-view-tab active" data-view="list" onclick="switchLangView('list')">
+                <i class="fas fa-list-ul"></i> <span data-translate="LangViewList">Список</span>
+            </button>
+            <button type="button" class="lang-view-tab" data-view="map" onclick="switchLangView('map')">
+                <i class="fas fa-earth-europe"></i> <span data-translate="LangViewMap">Карта мира</span>
+            </button>
+            <div class="lang-view-toggle-glider" id="lang-view-glider"></div>
+        </div>
+
+        <div class="lang-search-wrap" id="lang-search-wrap">
             <i class="fas fa-search"></i>
             <input type="text" id="lang-search-input" class="lang-search-input styled-input"
                    placeholder="Найти язык..." data-translate-placeholder="SearchLanguagePlaceholder"
@@ -12247,6 +12397,22 @@ function fallbackCopy(text) {
 
         <div class="lang-full-grid" id="lang-full-grid">
             <!-- рендерится в JS (renderLangFullGrid) -->
+        </div>
+
+        <div id="lang-map-view" class="lang-map-view" style="display:none;">
+            <div class="lang-map-frame">
+                <div class="lang-map-compass tl"></div>
+                <div class="lang-map-compass tr"></div>
+                <div class="lang-map-compass bl"></div>
+                <div class="lang-map-compass br"></div>
+                <div class="lang-map-glow"></div>
+                <div id="lang-world-map" class="lang-world-map"></div>
+                <div id="lang-map-stamp-holder" class="lang-map-stamp-holder"></div>
+            </div>
+            <p class="lang-map-hint">
+                <i class="fas fa-compass"></i>
+                <span data-translate="LangMapHint">Коснитесь страны на карте — определим её официальный язык</span>
+            </p>
         </div>
 
         <p class="lang-passport-footnote">
