@@ -4746,14 +4746,14 @@ const DELIVERY_CATEGORIES = [
         label: 'Магазины',
         icon: 'fa-basket-shopping',
         items: [
-            { id: '5ka', name: 'Пятёрочка', domain: '5ka.ru', mono: '5', color: '#E4032E', hint: 'Сеть магазинов', buildUrl: q => ddsSite('5ka.ru', 'Пятёрочка', q) },
-            { id: 'perekrestok', name: 'Перекрёсток', domain: 'perekrestok.ru', mono: 'П', color: '#00A650', hint: 'Сеть магазинов', buildUrl: q => ddsSite('perekrestok.ru', 'Перекрёсток', q) },
-            { id: 'magnit', name: 'Магнит', domain: 'magnit.ru', mono: 'М', color: '#E4032B', hint: 'Сеть магазинов', buildUrl: q => ddsSite('magnit.ru', 'Магнит', q) },
-            { id: 'auchan', name: 'Ашан', domain: 'auchan.ru', mono: 'A', color: '#E2001A', hint: 'Гипермаркет', buildUrl: q => ddsSite('auchan.ru', 'Ашан', q) },
-            { id: 'lenta', name: 'Лента', domain: 'lenta.com', mono: 'Л', color: '#D91E36', hint: 'Гипермаркет', buildUrl: q => ddsSite('lenta.com', 'Лента', q) },
-            { id: 'globus', name: 'Глобус', domain: 'globus.ru', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => ddsSite('globus.ru', 'Глобус', q) },
-            { id: 'spar', name: 'Eurospar', domain: 'myspar.ru', mono: 'SP', color: '#00873E', hint: 'Сеть магазинов', buildUrl: q => ddsSite('spar.ru', 'СПАР', q) },
-            { id: 'vkusvill', name: 'ВкусВилл', domain: 'vkusvill.ru', mono: 'VV', color: '#6FBE44', hint: 'Сеть магазинов', buildUrl: q => ddsSite('vkusvill.ru', 'ВкусВилл', q) }
+            { id: '5ka', name: 'Пятёрочка', domain: '5ka.ru', mono: '5', color: '#E4032E', hint: 'Сеть магазинов', buildUrl: q => `https://5ka.ru/search/?text=${encodeURIComponent(q)}` },
+            { id: 'perekrestok', name: 'Перекрёсток', domain: 'perekrestok.ru', mono: 'П', color: '#00A650', hint: 'Сеть магазинов', buildUrl: q => `https://www.perekrestok.ru/cat/search?search=${encodeURIComponent(q)}` },
+            { id: 'magnit', name: 'Магнит', domain: 'magnit.ru', mono: 'М', color: '#E4032B', hint: 'Сеть магазинов', buildUrl: q => `https://magnit.ru/search?term=${encodeURIComponent(q)}` },
+            { id: 'auchan', name: 'Ашан', domain: 'auchan.ru', mono: 'A', color: '#E2001A', hint: 'Гипермаркет', buildUrl: q => `https://www.auchan.ru/search/?query=${encodeURIComponent(q)}` },
+            { id: 'lenta', name: 'Лента', domain: 'lenta.com', mono: 'Л', color: '#D91E36', hint: 'Гипермаркет', buildUrl: q => `https://lenta.com/search/${encodeURIComponent(q)}` },
+            { id: 'globus', name: 'Глобус', domain: 'globus.ru', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => `временно недоступно${encodeURIComponent(q)}` },
+            { id: 'spar', name: 'Eurospar', domain: 'myspar.ru', mono: 'SP', color: '#00873E', hint: 'Сеть магазинов', buildUrl: q => `https://myspar.ru/#search?query=${encodeURIComponent(q)}` },
+            { id: 'vkusvill', name: 'ВкусВилл', domain: 'vkusvill.ru', mono: 'VV', color: '#6FBE44', hint: 'Сеть магазинов',  buildUrl: q => `https://vkusvill.ru/search/?q=${encodeURIComponent(q)}` }
         ]
     },
     {
