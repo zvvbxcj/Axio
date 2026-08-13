@@ -280,6 +280,16 @@
                     </div>
                 </div>
 
+                <div class="level-stat" id="level-stat-bar">
+                    <div class="level-info">
+                        <span id="level-label" data-translate="LevelTitle">Уровень 1</span>
+                        <span id="level-xp">0 / 100 XP</span>
+                    </div>
+                    <div class="level-progress-bar-container">
+                        <div class="level-progress-bar" id="level-progress-bar"></div>
+                    </div>
+                </div>
+
                 <div class="fridge-stats-row">
                     <button id="fridge-selector-btn" class="fridge-selector-btn" onclick="openFridgeSelector()">
                         <span id="fridge-selector-icon">🏠</span>
@@ -288,28 +298,18 @@
                     </button>
 
                     <div class="header-stats">
-                        <div class="stat-item">
+                        <button class="stat-item" onclick="navigateTo('inventory')" title="Перейти к продуктам">
                             <div class="count" id="stat-products">0</div>
                             <div class="label" data-translate="ProductsCount">Продуктов</div>
-                        </div>
-                        <div class="stat-item">
+                        </button>
+                        <button class="stat-item" onclick="navigateTo('recipes')" title="Перейти к рецептам">
                             <div class="count" id="stat-recipes">0</div>
                             <div class="label" data-translate="RecipesCount">Рецептов</div>
-                        </div>
-                        <div class="stat-item">
+                        </button>
+                        <button class="stat-item" onclick="navigateTo('shopping')" title="Перейти к покупкам">
                             <div class="count" id="stat-shopping">0</div>
                             <div class="label" data-translate="ShoppingCount">Покупок</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="level-stat" id="level-stat-bar">
-                    <div class="level-info">
-                        <span id="level-label" data-translate="LevelTitle">Уровень 1</span>
-                        <span id="level-xp">0 / 100 XP</span>
-                    </div>
-                    <div class="level-progress-bar-container">
-                        <div class="level-progress-bar" id="level-progress-bar"></div>
+                        </button>
                     </div>
                 </div>
 
@@ -1102,6 +1102,20 @@
         </div>
         
         <div class="settings-section">
+            <div class="settings-row notif-settings-row" id="push-notif-row">
+                <div class="notif-row-left">
+                    <div class="notif-icon-badge"><i class="fas fa-bell"></i></div>
+                    <div class="notif-row-text">
+                        <div class="notif-row-title">Push-уведомления</div>
+                        <div class="push-notif-status" id="push-notif-status"><i class="fas fa-circle-notch fa-spin"></i> Проверка статуса…</div>
+                    </div>
+                </div>
+                <label class="premium-switch">
+                    <input type="checkbox" id="push-notif-toggle" onchange="togglePushNotifications(this)">
+                    <span class="premium-switch-track"><span class="premium-switch-thumb"><i class="fas fa-bell"></i></span></span>
+                </label>
+            </div>
+
             <div class="settings-row">
                 <div class="sticker-label" data-translate="ThemeLabel">Тема оформления</div>
                 <input type="checkbox" id="theme-switch" class="theme-toggle-input" />
@@ -1109,21 +1123,6 @@
                     <div class="theme-icon moon"><i class="fas fa-moon"></i></div>
                     <div class="theme-icon sun"><i class="fas fa-sun"></i></div>
                     <div class="theme-toggle-circle"></div>
-                </label>
-            </div>
-
-            <div class="settings-row notif-settings-row" id="push-notif-row">
-                <div class="notif-row-left">
-                    <div class="notif-icon-badge"><i class="fas fa-bell"></i></div>
-                    <div class="notif-row-text">
-                        <div class="notif-row-title">Push-уведомления</div>
-                        <div class="notif-row-desc">Сроки годности, советы шефа и напоминания</div>
-                        <div class="push-notif-status" id="push-notif-status"><i class="fas fa-circle-notch fa-spin"></i> Проверка статуса…</div>
-                    </div>
-                </div>
-                <label class="premium-switch">
-                    <input type="checkbox" id="push-notif-toggle" onchange="togglePushNotifications(this)">
-                    <span class="premium-switch-track"><span class="premium-switch-thumb"><i class="fas fa-bell"></i></span></span>
                 </label>
             </div>
             
