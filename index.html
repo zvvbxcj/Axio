@@ -6398,31 +6398,39 @@ function renderAdminUsers(users) {
         if(u.id === ADMIN_UID) return;
 
         const row = document.createElement('tr');
+        row.className = 'user-row';
         // Добавляем стиль курсора и само событие клика на всю ячейку с именем
         row.innerHTML = `
             <td>
-                <div class="user-cell" 
-                     onclick="openUserDetail('${user.id}')" 
-                     style="cursor:pointer; hover:opacity:0.8; display:flex; align-items:center; gap:10px;">
+                <div class="user-cell" onclick="openUserDetail('${u.id}')">
                     <img src="${u.avatar || 'https://via.placeholder.com/40'}" class="user-avatar-sm" alt="ava">
-                    <div>
-                        <div class="user-name" style="text-decoration:underline; color:var(--primary);">
-                            ${u.name || 'Без имени'}
-                        </div>
-                        <div class="user-email" style="font-size:12px; opacity:0.6;">${u.email || ''}</div>
+                    <div class="user-cell-info">
+                        <div class="user-name">${u.name || 'Без имени'}</div>
+                        <div class="user-email">${u.email || 'нет email'}</div>
                     </div>
                 </div>
             </td>
-            <td><span class="badge badge-primary">Lvl ${u.level || 1}</span></td>
-            <td>${u.isAdmin ? '<span class="badge badge-accent">Admin</span>' : '<span class="badge badge-secondary">User</span>'}</td>
             <td>
-                ${u.isBanned 
-                    ? '<span class="badge" style="background:var(--error); color:white">Banned</span>' 
-                    : '<span class="badge" style="background:var(--success); color:white">Active</span>'}
+                <div class="user-progress-cell">
+                    <span class="badge badge-primary">Lvl ${u.level || 1}</span>
+                    ${u.isAdmin ? '<span class="badge badge-accent">Admin</span>' : ''}
+                </div>
             </td>
-            <td><small>${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}</small></td>
+            <td>
+                ${u.isBanned
+                    ? '<span class="badge badge-danger"><i class="fas fa-ban"></i> Banned</span>'
+                    : '<span class="badge badge-success"><i class="fas fa-circle-check"></i> Active</span>'}
+            </td>
+            <td class="user-actions-cell">
+                <button class="icon-action-btn" title="Профиль" onclick="openUserDetail('${u.id}')">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="icon-action-btn ${u.isBanned ? 'is-success' : 'is-danger'}" title="${u.isBanned ? 'Разбанить' : 'Забанить'}" onclick="toggleUserBan('${u.id}', ${!u.isBanned})">
+                    <i class="fas ${u.isBanned ? 'fa-unlock' : 'fa-ban'}"></i>
+                </button>
+            </td>
         `;
-        tbody.appendChild(row);
+        list.appendChild(row);
     });
 }
 
@@ -11845,23 +11853,23 @@ function fallbackCopy(text) {
     </div>
 </div>
 
-<div id="admin-modal" class="modal">
-    <div class="modal-content" style="max-width: 950px; height: 90vh; display: flex; flex-direction: column; padding: 0; background: var(--background);">
-    
-    <div class="modal-header" style="padding: 20px; background: var(--surface); border-bottom: 1px solid var(--border-color);">
-        <div style="display:flex; align-items:center; gap:15px;">
-            <div style="background:linear-gradient(135deg, #EF4444, #B91C1C); width:45px; height:45px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:white; font-size:1.4em; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
+<div id="admin-modal" class="modal admin-modal-root">
+    <div class="modal-content admin-shell">
+
+    <div class="admin-shell-header">
+        <div class="admin-shell-brand">
+            <div class="admin-shell-logo">
                 <i class="fas fa-user-shield"></i>
             </div>
             <div>
-                <h4 style="margin:0; font-size: 1.4em;">Центр Управления Axio</h4>
-                <div style="font-size:0.8em; color:var(--text-secondary); margin-top: 2px;">Версия ядра: 3.5.2 | Админ: <span id="admin-username-display">Вы</span></div>
+                <h4>Центр Управления Axio</h4>
+                <div class="admin-shell-sub">Версия ядра: 3.5.2 · Админ: <span id="admin-username-display">Вы</span></div>
             </div>
         </div>
         <span class="modal-close" onclick="hideModal('admin-modal')"><i class="fas fa-times"></i></span>
     </div>
 
-    <div class="admin-tabs" style="padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--border-color); overflow-x: auto;">
+    <div class="admin-tabs">
         <button class="admin-tab-btn active" onclick="switchAdminTab('dashboard')"><i class="fas fa-tachometer-alt"></i> Главная</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
@@ -11869,28 +11877,28 @@ function fallbackCopy(text) {
         <button class="admin-tab-btn" onclick="switchAdminTab('stats')"><i class="fas fa-chart-pie"></i> Статистика</button>
     </div>
 
-    <div style="flex-grow: 1; overflow-y: auto; padding: 25px; background: var(--background);">
+    <div class="admin-shell-body">
         
         <div id="admin-tab-dashboard" class="admin-tab-content">
             <div class="admin-stats-row">
                 <div class="admin-stat-widget">
-                    <div class="stat-icon" style="background:rgba(16, 185, 129, 0.1); color:#10B981"><i class="fas fa-users"></i></div>
+                    <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-users"></i></div>
                     <div><div class="stat-val" id="dash-total-users">0</div><div class="stat-lbl">Всего юзеров</div></div>
                 </div>
                 <div class="admin-stat-widget">
-                    <div class="stat-icon" style="background:rgba(59, 130, 246, 0.1); color:#3B82F6"><i class="fas fa-book"></i></div>
+                    <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-book"></i></div>
                     <div><div class="stat-val" id="dash-total-recipes">0</div><div class="stat-lbl">Рецептов в базе</div></div>
                 </div>
                 <div class="admin-stat-widget">
-                    <div class="stat-icon" style="background:rgba(245, 158, 11, 0.1); color:#F59E0B"><i class="fas fa-hourglass-half"></i></div>
+                    <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-hourglass-half"></i></div>
                     <div><div class="stat-val" id="dash-pending-count">0</div><div class="stat-lbl">Ждут проверки</div></div>
                 </div>
             </div>
 
-            <div class="admin-panel-card" style="margin-top: 20px;">
-                <h5 style="margin-bottom: 15px;"><i class="fas fa-server"></i> Состояние Сервера</h5>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <h5><i class="fas fa-server"></i> Состояние сервера</h5>
+
+                <div class="server-state-grid">
                     <label class="server-state-btn" id="state-btn-online" onclick="updateServerStatus('online')">
                         <div class="state-dot" style="background:#10B981; box-shadow: 0 0 8px #10B981;"></div>
                         <div class="state-info">
@@ -11903,7 +11911,7 @@ function fallbackCopy(text) {
                     <label class="server-state-btn" id="state-btn-maintenance" onclick="updateServerStatus('maintenance')">
                         <div class="state-dot" style="background:#EF4444; box-shadow: 0 0 8px #EF4444;"></div>
                         <div class="state-info">
-                            <strong>Тех. Работы</strong>
+                            <strong>Тех. работы</strong>
                             <span>Доступ закрыт для всех</span>
                         </div>
                         <i class="fas fa-check-circle state-check"></i>
@@ -11913,148 +11921,165 @@ function fallbackCopy(text) {
                         <div class="state-dot" style="background:#8B5CF6; box-shadow: 0 0 8px #8B5CF6;"></div>
                         <div class="state-info">
                             <strong>Приватный режим</strong>
-                            <span>Вход только для Админов</span>
+                            <span>Вход только для админов</span>
                         </div>
                         <i class="fas fa-check-circle state-check"></i>
                     </label>
                 </div>
 
-                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
-                    <label style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 5px; display: block;">Сообщение для пользователей (на экране блокировки):</label>
-                    <div style="display: flex; gap: 10px;">
+                <div class="admin-maint-message">
+                    <label>Сообщение для пользователей (на экране блокировки):</label>
+                    <div class="admin-maint-message-row">
                         <input type="text" id="maint-message-input" placeholder="Например: Обновляем базу, вернемся через 15 минут..." class="styled-input">
-                        <button class="btn btn-primary" style="width: auto;" onclick="updateMaintMessage()">Сохранить</button>
+                        <button class="btn btn-primary" onclick="updateMaintMessage()">Сохранить</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <div id="admin-tab-users" class="admin-tab-content" style="display:none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h5 style="margin:0;">База пользователей</h5>
-                <div style="display:flex; gap: 10px;">
-                    <input type="text" id="admin-user-search" class="styled-input" placeholder="Поиск (email, имя)..." onkeyup="filterAdminUsers()" style="width: 200px;">
-                    <button class="small-action-btn" onclick="loadAllUsers(true)"><i class="fas fa-sync"></i></button>
+            <div class="admin-toolbar">
+                <h5>База пользователей</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="admin-user-search" placeholder="Поиск (email, имя)..." onkeyup="filterAdminUsers()">
+                    </div>
+                    <button class="small-action-btn" onclick="loadAllUsers(true)" title="Обновить"><i class="fas fa-sync"></i></button>
                 </div>
             </div>
-            
-            <div style="background: var(--surface); border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden;">
+
+            <div class="admin-table-wrap">
                 <table class="admin-table">
                     <thead>
                         <tr>
                             <th>Пользователь</th>
                             <th>Прогресс</th>
                             <th>Статус</th>
-                            <th style="text-align: right;">Действия</th>
+                            <th class="text-right">Действия</th>
                         </tr>
                     </thead>
                     <tbody id="adm-users-list">
-                        <tr><td colspan="4" style="text-align:center; padding: 20px;">Загрузка данных...</td></tr>
+                        <tr><td colspan="4" class="admin-table-loading">Загрузка данных...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
         <div id="admin-tab-pending" class="admin-tab-content" style="display:none;">
-            <div style="display:flex; justify-content:space-between; align-items: center; margin-bottom: 15px;">
+            <div class="admin-toolbar">
                 <h5>Очередь рецептов</h5>
                 <button class="small-action-btn" onclick="loadPendingRecipes()"><i class="fas fa-sync"></i> Обновить</button>
             </div>
             <div id="admin-pending-list" class="grid-list"></div>
-            <div id="admin-pending-empty" style="text-align:center; padding:40px; display:none; color:var(--text-secondary); background: var(--surface); border-radius: 12px; border: 1px dashed var(--border-color);">
-                <i class="fas fa-check-circle" style="font-size: 2em; color: var(--success); margin-bottom: 10px;"></i>
+            <div id="admin-pending-empty" class="admin-empty-state" style="display:none;">
+                <i class="fas fa-check-circle"></i>
                 <p>Все чисто! Заявок на публикацию нет.</p>
             </div>
         </div>
         
-        <div id="admin-tab-content" class="adm-tab-content" style="display:none;">
-    <h5 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-        <i class="fas fa-toolbox"></i> Утилиты системы
-    </h5>
-    
-    <h6 style="color:var(--primary); margin-top:10px; margin-bottom:5px;">📊 Данные и Бэкапы</h6>
-    <div class="admin-tools-grid">
-        <div class="tool-card info" onclick="analyzeAppStats()">
-            <i class="fas fa-chart-line"></i>
-            <h4>Полная Аналитика</h4>
-            <p>Тренды, топ блюд, активность</p>
-        </div>
+        <div id="admin-tab-content" class="admin-tab-content" style="display:none;">
+    <h5 class="tools-main-title"><i class="fas fa-toolbox"></i> Утилиты системы</h5>
 
-        <div class="tool-card info" onclick="fullDatabaseBackup()">
-            <i class="fas fa-file-download"></i>
-            <h4>Полный Бэкап</h4>
-            <p>Скачать JSON всей базы</p>
+    <div class="tools-section">
+        <div class="tools-section-header info">
+            <i class="fas fa-database"></i> Данные и Бэкапы
         </div>
+        <div class="admin-tools-grid">
+            <div class="tool-card info" onclick="analyzeAppStats()">
+                <div class="tool-card-icon"><i class="fas fa-chart-line"></i></div>
+                <h4>Полная Аналитика</h4>
+                <p>Тренды, топ блюд, активность</p>
+            </div>
 
-        <div class="tool-card" onclick="exportEmailsCSV()">
-            <i class="fas fa-file-csv"></i>
-            <h4>Экспорт CSV</h4>
-            <p>База Email для рассылки</p>
-        </div>
-        
-        <div class="tool-card" onclick="checkDataIntegrity()">
-            <i class="fas fa-stethoscope"></i>
-            <h4>Проверка Целостности</h4>
-            <p>Поиск битых рецептов/юзеров</p>
+            <div class="tool-card info" onclick="fullDatabaseBackup()">
+                <div class="tool-card-icon"><i class="fas fa-file-download"></i></div>
+                <h4>Полный Бэкап</h4>
+                <p>Скачать JSON всей базы</p>
+            </div>
+
+            <div class="tool-card info" onclick="exportEmailsCSV()">
+                <div class="tool-card-icon"><i class="fas fa-file-csv"></i></div>
+                <h4>Экспорт CSV</h4>
+                <p>База Email для рассылки</p>
+            </div>
+
+            <div class="tool-card info" onclick="checkDataIntegrity()">
+                <div class="tool-card-icon"><i class="fas fa-stethoscope"></i></div>
+                <h4>Проверка Целостности</h4>
+                <p>Поиск битых рецептов/юзеров</p>
+            </div>
         </div>
     </div>
 
-        <div class="tool-card warning" onclick="openGlobalConfig()">
-            <i class="fas fa-cogs"></i>
-            <h4>Конфиг Сервера</h4>
-            <p>Тех.работы, Версии, Бусты</p>
+    <div class="tools-section">
+        <div class="tools-section-header warning">
+            <i class="fas fa-sliders"></i> Настройки и Рассылки
         </div>
+        <div class="admin-tools-grid">
+            <div class="tool-card warning" onclick="openGlobalConfig()">
+                <div class="tool-card-icon"><i class="fas fa-cogs"></i></div>
+                <h4>Конфиг Сервера</h4>
+                <p>Тех.работы, Версии, Бусты</p>
+            </div>
 
-        <div class="tool-card warning" onclick="forceSyncRecipesFile()">
-            <i class="fas fa-cloud-download-alt"></i>
-            <h4>Сброс Рецептов</h4>
-            <p>Откат к заводским (File)</p>
-        </div>
-        
-        <div class="tool-card warning" onclick="openBroadcastModal()">
-            <i class="fas fa-bullhorn"></i>
-            <h4>Глобальная Рассылка</h4>
-            <p>Уведомление всем юзерам</p>
+            <div class="tool-card warning" onclick="forceSyncRecipesFile()">
+                <div class="tool-card-icon"><i class="fas fa-cloud-download-alt"></i></div>
+                <h4>Сброс Рецептов</h4>
+                <p>Откат к заводским (File)</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openBroadcastModal()">
+                <div class="tool-card-icon"><i class="fas fa-bullhorn"></i></div>
+                <h4>Глобальная Рассылка</h4>
+                <p>Уведомление всем юзерам</p>
+            </div>
         </div>
     </div>
 
-    <h6 style="color:var(--error); margin-top:15px; margin-bottom:5px;">🔥 Опасная Зона</h6>
-    <div class="admin-tools-grid">
-        <div class="tool-card danger" onclick="massUnban()">
-            <i class="fas fa-users-slash"></i>
-            <h4>Массовая Амнистия</h4>
-            <p>Разбанить всех пользователей</p>
+    <div class="tools-section">
+        <div class="tools-section-header danger">
+            <i class="fas fa-triangle-exclamation"></i> Опасная зона
         </div>
+        <div class="admin-tools-grid">
+            <div class="tool-card danger" onclick="massUnban()">
+                <div class="tool-card-icon"><i class="fas fa-users-slash"></i></div>
+                <h4>Массовая Амнистия</h4>
+                <p>Разбанить всех пользователей</p>
+            </div>
 
-        <div class="tool-card danger" onclick="cleanupOldData()">
-            <i class="fas fa-trash-alt"></i>
-            <h4>Очистка Мусора</h4>
-            <p>Удалить старые логи/жалобы</p>
-        </div>
-        
-        <div class="tool-card danger" onclick="runRepairScript()">
-            <i class="fas fa-band-aid"></i>
-            <h4>Авто-Починка</h4>
-            <p>Исправить ошибки в БД</p>
+            <div class="tool-card danger" onclick="cleanupOldData()">
+                <div class="tool-card-icon"><i class="fas fa-trash-alt"></i></div>
+                <h4>Очистка Мусора</h4>
+                <p>Удалить старые логи/жалобы</p>
+            </div>
+
+            <div class="tool-card danger" onclick="runRepairScript()">
+                <div class="tool-card-icon"><i class="fas fa-band-aid"></i></div>
+                <h4>Авто-Починка</h4>
+                <p>Исправить ошибки в БД</p>
+            </div>
         </div>
     </div>
 
-    <div style="margin-top: 20px;">
-        <h6 style="color:var(--text-secondary)">Системный лог:</h6>
+    <div class="tools-section">
+        <div class="tools-section-header">
+            <i class="fas fa-terminal"></i> Системный лог
+        </div>
         <div id="admin-console-log" class="console-log">
-            <div class="log-line">> Панель инструментов готова...</div>
+            <div class="log-line">&gt; Панель инструментов готова...</div>
         </div>
     </div>
 </div>
 
         <div id="admin-tab-stats" class="admin-tab-content" style="display:none;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h5><i class="fas fa-chart-bar"></i> Глобальная Аналитика</h5>
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-chart-bar"></i> Глобальная аналитика</h5>
                 <button class="small-action-btn" onclick="renderDetailedStats()"><i class="fas fa-sync"></i> Обновить</button>
             </div>
-            
+
             <div id="mega-stats-container" class="stats-grid-mega">
-                <div style="text-align:center; padding:20px; width: 100%;">Загрузка данных аналитики...</div>
+                <div class="admin-table-loading" style="width:100%;">Загрузка данных аналитики...</div>
             </div>
         </div>
 
@@ -12063,17 +12088,17 @@ function fallbackCopy(text) {
 </div>
 
 <div id="admin-preview-modal" class="modal" style="z-index: 10001;">
-    <div class="modal-content">
+    <div class="modal-content admin-subm-modal">
         <div class="modal-header">
-            <h4>Проверка рецепта</h4>
+            <h4><i class="fas fa-magnifying-glass"></i> Проверка рецепта</h4>
             <span class="modal-close" onclick="hideModal('admin-preview-modal')"><i class="fas fa-times"></i></span>
         </div>
         <div id="admin-preview-content"></div>
-        <div style="display:flex; gap:10px; margin-top:20px; border-top:1px solid var(--border-color); padding-top:15px;">
-            <button id="btn-approve-preview" class="btn btn-primary" style="flex:1; background: var(--primary);">
+        <div class="admin-modal-actions">
+            <button id="btn-approve-preview" class="btn btn-primary admin-btn-approve">
                 <i class="fas fa-check"></i> Одобрить
             </button>
-            <button id="btn-reject-preview" class="btn btn-primary" style="flex:1; background: var(--error);">
+            <button id="btn-reject-preview" class="btn btn-primary admin-btn-reject">
                 <i class="fas fa-ban"></i> Отклонить
             </button>
         </div>
@@ -12081,9 +12106,9 @@ function fallbackCopy(text) {
 </div>
 
 <div id="admin-user-modal" class="modal" onclick="if(event.target.id === 'admin-user-modal') hideModal('admin-user-modal')">
-    <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-content admin-subm-modal" style="max-width: 600px;">
         <div class="modal-header">
-            <h4>Управление пользователем</h4>
+            <h4><i class="fas fa-user-gear"></i> Управление пользователем</h4>
             <span class="modal-close" onclick="hideModal('admin-user-modal')">&times;</span>
         </div>
         <div id="admin-user-detail-content">
@@ -12133,26 +12158,26 @@ function fallbackCopy(text) {
 </div>
 
 <div id="admin-feedback-modal" class="modal" style="z-index:10005;">
-    <div class="modal-content" style="max-width:600px;">
+    <div class="modal-content admin-subm-modal" style="max-width:600px;">
         <div class="modal-header">
-            <h4>Обратная связь</h4>
+            <h4><i class="fas fa-comments"></i> Обратная связь</h4>
             <span class="modal-close" onclick="hideModal('admin-feedback-modal')">&times;</span>
         </div>
-        <button class="small-action-btn" onclick="cleanupFeedback()" style="margin-bottom:10px; background:var(--error); color:white; border:none;"><i class="fas fa-trash"></i> Удалить старые</button>
-        <div id="feedback-list-container" style="max-height:400px; overflow-y:auto;">
+        <button class="small-action-btn danger-outline" onclick="cleanupFeedback()"><i class="fas fa-trash"></i> Удалить старые</button>
+        <div id="feedback-list-container" class="admin-scroll-list">
             </div>
     </div>
 </div>
 
 <div id="announcement-modal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content admin-subm-modal">
         <div class="modal-header">
-            <h4>📢 Создать объявление</h4>
+            <h4><i class="fas fa-bullhorn"></i> Создать объявление</h4>
             <span class="modal-close" onclick="hideModal('announcement-modal')">&times;</span>
         </div>
-        <p style="color:var(--text-secondary); font-size:0.9em; margin-bottom:10px;">Это сообщение увидят все пользователи.</p>
+        <p class="admin-modal-hint">Это сообщение увидят все пользователи.</p>
         <textarea id="announcement-text" class="styled-input" rows="4" placeholder="Введите текст..."></textarea>
-        <button class="btn btn-primary" onclick="sendAnnouncement()">Отправить всем</button>
+        <button class="btn btn-primary" onclick="sendAnnouncement()" style="margin-top:12px;">Отправить всем</button>
     </div>
 </div>
 
