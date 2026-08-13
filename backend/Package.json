@@ -1,0 +1,15 @@
+{
+  "name": "axio-push-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ежедневная рассылка push/telegram уведомлений об истекающих продуктах для Axio",
+  "main": "notify.js",
+  "scripts": {
+    "notify": "node notify.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "web-push": "^3.6.7",
+    "node-fetch": "^2.7.0"
+  }
+}
