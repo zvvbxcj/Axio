@@ -5028,7 +5028,9 @@ adsgram-task {
     position: relative;
     width: 100%;
     max-width: 420px;
-    height: 560px;
+    height: var(--fridge-height, 560px);
+    min-height: 280px;
+    max-height: 560px;
     perspective: 1600px;
 }
 
@@ -5297,7 +5299,7 @@ adsgram-task {
 .fridge-shelf-empty i { font-size: 2em; margin-bottom: 10px; opacity: 0.5; display: block; }
 
 @media (max-width: 380px) {
-    .fridge-unit { height: 500px; }
+    .fridge-unit { height: var(--fridge-height, 500px); }
     .fridge-door-count { font-size: 2.2em; }
 }
 

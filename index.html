@@ -612,7 +612,7 @@
 </button>
 
                         <button class="action-btn" onclick="openStatistics()" style="background: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); width: 100%; margin-top: 10px; justify-content: center; padding: 13px 10px; border-radius: 10px;">
-    <i class="fas fa-chart-pie" style="color: var(--accent);"></i> <span>Статистика и Отчеты</span>
+    <i class="fas fa-chart-pie" style="color: var(--accent);"></i> <span> Статистика и Отчеты</span>
 </button>
 
                         <div style="margin-top: 15px; padding: 0 5px; display: flex; flex-direction: column; gap: 10px;">
@@ -12473,6 +12473,58 @@ function fallbackCopy(text) {
 
 <script>
  document.addEventListener('DOMContentLoaded', loadAdsgram);
+</script>
+
+<script>
+// --- Динамическая высота холодильника: чтобы он полностью помещался на экране
+// без необходимости скроллить вниз, на любом устройстве. ---
+(function () {
+    function adjustFridgeHeight() {
+        var wrap = document.getElementById('fridge-wrap-el');
+        if (!wrap) return;
+        var unit = wrap.querySelector('.fridge-unit');
+        if (!unit) return;
+        if (wrap.offsetParent === null) return; // сейчас скрыт (другая вкладка/экран) — не считаем
+
+        var navBar = document.querySelector('.nav-bar');
+        var wrapTop = wrap.getBoundingClientRect().top;
+        var bottomLimit = navBar ? navBar.getBoundingClientRect().top : window.innerHeight;
+        var margin = 16;
+
+        var available = bottomLimit - wrapTop - margin;
+        available = Math.max(280, Math.min(560, available));
+
+        document.documentElement.style.setProperty('--fridge-height', Math.round(available) + 'px');
+    }
+
+    window.adjustFridgeHeight = adjustFridgeHeight;
+
+    window.addEventListener('load', adjustFridgeHeight);
+    window.addEventListener('resize', adjustFridgeHeight);
+    window.addEventListener('orientationchange', function () {
+        setTimeout(adjustFridgeHeight, 200);
+    });
+
+    if (typeof navigateTo === 'function') {
+        var _origNavigateTo = navigateTo;
+        navigateTo = function (sectionId) {
+            _origNavigateTo(sectionId);
+            if (sectionId === 'inventory') requestAnimationFrame(adjustFridgeHeight);
+        };
+    }
+
+    if (typeof updateInventoryList === 'function') {
+        var _origUpdateInventoryList = updateInventoryList;
+        updateInventoryList = function () {
+            _origUpdateInventoryList();
+            requestAnimationFrame(adjustFridgeHeight);
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        requestAnimationFrame(adjustFridgeHeight);
+    });
+})();
 </script>
 
 </body>
