@@ -1,0 +1,30 @@
+name: Axio push notifications
+
+on:
+  schedule:
+    # Каждые 5 минут. GitHub не гарантирует ровно 5 минут под нагрузкой —
+    # иногда может быть задержка в несколько минут, но обычно близко к этому.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {} # позволяет запускать вручную кнопкой "Run workflow" на GitHub
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - run: npm run notify
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
