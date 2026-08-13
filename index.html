@@ -578,6 +578,10 @@
 </button>
 </div>
                         <p style="color:var(--text-secondary);" id="profile-email">email@example.com</p>
+
+                        <button class="logout-btn-top" onclick="logout()" data-translate="LogoutButton">
+                            <i class="fas fa-arrow-right-from-bracket"></i> Выйти
+                        </button>
                         
                         <div style="display:flex; justify-content: space-around; margin-top: 20px;">
                             <div style="font-size: 0.9em;">
@@ -636,9 +640,8 @@
     <span id="ads-watched-counter" style="display:none;">0</span>
 
 <div id="ut-embed" style="margin: 15px 0; border-radius: 12px; overflow: hidden;"></div>
-
-    <button class="btn btn-secondary" onclick="logout()" style="width: 100%; margin-top: 10px;" data-translate="LogoutButton">Выйти</button>
 </div>
+
                 </section>
 
             </div>
@@ -1351,20 +1354,7 @@ const avatarCollection = [
     "https://api.dicebear.com/7.x/adventurer/svg?seed=Bailey", 
     "https://api.dicebear.com/7.x/adventurer/svg?seed=Midnight", 
     "https://api.dicebear.com/7.x/fun-emoji/svg?seed=Pizza", 
-    "https://api.dicebear.com/7.x/notionists/svg?seed=Cookie", 
-    "https://api.dicebear.com/7.x/bottts/svg?seed=Robot", 
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=ChefHat",
-    "https://api.dicebear.com/7.x/micah/svg?seed=Smile" 
-];
-
-// Эксклюзивные (Более уникальные стили)
-const premiumAvatars = [
-    { count: 5, url: "https://api.dicebear.com/7.x/open-peeps/svg?seed=Cool", name: "Хипстер" },
-    { count: 10, url: "https://api.dicebear.com/7.x/micah/svg?seed=Artist", name: "Художник" },
-    { count: 20, url: "https://api.dicebear.com/7.x/notionists/svg?seed=Work", name: "Профи" },
-    { count: 30, url: "https://api.dicebear.com/7.x/bottts/svg?seed=Cyborg", name: "Кибер-Шеф" },
-    { count: 50, url: "https://img.freepik.com/premium-photo/cat-wearing-jacket-that-says-name-it_1153744-151199.jpg?semt=ais_hybrid&w=740&q=80", name: "Стример" },
-    { count: 55, url: "https://i.pinimg.com/736x/56/0a/b3/560ab37b1bd593296005dc3f00be984f.jpg", name: "Абстракция" }
+    "https://api.dicebear.com/7.x/notionists/svg?seed=Cookie" 
 ];
 
 let tempSelectedAvatar = null;
@@ -1378,8 +1368,6 @@ let adTimers = JSON.parse(localStorage.getItem('adTimers')) || {
     task: 0
 };
 
-// Константа для лимита (100 реклам)
-const ADS_TO_UNLOCK_AVATAR = 100; 
 // Константа для таймера (60000 мс = 1 минута)
 const AD_COOLDOWN_MS = 60000;
 
@@ -1569,14 +1557,6 @@ function clearImage() {
 }
 
 function tryUploadAvatar() {
-    // Проверка: набрано ли 100 просмотров?
-    if (adsWatchedCount < ADS_TO_UNLOCK_AVATAR) {
-        const left = ADS_TO_UNLOCK_AVATAR - adsWatchedCount;
-        alert(`🔒 Функция заблокирована!\n\nНужно посмотреть 100 реклам.\nВы посмотрели: ${adsWatchedCount}\nОсталось: ${left}`);
-        return; // Не открываем файл
-    }
-
-    // Если условие выполнено — кликаем по скрытому инпуту программно
     document.getElementById('avatar-file-input').click();
 }
 
@@ -7768,7 +7748,7 @@ const adsCounterEl = document.getElementById('ads-watched-counter');
     grid.innerHTML = '';
     tempSelectedAvatar = avatarUrl; 
     
-    // 1. Рендерим Обычные аватары
+    // 1. Рендерим аватары
     avatarCollection.forEach(url => {
         const img = document.createElement('img'); 
         img.src = url; 
@@ -7779,61 +7759,6 @@ const adsCounterEl = document.getElementById('ads-watched-counter');
             tempSelectedAvatar = url; 
         };
         grid.appendChild(img);
-    });
-
-    // 2. Рендерим Премиальные аватары
-    // Добавляем разделитель
-    const divider = document.createElement('div');
-    divider.style.gridColumn = "1 / -1";
-    divider.style.marginTop = "10px";
-    divider.style.marginBottom = "5px";
-    divider.style.color = "var(--text-secondary)";
-    divider.style.fontSize = "0.8em";
-    divider.style.textAlign = "center";
-    divider.innerHTML = `<i class="fas fa-crown" style="color:#F59E0B"></i> Эксклюзив (Ваш счет: ${adsWatchedCount})`;
-    grid.appendChild(divider);
-
-    premiumAvatars.forEach(av => {
-        const isUnlocked = adsWatchedCount >= av.count;
-        const wrapper = document.createElement('div');
-        wrapper.style.position = 'relative';
-        wrapper.style.aspectRatio = '1';
-
-        const img = document.createElement('img');
-        img.src = av.url;
-        img.className = `avatar-option ${av.url === avatarUrl ? 'selected' : ''}`;
-        
-        // Если заблокировано
-        if (!isUnlocked) {
-            img.style.filter = "grayscale(100%) blur(1px)";
-            img.style.opacity = "0.5";
-            img.style.cursor = "not-allowed";
-        } else {
-            // Если разблокировано - вешаем клик
-            img.onclick = () => {
-                document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
-                img.classList.add('selected');
-                tempSelectedAvatar = av.url;
-            };
-        }
-
-        wrapper.appendChild(img);
-
-        // Если заблокировано - рисуем замок и условие
-        if (!isUnlocked) {
-            const lockOverlay = document.createElement('div');
-            lockOverlay.innerHTML = `<div style="text-align:center;"><i class="fas fa-lock"></i><br><span style="font-size:0.7em">${av.count}</span></div>`;
-            lockOverlay.style.position = "absolute";
-            lockOverlay.style.top = "50%";
-            lockOverlay.style.left = "50%";
-            lockOverlay.style.transform = "translate(-50%, -50%)";
-            lockOverlay.style.color = "white";
-            lockOverlay.style.fontWeight = "bold";
-            lockOverlay.style.pointerEvents = "none"; // Чтобы клики проходили сквозь текст (хотя на img клика нет)
-            wrapper.appendChild(lockOverlay);
-        }
-
-        grid.appendChild(wrapper);
     });
 
     renderMasteryLevels();
@@ -8101,8 +8026,6 @@ async function watchAdAction(type) {
                 
                 // Сразу обновляем кнопки
                 updateAdButtonsUI();
-
-                if(typeof checkAvatarUnlocks === 'function') checkAvatarUnlocks();
             }, 500); // <-- Задержка 500мс (полсекунды), чтобы экран стабилизировался
         } else {
             showToast('Реклама пропущена.', 'warning');
@@ -11736,35 +11659,7 @@ async function runTest(type) {
         }
     }
 
-    // 3. ПРОВЕРКА ОТКРЫТИЯ АВАТАРОВ (ИСПРАВЛЕНО)
-function checkAvatarUnlocks() {
-    // Просто проверяем, не открыли ли мы какой-то премиум аватар
-    // НЕ НУЖНО здесь выводить Alert о том, что "мало реклам".
-    // Этот Alert уже есть в кнопке загрузки (tryUploadAvatar).
-
-    const unlocked = premiumAvatars.find(a => a.count === adsWatchedCount);
-    
-    if (unlocked) {
-        showModal('avatar-modal');
-        showToast(`🎉 Открыт новый аватар: ${unlocked.name}!`, 'success');
-        
-        // Добавляем уведомление
-        userNotifications.push({
-            id: Date.now(),
-            type: 'success',
-            message: `Новый аватар "${unlocked.name}" получен!`,
-            icon: 'fas fa-gift',
-            date: new Date().toISOString(),
-            read: false
-        });
-        updateHeader();
-    }
-    
-    // Если мы достигли 100, можно отдельно поздравить с разблокировкой загрузки
-    if (adsWatchedCount === ADS_TO_UNLOCK_AVATAR) {
-        showToast("🔓 Загрузка своих фото разблокирована!", "success");
-    }
-}
+    // 3. (Условия разблокировки аватаров за рекламу удалены)
 
     // 4. ПРОМЕЖУТОЧНАЯ РЕКЛАМА (INTERSTITIAL)
     let adActionCounter = 0;
@@ -11822,7 +11717,6 @@ function renderNativeAdTask(containerId) {
             hideModal('ad-task-modal'); 
             showToast(`Задание выполнено! +${rewardAmount} XP`, 'success');
             triggerLevelUpEffect();
-            checkAvatarUnlocks();
         });
 
         taskElement.addEventListener('onBannerNotFound', () => {
