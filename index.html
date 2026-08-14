@@ -1784,6 +1784,35 @@ function getLocalDateString() {
     return local.toISOString().split('T')[0];
 }
 
+// Дата N дней назад в формате YYYY-MM-DD (для агрегации DAU/MAU и "топ за 30 дней")
+function dateStringNDaysAgo(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - (offset * 60 * 1000));
+    return local.toISOString().split('T')[0];
+}
+
+// --- DAU / MAU: лёгкая "отметка присутствия" ---
+// Пишем максимум 1 запись в сутки на пользователя (флаг в localStorage бережёт от лишних
+// записей при перезагрузках), чтобы админ-панель могла строить график активности,
+// не трогая остальную логику приложения.
+function logDailyActivity() {
+    if (!currentUser || !currentUser.uid) return;
+    const dateStr = getLocalDateString();
+    const flagKey = `axio_activity_ping_${currentUser.uid}_${dateStr}`;
+    if (localStorage.getItem(flagKey)) return; // Уже отметились сегодня
+
+    const docId = `${dateStr}_${currentUser.uid}`;
+    db.collection('activity_log').doc(docId).set({
+        uid: currentUser.uid,
+        date: dateStr,
+        ts: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).then(() => {
+        try { localStorage.setItem(flagKey, '1'); } catch (e) { /* localStorage недоступен — не критично */ }
+    }).catch(e => console.warn('Activity log write failed', e));
+}
+
 // Добавьте эту функцию для вызова при приготовлении или выбрасывании
 async function trackStat(type) {
     if (!currentUser) return;
@@ -1974,6 +2003,9 @@ async function trackStat(type) {
         // Загружаем/мигрируем холодильники пользователя и подставляем инвентарь
         // активного холодильника в userInventory / userShopping.
         await initFridges(legacyInventory, legacyShopping);
+
+        // Отметка активности для DAU/MAU аналитики в панели модератора (не блокирует UI)
+        logDailyActivity();
 
         checkDailyNotifications();
         checkExpiringProductsPush();
@@ -2308,7 +2340,7 @@ async function submitJoinFridge() {
         showToast(`Вы присоединились: ${fridgeDoc.name}`, 'success');
     } catch (e) {
         console.error("Join fridge error", e);
-        showToast('Не удалось присоединиться', 'error');
+        showToast('Не удалось присоединиться: ' + (e && e.code ? e.code : (e && e.message ? e.message : 'неизвестная ошибка')), 'error');
     }
 }
 
@@ -5823,6 +5855,7 @@ let allUsersCache = [];
 let adminFridgesCache = [];
 let adminFridgeUserNameCache = {}; // uid -> имя, чтобы не дергать базу повторно
 let managingAdminFridgeId = null;
+let adminDauChart = null; // Chart.js инстанс графика DAU/MAU
 
 function openAdminPanel() {
     if (!currentUser || currentUser.uid !== ADMIN_UID) {
@@ -12371,9 +12404,215 @@ async function renderDetailedStats() {
         
         container.innerHTML = html;
 
+        // Расширенная аналитика: DAU/MAU, конверсия в первый товар, топ-контент.
+        // Каждая функция сама себя изолирует try/catch — падение одной не должно
+        // портить остальные блоки.
+        renderDauMauChart();
+        renderConversionMetric();
+        renderTopContent();
+
     } catch (e) {
         console.error(e);
         container.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:var(--error)">Ошибка сбора данных: ${e.message}</div>`;
+    }
+}
+
+/* ============================================================
+   АДМИН: РАСШИРЕННАЯ АНАЛИТИКА (DAU/MAU, конверсия, топ-контент)
+   ============================================================ */
+
+// --- DAU / MAU: график активности за последние 30 дней ---
+async function renderDauMauChart() {
+    const dauTodayEl = document.getElementById('dau-today-val');
+    const mauEl = document.getElementById('mau-30d-val');
+    const ratioEl = document.getElementById('dau-mau-ratio-val');
+    const canvas = document.getElementById('dauChart');
+    if (!canvas) return;
+
+    try {
+        const startDate = dateStringNDaysAgo(29); // 30 дней, включая сегодня
+        const snap = await db.collection('activity_log').where('date', '>=', startDate).get();
+
+        // Группируем отметки по дате и параллельно собираем уникальных юзеров за период (MAU)
+        const dayCounts = {};
+        const uidsInWindow = new Set();
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (!d.date || !d.uid) return;
+            dayCounts[d.date] = (dayCounts[d.date] || 0) + 1;
+            uidsInWindow.add(d.uid);
+        });
+
+        // Строим непрерывный ряд за 30 дней (дни без активности показываем нулём, а не пропускаем)
+        const labels = [];
+        const values = [];
+        for (let i = 29; i >= 0; i--) {
+            const dateStr = dateStringNDaysAgo(i);
+            labels.push(dateStr.slice(5)); // MM-DD, компактнее для оси
+            values.push(dayCounts[dateStr] || 0);
+        }
+
+        const todayStr = getLocalDateString();
+        const dauToday = dayCounts[todayStr] || 0;
+        const mau = uidsInWindow.size;
+        const ratio = mau > 0 ? Math.round((dauToday / mau) * 100) : 0;
+
+        if (dauTodayEl) dauTodayEl.textContent = dauToday;
+        if (mauEl) mauEl.textContent = mau;
+        if (ratioEl) ratioEl.textContent = ratio + '%';
+
+        if (adminDauChart) adminDauChart.destroy();
+        const ctx = canvas.getContext('2d');
+        adminDauChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Активных пользователей',
+                    data: values,
+                    backgroundColor: 'rgba(16, 185, 129, 0.55)',
+                    borderRadius: 4,
+                    barPercentage: 0.85,
+                    categoryPercentage: 0.9
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { title: (items) => 'Дата: ' + items[0].label } }
+                },
+                scales: {
+                    x: { ticks: { color: '#94A3B8', maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: '#94A3B8', precision: 0 }, grid: { color: 'rgba(148,163,184,0.1)' } }
+                }
+            }
+        });
+    } catch (e) {
+        console.error('DAU/MAU chart error:', e);
+        if (dauTodayEl) dauTodayEl.textContent = '—';
+        if (mauEl) mauEl.textContent = '—';
+        if (ratioEl) ratioEl.textContent = '—';
+    }
+}
+
+// --- Конверсия: % зарегистрированных пользователей, реально добавивших ≥1 товар ---
+// Методика: считается пользователь, владеющий хотя бы одним холодильником, в котором
+// есть хотя бы один товар (прямой лог добавления по каждому товару в системе не ведётся,
+// поэтому владение — самый надёжный доступный сигнал "этот юзер реально начал пользоваться").
+async function renderConversionMetric() {
+    const valEl = document.getElementById('conversion-meter-val');
+    const descEl = document.getElementById('conversion-meter-desc');
+    const circleEl = document.getElementById('conversion-meter-circle');
+    if (!valEl) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+        if (!adminFridgesCache || adminFridgesCache.length === 0) await loadAdminFridges(true);
+
+        const totalUsers = allUsersCache.length || 0;
+        const ownersWithProducts = new Set();
+        adminFridgesCache.forEach(f => {
+            if (f.owner && (f.items || []).length > 0) ownersWithProducts.add(f.owner);
+        });
+
+        const pct = totalUsers > 0 ? Math.round((ownersWithProducts.size / totalUsers) * 100) : 0;
+
+        valEl.textContent = pct + '%';
+        if (circleEl) circleEl.style.setProperty('--pct', pct);
+        if (descEl) {
+            descEl.innerHTML = `<b>${ownersWithProducts.size}</b> из <b>${totalUsers}</b> зарегистрированных пользователей добавили хотя бы 1 товар в свой холодильник.<br>
+                <span style="font-size:0.85em; opacity:0.75;">Считается пользователь-владелец холодильника, в котором сейчас есть хотя бы один товар.</span>`;
+        }
+    } catch (e) {
+        console.error('Conversion metric error:', e);
+        if (descEl) descEl.textContent = 'Ошибка расчёта: ' + e.message;
+    }
+}
+
+// --- Топ-контент: топ-5 рецептов и топ продуктов за 30 дней ---
+async function renderTopContent() {
+    renderTopRecipes();
+    renderTopProducts();
+}
+
+async function renderTopRecipes() {
+    const list = document.getElementById('top-recipes-list');
+    if (!list) return;
+
+    try {
+        const doc = await db.collection('globalStats').doc('recipes').get();
+        const counts = doc.exists ? doc.data() : {};
+
+        const entries = Object.entries(counts)
+            .filter(([id, c]) => typeof c === 'number' && c > 0)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        if (entries.length === 0) {
+            list.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-inbox"></i><p>Пока нет данных о готовке</p></div>';
+            return;
+        }
+
+        const recipesPool = (typeof globalRecipes !== 'undefined' && globalRecipes) ? globalRecipes : [];
+        list.innerHTML = entries.map(([id, count], idx) => {
+            const recipe = recipesPool.find(r => String(r.id) === String(id));
+            const name = recipe ? (recipe.name?.ru || recipe.name?.en || recipe.name || `Рецепт #${id}`) : `Рецепт #${id}`;
+            return `
+                <div class="top-content-item">
+                    <div class="top-content-rank">${idx + 1}</div>
+                    <div class="top-content-name">${escapeHtml(String(name))}</div>
+                    <div class="top-content-count">${count} <i class="fas fa-fire"></i></div>
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Top recipes error:', e);
+        list.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+    }
+}
+
+async function renderTopProducts() {
+    const list = document.getElementById('top-products-list');
+    if (!list) return;
+
+    try {
+        if (!adminFridgesCache || adminFridgesCache.length === 0) await loadAdminFridges(true);
+
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 30);
+
+        // Считаем только товары с реальной датой добавления в пределах 30 дней —
+        // без даты нельзя подтвердить, что товар добавлен за этот период.
+        const tally = {};
+        adminFridgesCache.forEach(f => {
+            (f.items || []).forEach(item => {
+                if (!item.name || !item.addedDate) return;
+                const added = new Date(item.addedDate);
+                if (isNaN(added.getTime()) || added < cutoff) return;
+
+                const key = item.name.trim().toLowerCase();
+                if (!tally[key]) tally[key] = { name: item.name.trim(), count: 0 };
+                tally[key].count += 1;
+            });
+        });
+
+        const top = Object.values(tally).sort((a, b) => b.count - a.count).slice(0, 5);
+
+        if (top.length === 0) {
+            list.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-inbox"></i><p>Нет добавлений с датой за последние 30 дней</p></div>';
+            return;
+        }
+
+        list.innerHTML = top.map((p, idx) => `
+            <div class="top-content-item">
+                <div class="top-content-rank">${idx + 1}</div>
+                <div class="top-content-name">${escapeHtml(p.name)}</div>
+                <div class="top-content-count">${p.count} <i class="fas fa-box"></i></div>
+            </div>`).join('');
+    } catch (e) {
+        console.error('Top products error:', e);
+        list.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
     }
 }
 
@@ -13728,6 +13967,53 @@ function fallbackCopy(text) {
 
             <div id="mega-stats-container" class="stats-grid-mega">
                 <div class="admin-table-loading" style="width:100%;">Загрузка данных аналитики...</div>
+            </div>
+
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <h5><i class="fas fa-chart-line"></i> DAU / MAU</h5>
+                <div class="admin-stats-row" style="margin-bottom:15px;">
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-day"></i></div>
+                        <div><div class="stat-val" id="dau-today-val">—</div><div class="stat-lbl">DAU сегодня</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-calendar-days"></i></div>
+                        <div><div class="stat-val" id="mau-30d-val">—</div><div class="stat-lbl">MAU (30 дней)</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-percent"></i></div>
+                        <div><div class="stat-val" id="dau-mau-ratio-val">—</div><div class="stat-lbl">Стикинес (DAU/MAU)</div></div>
+                    </div>
+                </div>
+                <div style="position:relative; height:220px;">
+                    <canvas id="dauChart"></canvas>
+                </div>
+                <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                    Число уникальных пользователей, открывавших приложение в каждый из последних 30 дней. Один визит в сутки = 1 отметка.
+                </p>
+            </div>
+
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <h5><i class="fas fa-bullseye"></i> Конверсия в первый товар</h5>
+                <div class="conversion-meter-row">
+                    <div class="conversion-meter-circle" id="conversion-meter-circle">
+                        <span id="conversion-meter-val">—</span>
+                    </div>
+                    <div class="conversion-meter-info" id="conversion-meter-desc">Загрузка данных...</div>
+                </div>
+            </div>
+
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <div class="admin-top-content-grid">
+                    <div>
+                        <h5><i class="fas fa-trophy"></i> Топ-5 рецептов</h5>
+                        <div id="top-recipes-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                    </div>
+                    <div>
+                        <h5><i class="fas fa-carrot"></i> Топ продуктов <span style="font-weight:400; font-size:0.75em; color:var(--text-secondary);">(30 дней)</span></h5>
+                        <div id="top-products-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                    </div>
+                </div>
             </div>
         </div>
 
