@@ -5820,6 +5820,9 @@ let recipeToModerateId = null;
 let recipeToRejectId = null;
 let adminLogs = [];
 let allUsersCache = [];
+let adminFridgesCache = [];
+let adminFridgeUserNameCache = {}; // uid -> имя, чтобы не дергать базу повторно
+let managingAdminFridgeId = null;
 
 function openAdminPanel() {
     if (!currentUser || currentUser.uid !== ADMIN_UID) {
@@ -5853,6 +5856,14 @@ function switchAdminTab(tabName) {
         }
     }
     
+    if (tabName === 'fridges') {
+        if (!adminFridgesCache || adminFridgesCache.length === 0) {
+            loadAdminFridges();
+        } else {
+            renderAdminFridges(adminFridgesCache);
+        }
+    }
+
     if (tabName === 'pending') loadPendingRecipes(); // Это лучше грузить свежим
     if (tabName === 'feedback') loadFeedbackReports();
     if (tabName === 'push') initPushCenter();
@@ -6190,6 +6201,16 @@ async function loadAdminStats() {
             document.getElementById('pending-count-badge').style.display = pendingCount > 0 ? 'inline-block' : 'none';
         }
 
+        // --- ХОЛОДИЛЬНИКИ ---
+        if (adminFridgesCache && adminFridgesCache.length > 0) {
+            if (document.getElementById('dash-total-fridges'))
+                document.getElementById('dash-total-fridges').textContent = adminFridgesCache.length;
+        } else {
+            const fridgesCountSnap = await db.collection('fridges').get();
+            if (document.getElementById('dash-total-fridges'))
+                document.getElementById('dash-total-fridges').textContent = fridgesCountSnap.size;
+        }
+
        // --- КОНФИГ СЕРВЕРА ---
        const configDoc = await db.collection('global_settings').doc('config').get();
        if (configDoc.exists) {
@@ -6460,6 +6481,412 @@ async function toggleUserBan(uid, shouldBan) {
         loadAllUsers(); // Обновить таблицу
     } catch(e) {
         showToast("Ошибка: " + e.message, "error");
+    }
+}
+
+/* ============================================================
+   АДМИН: ХОЛОДИЛЬНИКИ (fridges/{fridgeId})
+   Полный контроль над совместными холодильниками пользователей.
+   ============================================================ */
+
+// Возвращает имя пользователя по uid, используя кэш юзеров (users-таб)
+// и локальный кэш холодильников, чтобы не делать лишние запросы к базе.
+async function getAdminUserDisplayName(uid) {
+    if (!uid) return 'Неизвестно';
+    if (adminFridgeUserNameCache[uid]) return adminFridgeUserNameCache[uid];
+
+    const cached = (allUsersCache || []).find(u => u.id === uid);
+    if (cached) {
+        const label = cached.name || cached.email || uid;
+        adminFridgeUserNameCache[uid] = label;
+        return label;
+    }
+
+    try {
+        const doc = await db.collection(USER_COLLECTION).doc(uid).get();
+        const label = doc.exists ? (doc.data().name || doc.data().email || uid) : `Удалён (${uid.slice(0, 6)}...)`;
+        adminFridgeUserNameCache[uid] = label;
+        return label;
+    } catch (e) {
+        return uid;
+    }
+}
+
+async function loadAdminFridges(forceRefresh = false) {
+    const tbody = document.getElementById('adm-fridges-list');
+    if (!tbody) return;
+
+    if (forceRefresh || adminFridgesCache.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;"><div class="dots-loader" style="margin:0 auto"></div><br>Загрузка холодильников...</td></tr>';
+    }
+
+    try {
+        const snap = await db.collection('fridges').limit(2000).get();
+        adminFridgesCache = [];
+
+        if (snap.empty) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Холодильники не найдены.</td></tr>';
+            const totalFridgesEl = document.getElementById('dash-total-fridges');
+            if (totalFridgesEl) totalFridgesEl.textContent = 0;
+            return;
+        }
+
+        snap.forEach(doc => adminFridgesCache.push({ id: doc.id, ...doc.data() }));
+
+        // Сортировка: сначала самые "населённые"
+        adminFridgesCache.sort((a, b) => ((b.members || []).length) - ((a.members || []).length));
+
+        renderAdminFridges(adminFridgesCache);
+
+        const totalFridgesEl = document.getElementById('dash-total-fridges');
+        if (totalFridgesEl) totalFridgesEl.textContent = snap.size + (snap.size === 2000 ? "+" : "");
+
+    } catch (e) {
+        console.error("Ошибка загрузки холодильников:", e);
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--error); text-align:center;">Ошибка: ${e.message}</td></tr>`;
+    }
+}
+
+function renderAdminFridges(fridges) {
+    const list = document.getElementById('adm-fridges-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!fridges || fridges.length === 0) {
+        list.innerHTML = '<tr><td colspan="5" style="text-align:center">Холодильники не найдены</td></tr>';
+        return;
+    }
+
+    fridges.forEach(f => {
+        const membersCount = (f.members || []).length;
+        const itemsCount = (f.items || []).length;
+        const row = document.createElement('tr');
+        row.className = 'fridge-admin-row';
+        row.innerHTML = `
+            <td>
+                <div class="user-cell" onclick="openAdminFridgeManage('${f.id}')" style="cursor:pointer;">
+                    <div class="user-avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--surface-light);">
+                        <i class="fas ${f.icon || 'fa-kitchen-set'}" style="color:var(--primary);"></i>
+                    </div>
+                    <div class="user-cell-info">
+                        <div class="user-name">${escapeHtml(f.name || 'Без названия')}</div>
+                        <div class="user-email">ID: ${f.id}</div>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="admin-fridge-owner-link" style="cursor:pointer; color:var(--primary); text-decoration:underline;" onclick="openUserDetail('${f.owner}')">
+                    ${escapeHtml(adminFridgeUserNameCache[f.owner] || f.owner || '—')}
+                </span>
+            </td>
+            <td><span class="badge badge-primary"><i class="fas fa-users"></i> ${membersCount}</span></td>
+            <td><span class="badge badge-accent"><i class="fas fa-box"></i> ${itemsCount}</span></td>
+            <td class="user-actions-cell">
+                <button class="icon-action-btn" title="Управление" onclick="openAdminFridgeManage('${f.id}')">
+                    <i class="fas fa-gear"></i>
+                </button>
+                <button class="icon-action-btn is-danger" title="Удалить холодильник" onclick="deleteAdminFridge('${f.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        list.appendChild(row);
+
+        // Подгружаем имя владельца в фоне и обновляем ячейку, если его еще нет в кэше
+        if (f.owner && !adminFridgeUserNameCache[f.owner]) {
+            getAdminUserDisplayName(f.owner).then(name => {
+                const linkEl = row.querySelector('.admin-fridge-owner-link');
+                if (linkEl) linkEl.textContent = name;
+            });
+        }
+    });
+}
+
+function filterAdminFridges() {
+    const q = (document.getElementById('admin-fridge-search')?.value || '').toLowerCase().trim();
+    if (!q) return renderAdminFridges(adminFridgesCache);
+
+    const filtered = adminFridgesCache.filter(f => {
+        const nameMatch = (f.name || '').toLowerCase().includes(q);
+        const idMatch = f.id.toLowerCase().includes(q);
+        const ownerMatch = (adminFridgeUserNameCache[f.owner] || f.owner || '').toLowerCase().includes(q);
+        return nameMatch || idMatch || ownerMatch;
+    });
+    renderAdminFridges(filtered);
+}
+
+// Открывает модалку полного управления конкретным холодильником
+async function openAdminFridgeManage(fridgeId) {
+    managingAdminFridgeId = fridgeId;
+    const content = document.getElementById('admin-fridge-detail-content');
+    showModal('admin-fridge-modal');
+    content.innerHTML = `
+        <div style="text-align:center; padding:50px;">
+            <i class="fas fa-circle-notch fa-spin" style="font-size:2em; color:var(--primary)"></i>
+            <p style="margin-top:10px">Загрузка холодильника...</p>
+        </div>`;
+
+    try {
+        const doc = await db.collection('fridges').doc(fridgeId).get();
+        if (!doc.exists) {
+            content.innerHTML = '<div class="alert alert-error" style="color:red; text-align:center; padding:20px;">Холодильник не найден (возможно, уже удалён).</div>';
+            return;
+        }
+        const f = { id: doc.id, ...doc.data() };
+        await renderAdminFridgeManageContent(f);
+    } catch (e) {
+        content.innerHTML = `<div class="alert alert-error" style="color:red; text-align:center; padding:20px;">Ошибка: ${e.message}</div>`;
+    }
+}
+
+async function renderAdminFridgeManageContent(f) {
+    const content = document.getElementById('admin-fridge-detail-content');
+    const members = f.members || [];
+    const items = f.items || [];
+
+    // Подтягиваем имена всех участников параллельно
+    const namePairs = await Promise.all(members.map(async uid => [uid, await getAdminUserDisplayName(uid)]));
+    const namesByUid = Object.fromEntries(namePairs);
+
+    const membersHtml = members.length
+        ? members.map(uid => `
+            <div class="audit-log-item">
+                <div class="audit-log-icon audit-cat-users"><i class="fas ${uid === f.owner ? 'fa-crown' : 'fa-user'}"></i></div>
+                <div class="audit-log-body">
+                    <div class="audit-log-msg" style="cursor:pointer; color:var(--primary);" onclick="openUserDetail('${uid}')">
+                        ${escapeHtml(namesByUid[uid] || uid)} ${uid === f.owner ? '<span class="badge badge-accent">Владелец</span>' : ''}
+                    </div>
+                    <div class="audit-log-meta">${uid}</div>
+                </div>
+                ${uid !== f.owner ? `<button class="icon-action-btn is-danger" title="Исключить участника" onclick="kickAdminFridgeMember('${f.id}', '${uid}')"><i class="fas fa-user-slash"></i></button>` : ''}
+                ${uid !== f.owner ? `<button class="icon-action-btn" title="Сделать владельцем" onclick="transferAdminFridgeOwnership('${f.id}', '${uid}')"><i class="fas fa-crown"></i></button>` : ''}
+            </div>
+        `).join('')
+        : '<div class="admin-empty-state" style="padding:16px;"><p>Нет участников</p></div>';
+
+    const itemsHtml = items.length
+        ? items.map(item => `
+            <div class="audit-log-item">
+                <div class="audit-log-icon audit-cat-system"><i class="fas fa-box"></i></div>
+                <div class="audit-log-body">
+                    <div class="audit-log-msg">${escapeHtml(item.name || 'Без названия')}</div>
+                    <div class="audit-log-meta">${item.qty || 1} ${item.unit || ''}</div>
+                </div>
+                <button class="icon-action-btn" title="Изменить" onclick="editAdminFridgeItem('${f.id}', '${item.id}')"><i class="fas fa-pen"></i></button>
+                <button class="icon-action-btn is-danger" title="Удалить товар" onclick="deleteAdminFridgeItem('${f.id}', '${item.id}')"><i class="fas fa-trash"></i></button>
+            </div>
+        `).join('')
+        : '<div class="admin-empty-state" style="padding:16px;"><p>Холодильник пуст</p></div>';
+
+    content.innerHTML = `
+        <div class="admin-panel-card">
+            <h5><i class="fas fa-tag"></i> Название</h5>
+            <div class="admin-maint-message-row">
+                <input type="text" id="admin-fridge-name-input" class="styled-input" value="${escapeHtml(f.name || '')}">
+                <button class="btn btn-primary" onclick="saveAdminFridgeName('${f.id}')">Сохранить</button>
+            </div>
+        </div>
+
+        <div class="admin-panel-card admin-panel-card-spaced">
+            <h5><i class="fas fa-key"></i> Инвайт-код</h5>
+            <div class="admin-maint-message-row">
+                <input type="text" class="styled-input" value="${escapeHtml(f.inviteCode || '—')}" readonly>
+                <button class="small-action-btn danger-outline" onclick="regenerateAdminFridgeInvite('${f.id}')"><i class="fas fa-rotate"></i> Перегенерировать</button>
+            </div>
+        </div>
+
+        <div class="admin-panel-card admin-panel-card-spaced">
+            <h5><i class="fas fa-users"></i> Участники (${members.length})</h5>
+            <div class="admin-scroll-list">${membersHtml}</div>
+        </div>
+
+        <div class="admin-panel-card admin-panel-card-spaced">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid var(--border-color); padding-bottom:10px;">
+                <h5 style="margin:0; border:none; padding:0;"><i class="fas fa-carrot"></i> Товары (${items.length})</h5>
+                <button class="small-action-btn" onclick="addAdminFridgeItem('${f.id}')"><i class="fas fa-plus"></i> Добавить</button>
+            </div>
+            <div class="admin-scroll-list">${itemsHtml}</div>
+        </div>
+
+        <button class="small-action-btn danger-outline admin-panel-card-spaced" style="width:100%;" onclick="deleteAdminFridge('${f.id}')">
+            <i class="fas fa-trash"></i> Удалить холодильник целиком
+        </button>
+    `;
+}
+
+async function saveAdminFridgeName(fridgeId) {
+    const input = document.getElementById('admin-fridge-name-input');
+    const newName = (input?.value || '').trim();
+    if (!newName) { showToast('Название не может быть пустым', 'error'); return; }
+
+    try {
+        await db.collection('fridges').doc(fridgeId).update({ name: newName });
+        const f = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (f) f.name = newName;
+        renderAdminFridges(adminFridgesCache);
+        showToast('Название обновлено', 'success');
+        logAdmin(`Переименован холодильник (${fridgeId}) → "${newName}"`, 'fridges');
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function regenerateAdminFridgeInvite(fridgeId) {
+    if (!confirm('Старый инвайт-код перестанет работать. Продолжить?')) return;
+
+    try {
+        const doc = await db.collection('fridges').doc(fridgeId).get();
+        if (!doc.exists) return;
+        const f = doc.data();
+        const oldCode = f.inviteCode;
+        const newCode = generateInviteCode();
+
+        await db.collection('fridges').doc(fridgeId).update({ inviteCode: newCode });
+        if (oldCode) db.collection('fridge_invites').doc(oldCode).delete().catch(() => {});
+        await db.collection('fridge_invites').doc(newCode).set({
+            fridgeId: fridgeId, owner: f.owner, name: f.name, icon: f.icon
+        });
+
+        const cached = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (cached) cached.inviteCode = newCode;
+
+        showToast('Инвайт-код обновлён: ' + newCode, 'success');
+        logAdmin(`Перегенерирован инвайт-код холодильника (${fridgeId})`, 'fridges');
+        openAdminFridgeManage(fridgeId); // перерисовать модалку со свежим кодом
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function kickAdminFridgeMember(fridgeId, uid) {
+    const name = await getAdminUserDisplayName(uid);
+    if (!confirm(`Исключить "${name}" из холодильника?`)) return;
+
+    try {
+        await db.collection('fridges').doc(fridgeId).update({
+            members: firebase.firestore.FieldValue.arrayRemove(uid)
+        });
+        const cached = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (cached) cached.members = (cached.members || []).filter(m => m !== uid);
+        showToast('Участник исключён', 'success');
+        logAdmin(`Исключён участник (${uid}) из холодильника (${fridgeId})`, 'fridges');
+        renderAdminFridges(adminFridgesCache);
+        openAdminFridgeManage(fridgeId);
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function transferAdminFridgeOwnership(fridgeId, newOwnerUid) {
+    const name = await getAdminUserDisplayName(newOwnerUid);
+    if (!confirm(`Сделать "${name}" владельцем холодильника?`)) return;
+
+    try {
+        await db.collection('fridges').doc(fridgeId).update({ owner: newOwnerUid });
+        const cached = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (cached) cached.owner = newOwnerUid;
+        showToast('Владелец изменён', 'success');
+        logAdmin(`Смена владельца холодильника (${fridgeId}) → ${newOwnerUid}`, 'fridges');
+        renderAdminFridges(adminFridgesCache);
+        openAdminFridgeManage(fridgeId);
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function addAdminFridgeItem(fridgeId) {
+    const name = prompt('Название товара:');
+    if (!name || !name.trim()) return;
+    const qtyStr = prompt('Количество:', '1');
+    const qty = parseFloat(qtyStr) || 1;
+
+    try {
+        const newItem = { id: Date.now(), name: name.trim(), qty, unit: '' };
+        await db.collection('fridges').doc(fridgeId).update({
+            items: firebase.firestore.FieldValue.arrayUnion(newItem)
+        });
+        const cached = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (cached) { cached.items = cached.items || []; cached.items.push(newItem); }
+        showToast('Товар добавлен', 'success');
+        logAdmin(`Добавлен товар "${name}" в холодильник (${fridgeId})`, 'fridges');
+        renderAdminFridges(adminFridgesCache);
+        openAdminFridgeManage(fridgeId);
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function editAdminFridgeItem(fridgeId, itemId) {
+    try {
+        const doc = await db.collection('fridges').doc(fridgeId).get();
+        if (!doc.exists) return;
+        const items = doc.data().items || [];
+        const item = items.find(i => String(i.id) === String(itemId));
+        if (!item) { showToast('Товар не найден', 'error'); return; }
+
+        const newName = prompt('Название товара:', item.name);
+        if (newName === null) return;
+        const newQtyStr = prompt('Количество:', item.qty || 1);
+        if (newQtyStr === null) return;
+
+        const updatedItems = items.map(i =>
+            String(i.id) === String(itemId) ? { ...i, name: newName.trim() || i.name, qty: parseFloat(newQtyStr) || i.qty } : i
+        );
+
+        await db.collection('fridges').doc(fridgeId).update({ items: updatedItems });
+        const cached = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (cached) cached.items = updatedItems;
+        showToast('Товар обновлён', 'success');
+        logAdmin(`Изменён товар "${newName}" в холодильнике (${fridgeId})`, 'fridges');
+        renderAdminFridges(adminFridgesCache);
+        openAdminFridgeManage(fridgeId);
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function deleteAdminFridgeItem(fridgeId, itemId) {
+    if (!confirm('Удалить этот товар из холодильника?')) return;
+
+    try {
+        const doc = await db.collection('fridges').doc(fridgeId).get();
+        if (!doc.exists) return;
+        const items = (doc.data().items || []).filter(i => String(i.id) !== String(itemId));
+
+        await db.collection('fridges').doc(fridgeId).update({ items });
+        const cached = adminFridgesCache.find(fr => fr.id === fridgeId);
+        if (cached) cached.items = items;
+        showToast('Товар удалён', 'success');
+        logAdmin(`Удалён товар из холодильника (${fridgeId})`, 'fridges');
+        renderAdminFridges(adminFridgesCache);
+        openAdminFridgeManage(fridgeId);
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function deleteAdminFridge(fridgeId) {
+    const f = adminFridgesCache.find(fr => fr.id === fridgeId);
+    const fridgeName = f ? f.name : fridgeId;
+    if (!confirm(`Удалить холодильник "${fridgeName}" безвозвратно? Это действие нельзя отменить.`)) return;
+
+    try {
+        const doc = await db.collection('fridges').doc(fridgeId).get();
+        const inviteCode = doc.exists ? doc.data().inviteCode : null;
+
+        await db.collection('fridges').doc(fridgeId).delete();
+        if (inviteCode) db.collection('fridge_invites').doc(inviteCode).delete().catch(() => {});
+
+        adminFridgesCache = adminFridgesCache.filter(fr => fr.id !== fridgeId);
+        renderAdminFridges(adminFridgesCache);
+        hideModal('admin-fridge-modal');
+        showToast('Холодильник удалён', 'success');
+        logAdmin(`Удалён холодильник "${fridgeName}" (${fridgeId})`, 'fridges');
+
+        const totalFridgesEl = document.getElementById('dash-total-fridges');
+        if (totalFridgesEl) totalFridgesEl.textContent = adminFridgesCache.length;
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
     }
 }
 
@@ -10455,7 +10882,7 @@ function getAuditLogEntries() {
     catch(e) { return []; }
 }
 
-const AUDIT_ICONS = { moderation: 'fa-gavel', users: 'fa-users', system: 'fa-server' };
+const AUDIT_ICONS = { moderation: 'fa-gavel', users: 'fa-users', system: 'fa-server', fridges: 'fa-kitchen-set' };
 function renderAuditLog() {
     const list = document.getElementById('audit-log-list');
     if (!list) return;
@@ -10613,6 +11040,7 @@ async function giveUserWarning(uid, name) {
 const ADMIN_COMMANDS = [
     { label: 'Главная', icon: 'fa-tachometer-alt', action: () => switchAdminTab('dashboard') },
     { label: 'Пользователи', icon: 'fa-users', action: () => switchAdminTab('users') },
+    { label: 'Холодильники', icon: 'fa-kitchen-set', action: () => switchAdminTab('fridges') },
     { label: 'Модерация рецептов', icon: 'fa-gavel', action: () => switchAdminTab('pending') },
     { label: 'Обратная связь', icon: 'fa-comment-dots', action: () => switchAdminTab('feedback') },
     { label: 'Пуш-Уведомления', icon: 'fa-bell', action: () => switchAdminTab('push') },
@@ -12867,6 +13295,7 @@ function fallbackCopy(text) {
     <div class="admin-tabs">
         <button class="admin-tab-btn active" onclick="switchAdminTab('dashboard')"><i class="fas fa-tachometer-alt"></i> Главная</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('feedback')"><i class="fas fa-comment-dots"></i> Обратная связь <span id="feedback-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('push')"><i class="fas fa-bell"></i> Пуш-Уведомления</button>
@@ -12890,6 +13319,10 @@ function fallbackCopy(text) {
                 <div class="admin-stat-widget">
                     <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-hourglass-half"></i></div>
                     <div><div class="stat-val" id="dash-pending-count">0</div><div class="stat-lbl">Ждут проверки</div></div>
+                </div>
+                <div class="admin-stat-widget">
+                    <div class="stat-icon" style="background:rgba(20, 184, 166, 0.12); color:#14B8A6"><i class="fas fa-kitchen-set"></i></div>
+                    <div><div class="stat-val" id="dash-total-fridges">0</div><div class="stat-lbl">Холодильников</div></div>
                 </div>
             </div>
 
@@ -12967,6 +13400,36 @@ function fallbackCopy(text) {
                     </thead>
                     <tbody id="adm-users-list">
                         <tr><td colspan="4" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="admin-tab-fridges" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5>Совместные холодильники</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="admin-fridge-search" placeholder="Поиск (название, владелец)..." onkeyup="filterAdminFridges()">
+                    </div>
+                    <button class="small-action-btn" onclick="loadAdminFridges(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Холодильник</th>
+                            <th>Владелец</th>
+                            <th>Участники</th>
+                            <th>Товары</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adm-fridges-list">
+                        <tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -13284,6 +13747,7 @@ function fallbackCopy(text) {
                 <button class="journal-filter-chip active" data-filter="all" onclick="setJournalFilter('all')">Все</button>
                 <button class="journal-filter-chip" data-filter="moderation" onclick="setJournalFilter('moderation')"><i class="fas fa-gavel"></i> Модерация</button>
                 <button class="journal-filter-chip" data-filter="users" onclick="setJournalFilter('users')"><i class="fas fa-users"></i> Пользователи</button>
+                <button class="journal-filter-chip" data-filter="fridges" onclick="setJournalFilter('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
                 <button class="journal-filter-chip" data-filter="system" onclick="setJournalFilter('system')"><i class="fas fa-server"></i> Система</button>
             </div>
 
@@ -13356,6 +13820,17 @@ function fallbackCopy(text) {
             <span class="modal-close" onclick="hideModal('admin-user-modal')">&times;</span>
         </div>
         <div id="admin-user-detail-content">
+            </div>
+    </div>
+</div>
+
+<div id="admin-fridge-modal" class="modal" onclick="if(event.target.id === 'admin-fridge-modal') hideModal('admin-fridge-modal')">
+    <div class="modal-content admin-subm-modal" style="max-width: 650px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-kitchen-set"></i> Управление холодильником</h4>
+            <span class="modal-close" onclick="hideModal('admin-fridge-modal')">&times;</span>
+        </div>
+        <div id="admin-fridge-detail-content">
             </div>
     </div>
 </div>
