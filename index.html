@@ -2139,18 +2139,24 @@ async function initFridges(legacyInventory, legacyShopping) {
         if (userFridges.length === 0) {
             // Миграция: первый заход в новой модели — создаем личный холодильник
             const newRef = db.collection('fridges').doc();
+            const inviteCode = generateInviteCode();
             const fridgeDoc = {
                 name: 'Личный',
                 icon: FRIDGE_TYPE_META.personal.icon,
                 type: 'personal',
                 owner: currentUser.uid,
                 members: [currentUser.uid],
-                inviteCode: generateInviteCode(),
+                inviteCode: inviteCode,
                 items: legacyInventory || [],
                 shopping: legacyShopping || [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             await newRef.set(fridgeDoc);
+            // Публичная запись для поиска по коду приглашения — без неё код
+            // с "Личного" холодильника никуда не ведёт (см. submitCreateFridge).
+            await db.collection('fridge_invites').doc(inviteCode).set({
+                fridgeId: newRef.id, owner: currentUser.uid, name: fridgeDoc.name, icon: fridgeDoc.icon
+            }).catch(e => console.error("Personal fridge invite create error", e));
             fridgeDoc.id = newRef.id;
             userFridges = [fridgeDoc];
         }
