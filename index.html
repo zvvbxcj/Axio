@@ -1858,6 +1858,8 @@ async function trackStat(type) {
             dislikes: userDislikes,
             editedRecipes: userEditedRecipes,
             name: currentUser.name,
+            email: currentUser.email,
+            telegramUsername: currentUser.telegramUsername || null,
             xp: userXp, level: userLevel, cookedDishes: cookedDishes, 
             theme: currentUser.theme, lang: currentLang,
             lastNotificationDate: lastNotificationDate, 
@@ -1919,6 +1921,16 @@ async function trackStat(type) {
             currentUser.avatar = data.avatar || avatarCollection[0];
             
             userEditedRecipes = data.editedRecipes || {};
+            currentUser.telegramUsername = data.telegramUsername || null;
+
+            // Самолечение: у части старых аккаунтов email никогда не сохранялся в Firestore
+            // (только в Firebase Auth) — из-за этого в панели админа он выводился как "undefined".
+            // Досохраняем его один раз в фоне, не мешая загрузке.
+            if (!data.email && currentUser.email) {
+                db.collection(USER_COLLECTION).doc(currentUser.uid)
+                    .set({ email: currentUser.email }, { merge: true })
+                    .catch(e => console.warn('Email backfill failed', e));
+            }
 
             // 3. Применение удаленных и отредактированных рецептов
             globalRecipes = globalRecipes.filter(r => !userDeletedRecipes.includes(r.id) && !userDeletedRecipes.includes(String(r.id)));
@@ -1953,7 +1965,7 @@ async function trackStat(type) {
                 xp: 0, level: 1, cookedDishes: 0, theme: 'dark', lang: currentLang,
                 editedRecipes: {},
                 achievements: JSON.parse(JSON.stringify(achievementsDB)),
-                name: currentUser.name, avatar: avatarCollection[0]
+                name: currentUser.name, email: currentUser.email, telegramUsername: null, avatar: avatarCollection[0]
             };
             await db.collection(USER_COLLECTION).doc(currentUser.uid).set(initialData);
             userAchievements = initialData.achievements;
@@ -6360,11 +6372,13 @@ function exportEmailsCSV() {
         return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,ID,Name,Email,Level,XP,Banned\n";
+    let csvContent = "data:text/csv;charset=utf-8,ID,Name,Email,Telegram,Level,XP,Banned\n";
     allUsersCache.forEach(u => {
         // Экранируем запятые в именах
-        const safeName = (u.name || "NoName").replace(/,/g, ""); 
-        csvContent += `${u.id},${safeName},${u.email},${u.level||1},${u.xp||0},${u.isBanned||false}\n`;
+        const safeName = (u.name || "NoName").replace(/,/g, "");
+        const safeEmail = u.email || "";
+        const safeTg = (u.telegramUsername || "").replace(/,/g, "");
+        csvContent += `${u.id},${safeName},${safeEmail},${safeTg},${u.level||1},${u.xp||0},${u.isBanned||false}\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
@@ -6400,7 +6414,7 @@ function renderAdminUsers(users) {
                     <img src="${u.avatar || 'https://via.placeholder.com/40'}" class="user-avatar-sm" alt="ava">
                     <div class="user-cell-info">
                         <div class="user-name">${u.name || 'Без имени'}</div>
-                        <div class="user-email">${u.email || 'нет email'}</div>
+                        <div class="user-email">${u.email ? u.email : (u.telegramUsername ? '<i class="fab fa-telegram-plane"></i> ' + u.telegramUsername : 'Нет контактных данных')}</div>
                     </div>
                 </div>
             </td>
@@ -9225,7 +9239,7 @@ async function openUserDetail(uid) {
                 <img src="${u.avatar || 'https://via.placeholder.com/80'}" class="adm-user-avatar">
                 <div style="flex-grow:1">
                     <h3 style="margin:0">${u.name || 'No Name'}</h3>
-                    <div style="font-size:0.9em; opacity:0.7">${u.email}</div>
+                    <div style="font-size:0.9em; opacity:0.7">${u.email ? u.email : (u.telegramUsername ? '<i class="fab fa-telegram-plane"></i> ' + u.telegramUsername : 'Нет email / Telegram')}</div>
                     <div class="adm-user-id-box" onclick="navigator.clipboard.writeText('${uid}'); showToast('ID скопирован')">
                         ID: ${uid} <i class="fas fa-copy"></i>
                     </div>
@@ -9263,6 +9277,23 @@ async function openUserDetail(uid) {
                         <input type="number" id="adm-cooked" value="${u.cookedDishes || 0}">
                     </div>
                 </div>
+
+                <h4 style="margin-top:20px; border-bottom:1px solid var(--border-color); padding-bottom:5px;">Контактные данные</h4>
+                <div class="adm-stats-grid">
+                    <div class="adm-input-group">
+                        <label><i class="fas fa-envelope"></i> Email</label>
+                        <input type="email" id="adm-email" value="${u.email || ''}" placeholder="Не указан">
+                    </div>
+                    <div class="adm-input-group">
+                        <label><i class="fab fa-telegram-plane"></i> Telegram (юзернейм или ID)</label>
+                        <input type="text" id="adm-telegram" value="${u.telegramUsername || ''}" placeholder="@username или ID">
+                    </div>
+                </div>
+                <p class="admin-modal-hint" style="margin-top:6px;">
+                    <i class="fas fa-circle-info"></i> Это поле в базе данных Axio — оно меняет то, что видит модератор и что уходит в уведомления/CSV.
+                    Оно <b>не меняет логин</b> в Firebase Auth: если email указан неверно и пользователь не может зайти,
+                    попросите его самостоятельно сменить почту в настройках профиля, либо отправьте письмо сброса пароля ниже.
+                </p>
                 
                 <h4 style="margin-top:20px; border-bottom:1px solid var(--border-color); padding-bottom:5px;">Статусы и Блокировки</h4>
                 
@@ -9327,7 +9358,7 @@ async function openUserDetail(uid) {
 
             <div id="adm-tab-actions" class="adm-tab-content" style="display:none">
                 <div style="display:grid; gap:10px;">
-                    <button class="btn btn-secondary" onclick="admSendPassReset('${u.email}')">
+                    <button class="btn btn-secondary" ${u.email ? '' : 'disabled title="У пользователя не указан email"'} onclick="${u.email ? `admSendPassReset('${u.email}')` : `showToast('У пользователя не указан email', 'warning')`}">
                         <i class="fas fa-key"></i> Отправить письмо сброса пароля
                     </button>
                     <button class="btn btn-secondary" onclick="admSendNotification('${uid}')">
@@ -9368,8 +9399,13 @@ function setAdmTab(tabName) {
 // 3. Сохранение профиля
 // 3. Сохранение профиля
 async function admSaveProfile(uid) {
+    const emailVal = document.getElementById('adm-email').value.trim();
+    const tgVal = document.getElementById('adm-telegram').value.trim();
+
     const updates = {
         name: document.getElementById('adm-name').value,
+        email: emailVal || null,
+        telegramUsername: tgVal || null,
         level: parseInt(document.getElementById('adm-level').value),
         xp: parseInt(document.getElementById('adm-xp').value),
         cookedDishes: parseInt(document.getElementById('adm-cooked').value), // Добавил поле cookedDishes
@@ -9382,6 +9418,7 @@ async function admSaveProfile(uid) {
         // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
         await db.collection(USER_COLLECTION).doc(uid).update(updates);
         showToast('Профиль пользователя обновлен!', 'success');
+        if (typeof logAdmin === 'function') logAdmin(`Изменены данные пользователя (${uid}): email/Telegram обновлены`, 'users');
         loadAllUsers(); // Обновить таблицу на фоне
     } catch(e) {
         showToast('Ошибка сохранения: ' + e.message, 'error');
@@ -10515,34 +10552,10 @@ async function spyUserInventory(uid) {
     } catch(e) { showToast("Ошибка чтения", "error"); }
 }
 
-// Переопределяем renderAdminUsers для нового дизайна таблицы
-// Переопределяем renderAdminUsers для нового дизайна таблицы
-renderAdminUsers = function(users) {
-    const list = document.getElementById('adm-users-list');
-    list.innerHTML = '';
-    users.forEach(u => {
-        if(u.id === ADMIN_UID) return;
-        const row = document.createElement('tr');
-        row.className = 'user-row';
-        row.innerHTML = `
-            <td onclick="openUserDetail('${u.id}')" style="cursor: pointer;">
-                <div style="font-weight:bold; color:var(--primary);">${u.name || 'Anon'}</div>
-                <div style="font-size:0.8em; opacity:0.6">${u.email}</div>
-            </td>
-            <td>Lvl ${u.level || 1} <span style="color:var(--text-secondary)">(${u.xp} XP)</span></td>
-            <td>
-                ${u.isBanned ? '<span class="badge-mini" style="background:var(--error)">BAN</span>' : '<span style="color:var(--success)">Active</span>'}
-                ${u.isPremium ? '<i class="fas fa-crown" style="color:gold"></i>' : ''}
-            </td>
-            <td style="display:flex; gap:5px;">
-                <button class="btn-sm btn-secondary" onclick="toggleUserBan('${u.id}', ${!u.isBanned})" title="Бан"><i class="fas fa-ban"></i></button>
-                <button class="btn-sm btn-secondary" onclick="givePremium('${u.id}')" title="Выдать Premium"><i class="fas fa-crown"></i></button>
-                <button class="btn-sm btn-secondary" onclick="spyUserInventory('${u.id}')" title="Инвентарь"><i class="fas fa-box"></i></button>
-            </td>
-        `;
-        list.appendChild(row);
-    });
-}
+// ПРИМЕЧАНИЕ: здесь раньше был дублирующий renderAdminUsers = function(...) {...},
+// который переопределял функцию выше и рендерил email БЕЗ проверки на undefined —
+// именно это и вызывало баг с надписью "undefined" в таблице пользователей.
+// Удалено: используется единая версия renderAdminUsers, объявленная выше.
 
 // 6 & 7. Функции модерирования уже есть (approveRecipe/rejectRecipe), 
 // но мы добавим их в новый интерфейс (Tab Recipes).
