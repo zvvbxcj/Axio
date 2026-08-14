@@ -1231,6 +1231,7 @@
     <i class="fas fa-upload"></i> <span data-translate="UploadImageButton">Загрузить свое изображение</span>
 </div>
 <input type="file" id="avatar-file-input" accept="image/*" style="display:none;">
+<input type="file" id="fridge-avatar-file-input" accept="image/*" style="display:none;" onchange="handleFridgeAvatarFile(event)">
                 </div>
             </div>
         </div>
@@ -1278,6 +1279,62 @@
         };
         // Набор иконок для смены "аватарки" холодильника — независим от типа
         const FRIDGE_AVATAR_OPTIONS = ['🏠','👨‍👩‍👧','🏡','📦','🏢','🧊','🍱','🛒','⛺','🚐','🎪','🏫'];
+
+// Иконка холодильника может быть эмодзи (как раньше) или фото, загруженное
+// пользователем из галереи (data URL / URL). Эта функция определяет, что
+// именно рисовать, и используется во всех местах, где показывается аватарка.
+function fridgeIconMarkup(icon, fallbackEmoji, sizePx) {
+    const size = sizePx || 28;
+    if (icon && /^(data:image\/|https?:\/\/)/.test(icon)) {
+        return `<img src="${icon}" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; display:block;" alt="">`;
+    }
+    return escapeHtml(icon || fallbackEmoji || '🧊');
+}
+
+// Сжимает выбранное фото до разумного размера перед сохранением в Firestore
+// (документ холодильника ограничен по размеру, и незачем хранить фото в
+// исходном разрешении ради маленькой круглой аватарки).
+function resizeImageFileToDataUrl(file, maxSize, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+                let { width, height } = img;
+                if (width > height) {
+                    if (width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
+                } else {
+                    if (height > maxSize) { width = Math.round(width * (maxSize / height)); height = maxSize; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality || 0.75));
+            };
+            img.onerror = function () { reject(new Error('Не удалось загрузить изображение')); };
+            img.src = e.target.result;
+        };
+        reader.onerror = function () { reject(new Error('Не удалось прочитать файл')); };
+        reader.readAsDataURL(file);
+    });
+}
+
+async function handleFridgeAvatarFile(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = ''; // чтобы можно было выбрать тот же файл повторно
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+        return showToast('Выберите файл изображения', 'warning');
+    }
+    try {
+        const dataUrl = await resizeImageFileToDataUrl(file, 300, 0.75);
+        await submitFridgeAvatar(dataUrl);
+    } catch (e) {
+        console.error("Fridge avatar upload error", e);
+        showToast('Не удалось загрузить фото', 'error');
+    }
+}
         let fridgeMemberProfileCache = {}; // uid -> {name, avatar} кэш профилей участников
         let userAchievements = [];
         let userNotifications = [];
@@ -2273,7 +2330,7 @@ function renderFridgeSelector() {
     const meta = FRIDGE_TYPE_META[activeFridgeData.type] || FRIDGE_TYPE_META.custom;
     const iconEl = document.getElementById('fridge-selector-icon');
     const nameEl = document.getElementById('fridge-selector-name');
-    if (iconEl) iconEl.textContent = activeFridgeData.icon || meta.icon;
+    if (iconEl) iconEl.innerHTML = fridgeIconMarkup(activeFridgeData.icon, meta.icon, 24);
     if (nameEl) nameEl.textContent = activeFridgeData.name;
 
     const listEl = document.getElementById('fridge-list-container');
@@ -2284,7 +2341,7 @@ function renderFridgeSelector() {
         const memberCount = (f.members || []).length;
         return `
         <div class="fridge-item ${isActive ? 'active' : ''}" onclick="switchActiveFridge('${f.id}')">
-            <div class="fridge-item-icon">${f.icon || m.icon}</div>
+            <div class="fridge-item-icon">${fridgeIconMarkup(f.icon, m.icon, 32)}</div>
             <div class="fridge-item-body">
                 <div class="fridge-item-name">${escapeHtml(f.name)}</div>
                 <div class="fridge-item-meta">${memberCount} ${memberCount === 1 ? 'участник' : 'участников'}</div>
@@ -2367,7 +2424,7 @@ async function submitJoinFridge(codeOverride) {
         const iconEl = document.getElementById('join-confirm-icon');
         const nameEl = document.getElementById('join-confirm-name');
         const ownerEl = document.getElementById('join-confirm-owner');
-        if (iconEl) iconEl.textContent = icon || '🧊';
+        if (iconEl) iconEl.innerHTML = fridgeIconMarkup(icon, '🧊', 56);
         if (nameEl) nameEl.textContent = name || 'Холодильник';
         if (ownerEl) ownerEl.textContent = ownerName ? `Владелец: ${ownerName}` : '';
 
@@ -2424,11 +2481,11 @@ function openFridgeManage(fridgeId) {
 
     const avatarPickerHtml = FRIDGE_AVATAR_OPTIONS.map(ic =>
         `<div class="avatar-option ${ic === icon ? 'active' : ''}" onclick="submitFridgeAvatar('${ic}')">${ic}</div>`
-    ).join('');
+    ).join('') + `<div class="avatar-option" title="Загрузить фото из галереи" onclick="document.getElementById('fridge-avatar-file-input').click()"><i class="fas fa-camera"></i></div>`;
 
     let html = `
         <div class="fridge-manage-header">
-            <div class="fridge-avatar-big" ${isOwner ? `onclick="toggleAvatarPicker()"` : ''}>${icon}${isOwner ? '<span class="fridge-avatar-edit-badge"><i class="fas fa-pencil-alt"></i></span>' : ''}</div>
+            <div class="fridge-avatar-big" ${isOwner ? `onclick="toggleAvatarPicker()"` : ''}>${fridgeIconMarkup(f.icon, meta.icon, 72)}${isOwner ? '<span class="fridge-avatar-edit-badge"><i class="fas fa-pencil-alt"></i></span>' : ''}</div>
         </div>
         ${isOwner ? `<div id="fridge-avatar-picker" class="fridge-avatar-picker" style="display:none;">${avatarPickerHtml}</div>` : ''}
 
@@ -6669,7 +6726,7 @@ function renderAdminFridges(fridges) {
             <td>
                 <div class="user-cell" onclick="openAdminFridgeManage('${f.id}')" style="cursor:pointer;">
                     <div class="user-avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--surface-light);">
-                        <i class="fas ${f.icon || 'fa-kitchen-set'}" style="color:var(--primary);"></i>
+                        ${fridgeIconMarkup(f.icon, 'fa-kitchen-set', 24).startsWith('<img') ? fridgeIconMarkup(f.icon, '', 24) : `<i class="fas fa-kitchen-set" style="color:var(--primary);"></i>`}
                     </div>
                     <div class="user-cell-info">
                         <div class="user-name">${escapeHtml(f.name || 'Без названия')}</div>
