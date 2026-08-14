@@ -5854,6 +5854,7 @@ function switchAdminTab(tabName) {
     }
     
     if (tabName === 'pending') loadPendingRecipes(); // Это лучше грузить свежим
+    if (tabName === 'feedback') loadFeedbackReports();
     if (tabName === 'stats') renderDetailedStats();
     if (tabName === 'content') logAdmin("Инструменты готовы к работе.");
     if (tabName === 'journal') renderAuditLog();
@@ -6563,6 +6564,114 @@ async function previewPendingRecipe(docId) {
         console.error(e);
         showToast("Ошибка открытия заявки", "error");
     }
+}
+
+/* ============================================================
+   ОБРАТНАЯ СВЯЗЬ (дизлайки / «Почему не понравилось?»)
+   Собираем причины скрытия рецептов из dislikes всех юзеров
+   ============================================================ */
+let feedbackReportsCache = [];
+let currentFeedbackFilter = 'all';
+
+const FEEDBACK_REASON_LABELS = {
+    taste:       { label: 'Невкусно / Не понравился рецепт', icon: 'fa-utensils', color: '#EF4444' },
+    ingredients: { label: 'Сложные ингредиенты',             icon: 'fa-carrot',   color: '#F59E0B' },
+    complexity:  { label: 'Слишком сложно готовить',         icon: 'fa-clock',    color: '#3B82F6' },
+    other:       { label: 'Другое',                          icon: 'fa-ellipsis', color: 'var(--text-secondary)' }
+};
+
+async function loadFeedbackReports(forceRefresh = false) {
+    const tbody = document.getElementById('admin-feedback-list');
+    if (!tbody) return;
+
+    if (forceRefresh || !allUsersCache || allUsersCache.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="admin-table-loading">Загрузка данных...</td></tr>';
+        await loadAllUsers(forceRefresh);
+    }
+
+    // Собираем плоский список дизлайков (с причиной "Почему не понравилось?") со всех пользователей
+    feedbackReportsCache = [];
+    (allUsersCache || []).forEach(u => {
+        (u.dislikes || []).forEach(d => {
+            feedbackReportsCache.push({
+                date: d.date || null,
+                reason: d.reason || 'other',
+                comment: d.comment || '',
+                recipeId: d.id,
+                userId: u.id,
+                userName: u.name || 'Аноним',
+                userEmail: u.email || ''
+            });
+        });
+    });
+
+    feedbackReportsCache.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+    const badge = document.getElementById('feedback-count-badge');
+    if (badge) {
+        badge.innerText = feedbackReportsCache.length;
+        badge.style.display = feedbackReportsCache.length > 0 ? 'inline-block' : 'none';
+    }
+
+    renderFeedbackReports();
+}
+
+function renderFeedbackReports() {
+    const tbody = document.getElementById('admin-feedback-list');
+    const emptyMsg = document.getElementById('admin-feedback-empty');
+    if (!tbody) return;
+
+    const search = (document.getElementById('feedback-search')?.value || '').toLowerCase().trim();
+
+    const filtered = feedbackReportsCache.filter(f => {
+        if (currentFeedbackFilter !== 'all' && f.reason !== currentFeedbackFilter) return false;
+        if (!search) return true;
+
+        const recipe = globalRecipes.find(r => r.id == f.recipeId);
+        const recipeName = recipe ? (recipe.name.ru || recipe.name) : '';
+
+        return f.userName.toLowerCase().includes(search) ||
+               (f.userEmail || '').toLowerCase().includes(search) ||
+               String(recipeName).toLowerCase().includes(search);
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        if (emptyMsg) emptyMsg.style.display = 'block';
+        return;
+    }
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    tbody.innerHTML = filtered.map(f => {
+        const recipe = globalRecipes.find(r => r.id == f.recipeId);
+        const recipeName = recipe ? escapeHtml(recipe.name.ru || recipe.name) : 'Рецепт удален';
+        const reasonInfo = FEEDBACK_REASON_LABELS[f.reason] || FEEDBACK_REASON_LABELS.other;
+        const dateStr = f.date ? new Date(f.date).toLocaleDateString() : '-';
+
+        return `<tr>
+            <td style="font-size:0.8em; white-space:nowrap;">${dateStr}</td>
+            <td>${escapeHtml(f.userName)}</td>
+            <td>${recipeName}</td>
+            <td><span style="color:${reasonInfo.color}; white-space:nowrap; font-size:0.85em;"><i class="fas ${reasonInfo.icon}"></i> ${reasonInfo.label}</span></td>
+            <td style="font-size:0.85em; color:var(--text-secondary);">${f.comment ? escapeHtml(f.comment) : '—'}</td>
+            <td class="text-right">
+                ${recipe ? `<button class="small-action-btn" onclick="viewReportedRecipe('${f.recipeId}')" title="Открыть рецепт"><i class="fas fa-eye"></i></button>` : ''}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function setFeedbackFilter(filter) {
+    currentFeedbackFilter = filter;
+    document.querySelectorAll('#feedback-filters .journal-filter-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.filter === filter);
+    });
+    renderFeedbackReports();
+}
+
+function viewReportedRecipe(id) {
+    hideModal('admin-modal');
+    showRecipeDetail(id);
 }
 
 // Функция одобрения
@@ -10148,6 +10257,7 @@ const ADMIN_COMMANDS = [
     { label: 'Главная', icon: 'fa-tachometer-alt', action: () => switchAdminTab('dashboard') },
     { label: 'Пользователи', icon: 'fa-users', action: () => switchAdminTab('users') },
     { label: 'Модерация рецептов', icon: 'fa-gavel', action: () => switchAdminTab('pending') },
+    { label: 'Обратная связь', icon: 'fa-comment-dots', action: () => switchAdminTab('feedback') },
     { label: 'Инструменты', icon: 'fa-tools', action: () => switchAdminTab('content') },
     { label: 'Статистика', icon: 'fa-chart-pie', action: () => switchAdminTab('stats') },
     { label: 'Журнал действий', icon: 'fa-clock-rotate-left', action: () => switchAdminTab('journal') },
@@ -12400,6 +12510,7 @@ function fallbackCopy(text) {
         <button class="admin-tab-btn active" onclick="switchAdminTab('dashboard')"><i class="fas fa-tachometer-alt"></i> Главная</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('feedback')"><i class="fas fa-comment-dots"></i> Обратная связь <span id="feedback-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('content')"><i class="fas fa-tools"></i> Инструменты</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('stats')"><i class="fas fa-chart-pie"></i> Статистика</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('journal')"><i class="fas fa-clock-rotate-left"></i> Журнал</button>
@@ -12525,7 +12636,54 @@ function fallbackCopy(text) {
                 <p>Все чисто! Заявок на публикацию нет.</p>
             </div>
         </div>
-        
+
+        <div id="admin-tab-feedback" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-comment-dots"></i> Обратная связь пользователей</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="feedback-search" placeholder="Поиск по автору или рецепту..." onkeyup="renderFeedbackReports()">
+                    </div>
+                    <button class="small-action-btn" onclick="loadFeedbackReports(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+
+            <p style="color:var(--text-secondary); font-size:0.85em; margin:-4px 0 14px;">
+                Причины скрытия рецептов, указанные пользователями в модалке «Почему не понравилось?» при дизлайке.
+            </p>
+
+            <div class="journal-filters" id="feedback-filters">
+                <button class="journal-filter-chip active" data-filter="all" onclick="setFeedbackFilter('all')">Все</button>
+                <button class="journal-filter-chip" data-filter="taste" onclick="setFeedbackFilter('taste')"><i class="fas fa-utensils"></i> Вкус</button>
+                <button class="journal-filter-chip" data-filter="ingredients" onclick="setFeedbackFilter('ingredients')"><i class="fas fa-carrot"></i> Ингредиенты</button>
+                <button class="journal-filter-chip" data-filter="complexity" onclick="setFeedbackFilter('complexity')"><i class="fas fa-clock"></i> Сложность</button>
+                <button class="journal-filter-chip" data-filter="other" onclick="setFeedbackFilter('other')"><i class="fas fa-ellipsis"></i> Другое</button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Автор</th>
+                            <th>Рецепт</th>
+                            <th>Причина</th>
+                            <th>Комментарий</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-feedback-list">
+                        <tr><td colspan="6" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="admin-feedback-empty" class="admin-empty-state" style="display:none;">
+                <i class="fas fa-check-circle"></i>
+                <p>Жалоб и дизлайков пока нет.</p>
+            </div>
+        </div>
+
         <div id="admin-tab-content" class="admin-tab-content" style="display:none;">
     <h5 class="tools-main-title"><i class="fas fa-toolbox"></i> Утилиты системы</h5>
 
