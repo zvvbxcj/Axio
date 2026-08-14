@@ -5805,6 +5805,7 @@ function calculateRecipePopularity(r) {
 // --- ADMIN PANEL LOGIC ---
 let currentAdminTab = 'dashboard';
 let recipeToModerateId = null;
+let recipeToRejectId = null;
 let adminLogs = [];
 let allUsersCache = [];
 
@@ -5843,9 +5844,10 @@ function switchAdminTab(tabName) {
     if (tabName === 'pending') loadPendingRecipes(); // Это лучше грузить свежим
     if (tabName === 'stats') renderDetailedStats();
     if (tabName === 'content') logAdmin("Инструменты готовы к работе.");
+    if (tabName === 'journal') renderAuditLog();
     
     // Обновляем дашборд фоново, если открыта главная
-    if (tabName === 'dashboard') loadAdminStats(); 
+    if (tabName === 'dashboard') { loadAdminStats(); renderDashboardActivityFeed(); }
 }
 
 /* --- МОЩНЫЕ ИНСТРУМЕНТЫ АДМИНИСТРАТОРА (FULLY WORKING) --- */
@@ -6417,6 +6419,9 @@ function renderAdminUsers(users) {
                 <button class="icon-action-btn" title="Профиль" onclick="openUserDetail('${u.id}')">
                     <i class="fas fa-eye"></i>
                 </button>
+                <button class="icon-action-btn" title="Выдать предупреждение" onclick="giveUserWarning('${u.id}', '${(u.name || 'Пользователь').replace(/'/g, "\\'")}')">
+                    <i class="fas fa-triangle-exclamation"></i>
+                </button>
                 <button class="icon-action-btn ${u.isBanned ? 'is-success' : 'is-danger'}" title="${u.isBanned ? 'Разбанить' : 'Забанить'}" onclick="toggleUserBan('${u.id}', ${!u.isBanned})">
                     <i class="fas ${u.isBanned ? 'fa-unlock' : 'fa-ban'}"></i>
                 </button>
@@ -6435,6 +6440,7 @@ async function toggleUserBan(uid, shouldBan) {
             isBanned: shouldBan
         });
         showToast(shouldBan ? "Пользователь забанен" : "Пользователь разбанен", "success");
+        logAdmin(`${shouldBan ? 'Забанен' : 'Разбанен'} пользователь (${uid})`, 'users');
         loadAllUsers(); // Обновить таблицу
     } catch(e) {
         showToast("Ошибка: " + e.message, "error");
@@ -6469,12 +6475,20 @@ async function loadPendingRecipes() {
             emptyMsg.style.display = 'none';
         }
 
+        window.pendingRecipesCache = {};
+        window.selectedPendingIds = window.selectedPendingIds || new Set();
+        window.selectedPendingIds.clear();
+        updatePendingBulkBar();
+
         snapshot.forEach(doc => {
             const r = doc.data();
+            window.pendingRecipesCache[doc.id] = r;
             const card = document.createElement('div');
             card.className = 'pending-card';
+            card.dataset.pid = doc.id;
             card.innerHTML = `
                 <div style="display:flex; align-items:center;">
+                    <input type="checkbox" class="pending-select-checkbox" onclick="event.stopPropagation(); toggleSelectPending('${doc.id}')">
                     <img src="${r.image || 'https://via.placeholder.com/50'}">
                     <div>
                         <div style="font-weight:bold; color:var(--text-primary)">${r.name.ru || r.name}</div>
@@ -6569,6 +6583,7 @@ async function approveRecipe(docId, recipeData) {
         }
         
         showToast("Рецепт одобрен и автор уведомлен!", "success");
+        logAdmin(`Одобрен рецепт «${recipeData.name.ru || recipeData.name}» (автор: ${recipeData.authorName || 'Аноним'})`, 'moderation');
         hideModal('admin-preview-modal');
         loadPendingRecipes();
     } catch (e) {
@@ -6577,12 +6592,15 @@ async function approveRecipe(docId, recipeData) {
     }
 }
 
-// Функция отклонения + Уведомление автору + Причина
-async function rejectRecipe(docId) {
-    // Спрашиваем причину
-    const reason = prompt("Укажите причину отказа:", "Не соответствует правилам");
-    if (reason === null) return; // Нажата отмена
+// Функция отклонения: открывает быстрый выбор причины (чипы) вместо grubby prompt()
+function rejectRecipe(docId) {
+    recipeToRejectId = docId;
+    document.getElementById('reject-reason-custom').value = '';
+    showModal('reject-reason-modal');
+}
 
+// Функция отклонения + Уведомление автору + Причина
+async function rejectRecipeWithReason(docId, reason) {
     try {
         // Получаем данные рецепта перед удалением, чтобы знать автора
         const doc = await db.collection('pending_recipes').doc(docId).get();
@@ -6618,6 +6636,7 @@ async function rejectRecipe(docId) {
         }
 
         showToast("Заявка отклонена, автор уведомлен", "success");
+        logAdmin(`Отклонен рецепт «${r.name.ru || r.name}»: ${reason}`, 'moderation');
         hideModal('admin-preview-modal');
         loadPendingRecipes();
     } catch (e) {
@@ -9890,7 +9909,7 @@ async function sendBroadcast() {
 
 // 6. UTILS
 // --- УЛУЧШЕННАЯ СИСТЕМА ЛОГОВ ---
-function logAdmin(msg) {
+function logAdmin(msg, category = 'system') {
     // Исправляем ошибку undefined
     if (typeof adminLogs === 'undefined') window.adminLogs = [];
     
@@ -9903,7 +9922,260 @@ function logAdmin(msg) {
         consoleDiv.scrollTop = consoleDiv.scrollHeight;
     }
     console.log(`[ADMIN] ${msg}`);
+
+    // --- Структурированный журнал (Аудит-лог) ---
+    try {
+        const entry = {
+            time: new Date().toISOString(),
+            msg,
+            category,
+            admin: (typeof currentUser !== 'undefined' && currentUser && currentUser.name) ? currentUser.name : 'Админ'
+        };
+        const stored = JSON.parse(localStorage.getItem('axio_admin_audit_log') || '[]');
+        stored.unshift(entry);
+        if (stored.length > 300) stored.length = 300; // не даём логу разрастись бесконечно
+        localStorage.setItem('axio_admin_audit_log', JSON.stringify(stored));
+        renderAuditLog();
+        renderDashboardActivityFeed();
+    } catch(e) { /* localStorage может быть недоступен — не критично */ }
 }
+
+let journalActiveFilter = 'all';
+function setJournalFilter(filter) {
+    journalActiveFilter = filter;
+    document.querySelectorAll('.journal-filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === filter));
+    renderAuditLog();
+}
+
+function getAuditLogEntries() {
+    try { return JSON.parse(localStorage.getItem('axio_admin_audit_log') || '[]'); }
+    catch(e) { return []; }
+}
+
+const AUDIT_ICONS = { moderation: 'fa-gavel', users: 'fa-users', system: 'fa-server' };
+function renderAuditLog() {
+    const list = document.getElementById('audit-log-list');
+    if (!list) return;
+    const q = (document.getElementById('journal-search')?.value || '').toLowerCase();
+
+    let entries = getAuditLogEntries();
+    if (journalActiveFilter !== 'all') entries = entries.filter(e => e.category === journalActiveFilter);
+    if (q) entries = entries.filter(e => e.msg.toLowerCase().includes(q));
+
+    if (entries.length === 0) {
+        list.innerHTML = '<div class="admin-empty-state"><i class="fas fa-inbox"></i><p>Записей не найдено</p></div>';
+        return;
+    }
+
+    list.innerHTML = entries.map(e => `
+        <div class="audit-log-item">
+            <div class="audit-log-icon audit-cat-${e.category}"><i class="fas ${AUDIT_ICONS[e.category] || 'fa-circle-info'}"></i></div>
+            <div class="audit-log-body">
+                <div class="audit-log-msg">${e.msg}</div>
+                <div class="audit-log-meta">${e.admin} • ${new Date(e.time).toLocaleString()}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function clearAuditLog() {
+    if (!confirm('Очистить весь журнал действий?')) return;
+    localStorage.removeItem('axio_admin_audit_log');
+    renderAuditLog();
+    renderDashboardActivityFeed();
+    showToast('Журнал очищен', 'success');
+}
+
+function renderDashboardActivityFeed() {
+    const feed = document.getElementById('dashboard-activity-feed');
+    if (!feed) return;
+    const entries = getAuditLogEntries().slice(0, 5);
+    if (entries.length === 0) {
+        feed.innerHTML = '<div class="admin-empty-state" style="padding:20px;"><i class="fas fa-inbox"></i><p>Пока нет действий в этой сессии</p></div>';
+        return;
+    }
+    feed.innerHTML = entries.map(e => `
+        <div class="mini-feed-item">
+            <i class="fas ${AUDIT_ICONS[e.category] || 'fa-circle-info'}"></i>
+            <span>${e.msg}</span>
+            <time>${new Date(e.time).toLocaleTimeString()}</time>
+        </div>
+    `).join('');
+}
+
+// ================= Массовые действия в очереди модерации =================
+function toggleSelectPending(id) {
+    window.selectedPendingIds = window.selectedPendingIds || new Set();
+    if (window.selectedPendingIds.has(id)) window.selectedPendingIds.delete(id);
+    else window.selectedPendingIds.add(id);
+
+    const card = document.querySelector(`.pending-card[data-pid="${id}"]`);
+    if (card) card.classList.toggle('is-selected', window.selectedPendingIds.has(id));
+    updatePendingBulkBar();
+}
+
+function toggleSelectAllPending() {
+    window.selectedPendingIds = window.selectedPendingIds || new Set();
+    const allIds = Object.keys(window.pendingRecipesCache || {});
+    const allSelected = allIds.length > 0 && allIds.every(id => window.selectedPendingIds.has(id));
+
+    if (allSelected) {
+        window.selectedPendingIds.clear();
+    } else {
+        allIds.forEach(id => window.selectedPendingIds.add(id));
+    }
+    document.querySelectorAll('.pending-card').forEach(card => {
+        const checked = window.selectedPendingIds.has(card.dataset.pid);
+        card.classList.toggle('is-selected', checked);
+        const cb = card.querySelector('.pending-select-checkbox');
+        if (cb) cb.checked = checked;
+    });
+    updatePendingBulkBar();
+}
+
+function updatePendingBulkBar() {
+    const bar = document.getElementById('pending-bulk-bar');
+    const countEl = document.getElementById('pending-bulk-count');
+    const count = window.selectedPendingIds ? window.selectedPendingIds.size : 0;
+    if (!bar || !countEl) return;
+    bar.style.display = count > 0 ? 'flex' : 'none';
+    countEl.innerText = `Выбрано: ${count}`;
+}
+
+async function bulkApproveSelected() {
+    const ids = Array.from(window.selectedPendingIds || []);
+    if (ids.length === 0) return;
+    if (!confirm(`Одобрить ${ids.length} рецепт(ов)?`)) return;
+
+    for (const id of ids) {
+        const r = window.pendingRecipesCache[id];
+        if (r) await approveRecipe(id, r);
+    }
+    logAdmin(`Массово одобрено рецептов: ${ids.length}`, 'moderation');
+    showToast(`Одобрено рецептов: ${ids.length}`, 'success');
+}
+
+async function bulkRejectSelected() {
+    const ids = Array.from(window.selectedPendingIds || []);
+    if (ids.length === 0) return;
+    const reason = prompt('Причина отклонения для всех выбранных:', 'Не соответствует правилам');
+    if (reason === null) return;
+
+    for (const id of ids) {
+        await rejectRecipeWithReason(id, reason);
+    }
+    logAdmin(`Массово отклонено рецептов: ${ids.length} (${reason})`, 'moderation');
+    showToast(`Отклонено рецептов: ${ids.length}`, 'success');
+}
+
+// ================= Быстрый выбор причины отклонения =================
+function pickRejectReason(reason) {
+    document.getElementById('reject-reason-custom').value = reason;
+}
+function confirmRejectWithReason() {
+    const custom = document.getElementById('reject-reason-custom').value.trim();
+    const reason = custom || 'Не соответствует правилам';
+    hideModal('reject-reason-modal');
+    if (recipeToRejectId) rejectRecipeWithReason(recipeToRejectId, reason);
+}
+
+// ================= Быстрые действия с пользователями =================
+async function giveUserWarning(uid, name) {
+    if (!confirm(`Выдать предупреждение пользователю ${name}?`)) return;
+    try {
+        const userRef = db.collection(USER_COLLECTION).doc(uid);
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) return;
+        const notifs = userDoc.data().notifications || [];
+        notifs.push({
+            id: Date.now(),
+            type: 'warning',
+            message: 'Вам вынесено предупреждение модератором за нарушение правил сообщества.',
+            icon: 'fas fa-triangle-exclamation',
+            date: new Date().toISOString(),
+            read: false
+        });
+        await userRef.update({
+            notifications: notifs,
+            warningsCount: firebase.firestore.FieldValue.increment(1)
+        });
+        showToast(`Предупреждение отправлено: ${name}`, 'success');
+        logAdmin(`Выдано предупреждение: ${name}`, 'users');
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ================= Командная палитра (Ctrl+K) =================
+const ADMIN_COMMANDS = [
+    { label: 'Главная', icon: 'fa-tachometer-alt', action: () => switchAdminTab('dashboard') },
+    { label: 'Пользователи', icon: 'fa-users', action: () => switchAdminTab('users') },
+    { label: 'Модерация рецептов', icon: 'fa-gavel', action: () => switchAdminTab('pending') },
+    { label: 'Инструменты', icon: 'fa-tools', action: () => switchAdminTab('content') },
+    { label: 'Статистика', icon: 'fa-chart-pie', action: () => switchAdminTab('stats') },
+    { label: 'Журнал действий', icon: 'fa-clock-rotate-left', action: () => switchAdminTab('journal') },
+    { label: 'Полная аналитика', icon: 'fa-chart-line', action: () => analyzeAppStats() },
+    { label: 'Полный бэкап', icon: 'fa-file-download', action: () => fullDatabaseBackup() },
+    { label: 'Экспорт Email CSV', icon: 'fa-file-csv', action: () => exportEmailsCSV() },
+    { label: 'Проверка целостности БД', icon: 'fa-stethoscope', action: () => checkDataIntegrity() },
+    { label: 'Конфиг сервера', icon: 'fa-cogs', action: () => openGlobalConfig() },
+    { label: 'Глобальная рассылка', icon: 'fa-bullhorn', action: () => openBroadcastModal() },
+];
+
+function openAdminCommandPalette() {
+    const overlay = document.getElementById('admin-cmdk');
+    overlay.style.display = 'flex';
+    const input = document.getElementById('admin-cmdk-input');
+    input.value = '';
+    filterAdminCommands('');
+    setTimeout(() => input.focus(), 50);
+}
+function closeAdminCommandPalette() {
+    document.getElementById('admin-cmdk').style.display = 'none';
+}
+function filterAdminCommands(query) {
+    const q = query.toLowerCase().trim();
+    const resultsBox = document.getElementById('admin-cmdk-results');
+
+    let items = ADMIN_COMMANDS.filter(c => c.label.toLowerCase().includes(q));
+
+    // Поиск по пользователям из кэша, если введён запрос
+    if (q && typeof allUsersCache !== 'undefined' && allUsersCache) {
+        const userMatches = allUsersCache
+            .filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
+            .slice(0, 5)
+            .map(u => ({ label: `${u.name || 'Без имени'} — ${u.email || ''}`, icon: 'fa-user', action: () => { closeAdminCommandPalette(); switchAdminTab('users'); openUserDetail(u.id); } }));
+        items = items.concat(userMatches);
+    }
+
+    if (items.length === 0) {
+        resultsBox.innerHTML = '<div class="admin-cmdk-empty">Ничего не найдено</div>';
+        return;
+    }
+
+    resultsBox.innerHTML = items.map((c, i) => `
+        <div class="admin-cmdk-item" data-idx="${i}" onclick="ADMIN_CMDK_RUN(${i})">
+            <i class="fas ${c.icon}"></i> <span>${c.label}</span>
+        </div>
+    `).join('');
+    window.ADMIN_CMDK_CURRENT_ITEMS = items;
+}
+function ADMIN_CMDK_RUN(idx) {
+    const item = window.ADMIN_CMDK_CURRENT_ITEMS[idx];
+    if (!item) return;
+    closeAdminCommandPalette();
+    item.action();
+}
+document.addEventListener('keydown', function(ev) {
+    const adminOpen = document.getElementById('admin-modal') && document.getElementById('admin-modal').style.display === 'flex';
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'k' && adminOpen) {
+        ev.preventDefault();
+        openAdminCommandPalette();
+    }
+    if (ev.key === 'Escape' && document.getElementById('admin-cmdk') && document.getElementById('admin-cmdk').style.display === 'flex') {
+        closeAdminCommandPalette();
+    }
+});
 
 // --- 1. КРАСИВЫЙ БЭКАП (Замена 2 кнопок) ---
 async function downloadPrettyBackup() {
@@ -12103,7 +12375,12 @@ function fallbackCopy(text) {
                 <div class="admin-shell-sub">Версия ядра: 3.5.2 · Админ: <span id="admin-username-display">Вы</span></div>
             </div>
         </div>
-        <span class="modal-close" onclick="hideModal('admin-modal')"><i class="fas fa-times"></i></span>
+        <div class="admin-shell-header-actions">
+            <button class="admin-cmdk-trigger" onclick="openAdminCommandPalette()" title="Быстрый поиск (Ctrl+K)">
+                <i class="fas fa-magnifying-glass"></i> <span>Поиск</span> <kbd>Ctrl K</kbd>
+            </button>
+            <span class="modal-close" onclick="hideModal('admin-modal')"><i class="fas fa-times"></i></span>
+        </div>
     </div>
 
     <div class="admin-tabs">
@@ -12112,6 +12389,7 @@ function fallbackCopy(text) {
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('content')"><i class="fas fa-tools"></i> Инструменты</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('stats')"><i class="fas fa-chart-pie"></i> Статистика</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('journal')"><i class="fas fa-clock-rotate-left"></i> Журнал</button>
     </div>
 
     <div class="admin-shell-body">
@@ -12172,6 +12450,14 @@ function fallbackCopy(text) {
                     </div>
                 </div>
             </div>
+
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <h5><i class="fas fa-bolt"></i> Последняя активность</h5>
+                <div id="dashboard-activity-feed" class="dashboard-activity-feed">
+                    <div class="admin-empty-state" style="padding:20px;"><i class="fas fa-inbox"></i><p>Пока нет действий в этой сессии</p></div>
+                </div>
+                <button class="small-action-btn" style="margin-top:10px;" onclick="switchAdminTab('journal')"><i class="fas fa-clock-rotate-left"></i> Весь журнал</button>
+            </div>
         </div>
 
         <div id="admin-tab-users" class="admin-tab-content" style="display:none;">
@@ -12206,8 +12492,20 @@ function fallbackCopy(text) {
         <div id="admin-tab-pending" class="admin-tab-content" style="display:none;">
             <div class="admin-toolbar">
                 <h5>Очередь рецептов</h5>
-                <button class="small-action-btn" onclick="loadPendingRecipes()"><i class="fas fa-sync"></i> Обновить</button>
+                <div class="admin-toolbar-actions">
+                    <button class="small-action-btn" id="pending-select-all-btn" onclick="toggleSelectAllPending()"><i class="fas fa-square-check"></i> Выбрать все</button>
+                    <button class="small-action-btn" onclick="loadPendingRecipes()"><i class="fas fa-sync"></i> Обновить</button>
+                </div>
             </div>
+
+            <div id="pending-bulk-bar" class="pending-bulk-bar" style="display:none;">
+                <span id="pending-bulk-count">Выбрано: 0</span>
+                <div class="pending-bulk-actions">
+                    <button class="btn-sm bulk-approve-btn" onclick="bulkApproveSelected()"><i class="fas fa-check-double"></i> Одобрить выбранные</button>
+                    <button class="btn-sm bulk-reject-btn" onclick="bulkRejectSelected()"><i class="fas fa-ban"></i> Отклонить выбранные</button>
+                </div>
+            </div>
+
             <div id="admin-pending-list" class="grid-list"></div>
             <div id="admin-pending-empty" class="admin-empty-state" style="display:none;">
                 <i class="fas fa-check-circle"></i>
@@ -12320,7 +12618,66 @@ function fallbackCopy(text) {
             </div>
         </div>
 
+        <div id="admin-tab-journal" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-clock-rotate-left"></i> Журнал действий</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="journal-search" placeholder="Поиск по журналу..." oninput="renderAuditLog()">
+                    </div>
+                    <button class="small-action-btn danger-outline" onclick="clearAuditLog()" title="Очистить журнал"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+
+            <div class="journal-filters" id="journal-filters">
+                <button class="journal-filter-chip active" data-filter="all" onclick="setJournalFilter('all')">Все</button>
+                <button class="journal-filter-chip" data-filter="moderation" onclick="setJournalFilter('moderation')"><i class="fas fa-gavel"></i> Модерация</button>
+                <button class="journal-filter-chip" data-filter="users" onclick="setJournalFilter('users')"><i class="fas fa-users"></i> Пользователи</button>
+                <button class="journal-filter-chip" data-filter="system" onclick="setJournalFilter('system')"><i class="fas fa-server"></i> Система</button>
+            </div>
+
+            <div id="audit-log-list" class="audit-log-list">
+                <div class="admin-empty-state"><i class="fas fa-inbox"></i><p>Журнал пуст</p></div>
+            </div>
+        </div>
+
     </div> 
+    </div>
+</div>
+
+<!-- Командная палитра: быстрый переход по разделам, юзерам и инструментам -->
+<div id="admin-cmdk" class="admin-cmdk-overlay" onclick="if(event.target.id === 'admin-cmdk') closeAdminCommandPalette()">
+    <div class="admin-cmdk-box">
+        <div class="admin-cmdk-input-row">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="admin-cmdk-input" placeholder="Найти раздел, пользователя или действие..." oninput="filterAdminCommands(this.value)">
+            <kbd>Esc</kbd>
+        </div>
+        <div id="admin-cmdk-results" class="admin-cmdk-results"></div>
+    </div>
+</div>
+
+<!-- Быстрый выбор причины отклонения рецепта -->
+<div id="reject-reason-modal" class="modal" style="z-index: 10002;" onclick="if(event.target.id === 'reject-reason-modal') hideModal('reject-reason-modal')">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-ban"></i> Причина отклонения</h4>
+            <span class="modal-close" onclick="hideModal('reject-reason-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <div class="reason-chip-grid" id="reason-chip-grid">
+            <button class="reason-chip" onclick="pickRejectReason('Не соответствует правилам сообщества')">Не по правилам</button>
+            <button class="reason-chip" onclick="pickRejectReason('Дублирует существующий рецепт')">Дубликат</button>
+            <button class="reason-chip" onclick="pickRejectReason('Низкое качество фото/описания')">Низкое качество</button>
+            <button class="reason-chip" onclick="pickRejectReason('Похоже на спам или рекламу')">Спам</button>
+            <button class="reason-chip" onclick="pickRejectReason('Некорректные ингредиенты/шаги')">Ошибки в рецепте</button>
+            <button class="reason-chip" onclick="pickRejectReason('Подозрение на плагиат')">Плагиат</button>
+        </div>
+        <input type="text" id="reject-reason-custom" class="styled-input" placeholder="Своя причина (необязательно)" style="margin-top:12px;">
+        <div class="admin-modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('reject-reason-modal')">Отмена</button>
+            <button class="btn btn-primary admin-btn-reject" onclick="confirmRejectWithReason()">Отклонить</button>
+        </div>
     </div>
 </div>
 
