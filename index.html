@@ -5855,6 +5855,7 @@ function switchAdminTab(tabName) {
     
     if (tabName === 'pending') loadPendingRecipes(); // Это лучше грузить свежим
     if (tabName === 'feedback') loadFeedbackReports();
+    if (tabName === 'push') initPushCenter();
     if (tabName === 'stats') renderDetailedStats();
     if (tabName === 'content') logAdmin("Инструменты готовы к работе.");
     if (tabName === 'journal') renderAuditLog();
@@ -6672,6 +6673,362 @@ function setFeedbackFilter(filter) {
 function viewReportedRecipe(id) {
     hideModal('admin-modal');
     showRecipeDetail(id);
+}
+
+/* ============================================================
+   ПУШ-ЦЕНТР (Web Push / Telegram)
+   Конструктор рассылок + История + Триггерные авто-пуши
+   ============================================================ */
+const PUSH_AUDIENCE_LABELS = {
+    all: 'Все пользователи',
+    premium: 'Только Premium',
+    active_week: 'Активные за неделю'
+};
+
+const PUSH_TRIGGERS_DEFS = [
+    {
+        id: 'expiring_products', icon: 'fa-triangle-exclamation',
+        title: 'Продукты скоро испортятся',
+        desc: 'Если в холодильнике пользователя есть продукты с истекающим сроком годности.',
+        defaultText: 'Некоторые продукты в холодильнике скоро испортятся — загляните в приложение!'
+    },
+    {
+        id: 'inactive_3d', icon: 'fa-mug-hot',
+        title: 'Пользователь давно не заходил',
+        desc: 'Если пользователь не открывал приложение 3 дня подряд.',
+        defaultText: 'Соскучились по кухне? Загляните и приготовьте что-нибудь вкусное 🍳'
+    },
+    {
+        id: 'recipe_moderated', icon: 'fa-gavel',
+        title: 'Рецепт прошёл модерацию',
+        desc: 'Отправляется автору, когда его рецепт одобрен или отклонён администратором.',
+        defaultText: 'Статус вашего рецепта обновился — загляните в уведомления!'
+    },
+    {
+        id: 'weekly_digest', icon: 'fa-newspaper',
+        title: 'Еженедельный дайджест',
+        desc: 'Раз в неделю — подборка новых рецептов и советов по холодильнику.',
+        defaultText: 'Ваша еженедельная подборка рецептов уже готова!'
+    },
+    {
+        id: 'shopping_reminder', icon: 'fa-cart-shopping',
+        title: 'Незавершённый список покупок',
+        desc: 'Напоминание, если в списке покупок давно остаются неотмеченные товары.',
+        defaultText: 'В вашем списке покупок ещё остались товары — не забудьте о них!'
+    },
+    {
+        id: 'achievement_unlocked', icon: 'fa-trophy',
+        title: 'Новое достижение',
+        desc: 'Сразу после того, как пользователь разблокирует новое достижение.',
+        defaultText: 'Поздравляем! Вы разблокировали новое достижение 🏆'
+    }
+];
+
+let pushHistoryCache = [];
+let pushTriggersSettings = {};
+let currentPushSubView = 'composer';
+
+// Инициализация при первом открытии таба
+async function initPushCenter() {
+    if (!allUsersCache || allUsersCache.length === 0) {
+        await loadAllUsers();
+    }
+    updatePushAudienceCount();
+    updatePushPreview();
+
+    // Подгружаем данные для текущей активной подвкладки
+    if (currentPushSubView === 'history') loadPushHistory();
+    if (currentPushSubView === 'triggers') loadPushTriggersSettings();
+}
+
+function switchPushSubTab(view) {
+    currentPushSubView = view;
+    document.querySelectorAll('#push-subnav .journal-filter-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.pushview === view);
+    });
+    document.querySelectorAll('.push-subview').forEach(v => v.style.display = 'none');
+    const target = document.getElementById(`push-view-${view}`);
+    if (target) target.style.display = 'block';
+
+    if (view === 'history') loadPushHistory();
+    if (view === 'triggers') loadPushTriggersSettings();
+    if (view === 'composer') { updatePushAudienceCount(); updatePushPreview(); }
+}
+
+function handlePushTargetChange() {
+    const select = document.getElementById('push-target-screen');
+    const customInput = document.getElementById('push-target-custom');
+    customInput.style.display = select.value === 'custom' ? 'block' : 'none';
+    updatePushPreview();
+}
+
+function computeAudienceCount(audience) {
+    if (!allUsersCache || allUsersCache.length === 0) return 0;
+    if (audience === 'premium') return allUsersCache.filter(u => u.isPremium).length;
+    if (audience === 'active_week') {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return allUsersCache.filter(u => u.lastNotificationDate && new Date(u.lastNotificationDate) >= weekAgo).length;
+    }
+    return allUsersCache.length;
+}
+
+function getPushAudienceUsers(audience) {
+    if (!allUsersCache) return [];
+    if (audience === 'premium') return allUsersCache.filter(u => u.isPremium);
+    if (audience === 'active_week') {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return allUsersCache.filter(u => u.lastNotificationDate && new Date(u.lastNotificationDate) >= weekAgo);
+    }
+    return allUsersCache.slice();
+}
+
+function updatePushAudienceCount() {
+    const el = document.getElementById('push-audience-count');
+    if (!el) return;
+    const audience = document.querySelector('input[name="push-audience"]:checked')?.value || 'all';
+    const count = computeAudienceCount(audience);
+    el.innerHTML = `<i class="fas fa-users"></i> Получателей: <b>${count}</b> ${!allUsersCache || allUsersCache.length === 0 ? '(обновите базу пользователей)' : ''}`;
+}
+
+function updatePushPreview() {
+    const title = document.getElementById('push-title')?.value.trim();
+    const body = document.getElementById('push-body')?.value.trim();
+    const targetScreen = document.getElementById('push-target-screen')?.value;
+    const customLink = document.getElementById('push-target-custom')?.value.trim();
+
+    const titleEl = document.getElementById('push-preview-title');
+    const bodyEl = document.getElementById('push-preview-body');
+    const linkEl = document.getElementById('push-preview-link');
+
+    if (titleEl) titleEl.textContent = title || 'Заголовок уведомления';
+    if (bodyEl) bodyEl.textContent = body || 'Текст сообщения появится здесь';
+
+    if (linkEl) {
+        const screenLabels = {
+            recipes: 'Рецепты', inventory: 'Холодильник', shopping: 'Список покупок',
+            achievements: 'Достижения', profile: 'Профиль', custom: customLink || 'ссылка'
+        };
+        if (targetScreen) {
+            linkEl.style.display = 'flex';
+            linkEl.querySelector('span').textContent = screenLabels[targetScreen] || targetScreen;
+        } else {
+            linkEl.style.display = 'none';
+        }
+    }
+}
+
+async function sendPushCampaign() {
+    const title = document.getElementById('push-title').value.trim();
+    const body = document.getElementById('push-body').value.trim();
+    if (!title || !body) return showToast("Заполните заголовок и текст", "warning");
+
+    const audience = document.querySelector('input[name="push-audience"]:checked')?.value || 'all';
+    const targetScreen = document.getElementById('push-target-screen').value;
+    let link = null;
+    if (targetScreen === 'custom') {
+        link = document.getElementById('push-target-custom').value.trim() || null;
+    } else if (targetScreen) {
+        link = targetScreen;
+    }
+
+    if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+
+    const recipients = getPushAudienceUsers(audience);
+    if (recipients.length === 0) return showToast("Нет пользователей в этой аудитории", "warning");
+
+    if (!confirm(`Отправить push «${title}» аудитории «${PUSH_AUDIENCE_LABELS[audience]}» (${recipients.length} чел.)?`)) return;
+
+    const sendBtn = document.getElementById('push-send-btn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...'; }
+
+    const campaignId = `pc_${Date.now()}`;
+    const notifPayload = {
+        id: Date.now(),
+        type: 'info',
+        message: title,
+        pushBody: body,
+        icon: 'fas fa-bell',
+        date: new Date().toISOString(),
+        read: false,
+        pushLink: link,
+        campaignId
+    };
+
+    try {
+        await performBatchOperation(recipients, (batch, u) => {
+            const ref = db.collection(USER_COLLECTION).doc(u.id);
+            batch.update(ref, { notifications: firebase.firestore.FieldValue.arrayUnion(notifPayload) });
+        }, `Push «${title}»`);
+
+        await db.collection('push_campaigns').doc(campaignId).set({
+            title: title,
+            body: body,
+            link: link,
+            audience: audience,
+            audienceLabel: PUSH_AUDIENCE_LABELS[audience],
+            date: new Date().toISOString(),
+            author: currentUser.name,
+            delivered: recipients.length,
+            opens: 0,
+            clicks: 0
+        });
+
+        logAdmin(`Push-рассылка «${title}» отправлена (${recipients.length} чел., аудитория: ${PUSH_AUDIENCE_LABELS[audience]})`);
+        showToast(`Push отправлен ${recipients.length} пользователям`, "success");
+
+        document.getElementById('push-title').value = '';
+        document.getElementById('push-body').value = '';
+        document.getElementById('push-target-screen').value = '';
+        document.getElementById('push-target-custom').value = '';
+        document.getElementById('push-target-custom').style.display = 'none';
+        updatePushPreview();
+
+        pushHistoryCache = [];
+    } catch (e) {
+        console.error(e);
+        showToast("Ошибка отправки: " + e.message, "error");
+    } finally {
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Отправить рассылку'; }
+    }
+}
+
+async function loadPushHistory(forceRefresh = false) {
+    const tbody = document.getElementById('push-history-list');
+    if (!tbody) return;
+
+    if (!forceRefresh && pushHistoryCache && pushHistoryCache.length > 0) {
+        renderPushHistory();
+        return;
+    }
+
+    tbody.innerHTML = '<tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>';
+
+    try {
+        const snap = await db.collection('push_campaigns').orderBy('date', 'desc').limit(50).get();
+        pushHistoryCache = [];
+        snap.forEach(doc => pushHistoryCache.push({ id: doc.id, ...doc.data() }));
+        renderPushHistory();
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--error); text-align:center;">Ошибка: ${e.message}</td></tr>`;
+    }
+}
+
+function renderPushHistory() {
+    const tbody = document.getElementById('push-history-list');
+    const emptyMsg = document.getElementById('push-history-empty');
+    if (!tbody) return;
+
+    if (!pushHistoryCache || pushHistoryCache.length === 0) {
+        tbody.innerHTML = '';
+        if (emptyMsg) emptyMsg.style.display = 'block';
+        return;
+    }
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    tbody.innerHTML = pushHistoryCache.map(c => {
+        const dateStr = c.date ? new Date(c.date).toLocaleString() : '-';
+        const delivered = c.delivered || 0;
+        const opens = c.opens || 0;
+        const clicks = c.clicks || 0;
+
+        return `<tr>
+            <td style="font-size:0.8em; white-space:nowrap;">${dateStr}</td>
+            <td>
+                <div style="font-weight:600;">${escapeHtml(c.title || '')}</div>
+                <div style="font-size:0.8em; color:var(--text-secondary);">${escapeHtml(c.audienceLabel || '')}</div>
+            </td>
+            <td>${delivered}</td>
+            <td style="white-space:nowrap;">
+                <span title="Открытия"><i class="fas fa-eye"></i> ${opens}</span>
+                &nbsp;·&nbsp;
+                <span title="Клики"><i class="fas fa-arrow-pointer"></i> ${clicks}</span>
+            </td>
+            <td class="text-right"><button class="small-action-btn" onclick="deletePushCampaign('${c.id}')" title="Удалить из истории"><i class="fas fa-trash"></i></button></td>
+        </tr>`;
+    }).join('');
+}
+
+async function deletePushCampaign(id) {
+    if (!confirm("Удалить эту рассылку из истории?")) return;
+    try {
+        await db.collection('push_campaigns').doc(id).delete();
+        showToast("Запись удалена", "success");
+        loadPushHistory(true);
+    } catch (e) { showToast(e.message, "error"); }
+}
+
+async function loadPushTriggersSettings() {
+    const container = document.getElementById('push-triggers-list');
+    if (container) container.innerHTML = '<div class="admin-table-loading">Загрузка настроек...</div>';
+
+    try {
+        const doc = await db.collection('global_settings').doc('push_triggers').get();
+        pushTriggersSettings = doc.exists ? (doc.data() || {}) : {};
+    } catch (e) {
+        console.error(e);
+        pushTriggersSettings = {};
+    }
+    renderPushTriggers();
+}
+
+function renderPushTriggers() {
+    const container = document.getElementById('push-triggers-list');
+    if (!container) return;
+
+    container.innerHTML = PUSH_TRIGGERS_DEFS.map(t => {
+        const saved = pushTriggersSettings[t.id] || {};
+        const enabled = saved.enabled !== undefined ? saved.enabled : true;
+        const text = saved.text !== undefined ? saved.text : t.defaultText;
+
+        return `<div class="push-trigger-card">
+            <div class="push-trigger-head">
+                <div class="push-trigger-icon"><i class="fas ${t.icon}"></i></div>
+                <div class="push-trigger-info">
+                    <div class="push-trigger-title">${t.title}</div>
+                    <div class="push-trigger-desc">${t.desc}</div>
+                </div>
+                <label class="premium-switch">
+                    <input type="checkbox" ${enabled ? 'checked' : ''} onchange="togglePushTrigger('${t.id}', this.checked)">
+                    <span class="premium-switch-track"><span class="premium-switch-thumb"><i class="fas fa-bell"></i></span></span>
+                </label>
+            </div>
+            <textarea class="styled-input push-trigger-text" rows="2" onblur="updatePushTriggerText('${t.id}', this.value)">${escapeHtml(text)}</textarea>
+        </div>`;
+    }).join('');
+}
+
+async function savePushTriggerSetting(id) {
+    try {
+        await db.collection('global_settings').doc('push_triggers').set({
+            [id]: pushTriggersSettings[id]
+        }, { merge: true });
+    } catch (e) {
+        console.error(e);
+        showToast("Ошибка сохранения триггера", "error");
+    }
+}
+
+async function togglePushTrigger(id, enabled) {
+    if (!pushTriggersSettings[id]) {
+        const def = PUSH_TRIGGERS_DEFS.find(t => t.id === id);
+        pushTriggersSettings[id] = { enabled: true, text: def ? def.defaultText : '' };
+    }
+    pushTriggersSettings[id].enabled = enabled;
+    await savePushTriggerSetting(id);
+    logAdmin(`Триггер «${id}» ${enabled ? 'включен' : 'отключен'}`);
+    showToast(enabled ? "Триггер включен" : "Триггер отключен", "success");
+}
+
+async function updatePushTriggerText(id, text) {
+    if (!pushTriggersSettings[id]) {
+        pushTriggersSettings[id] = { enabled: true, text: text };
+    } else {
+        pushTriggersSettings[id].text = text;
+    }
+    await savePushTriggerSetting(id);
 }
 
 // Функция одобрения
@@ -10258,6 +10615,7 @@ const ADMIN_COMMANDS = [
     { label: 'Пользователи', icon: 'fa-users', action: () => switchAdminTab('users') },
     { label: 'Модерация рецептов', icon: 'fa-gavel', action: () => switchAdminTab('pending') },
     { label: 'Обратная связь', icon: 'fa-comment-dots', action: () => switchAdminTab('feedback') },
+    { label: 'Пуш-Уведомления', icon: 'fa-bell', action: () => switchAdminTab('push') },
     { label: 'Инструменты', icon: 'fa-tools', action: () => switchAdminTab('content') },
     { label: 'Статистика', icon: 'fa-chart-pie', action: () => switchAdminTab('stats') },
     { label: 'Журнал действий', icon: 'fa-clock-rotate-left', action: () => switchAdminTab('journal') },
@@ -12511,6 +12869,7 @@ function fallbackCopy(text) {
         <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('feedback')"><i class="fas fa-comment-dots"></i> Обратная связь <span id="feedback-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('push')"><i class="fas fa-bell"></i> Пуш-Уведомления</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('content')"><i class="fas fa-tools"></i> Инструменты</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('stats')"><i class="fas fa-chart-pie"></i> Статистика</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('journal')"><i class="fas fa-clock-rotate-left"></i> Журнал</button>
@@ -12681,6 +13040,126 @@ function fallbackCopy(text) {
             <div id="admin-feedback-empty" class="admin-empty-state" style="display:none;">
                 <i class="fas fa-check-circle"></i>
                 <p>Жалоб и дизлайков пока нет.</p>
+            </div>
+        </div>
+
+        <div id="admin-tab-push" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-bell"></i> Пуш-Центр</h5>
+            </div>
+
+            <div class="journal-filters" id="push-subnav">
+                <button class="journal-filter-chip active" data-pushview="composer" onclick="switchPushSubTab('composer')"><i class="fas fa-pen-to-square"></i> Конструктор</button>
+                <button class="journal-filter-chip" data-pushview="history" onclick="switchPushSubTab('history')"><i class="fas fa-clock-rotate-left"></i> История</button>
+                <button class="journal-filter-chip" data-pushview="triggers" onclick="switchPushSubTab('triggers')"><i class="fas fa-bolt"></i> Триггеры</button>
+            </div>
+
+            <!-- ===== КОНСТРУКТОР РАССЫЛОК ===== -->
+            <div id="push-view-composer" class="push-subview">
+                <div class="push-composer-grid">
+                    <div class="admin-panel-card">
+                        <div class="form-group">
+                            <label>Заголовок</label>
+                            <input type="text" id="push-title" class="styled-input" placeholder="Например: Новые рецепты недели 🍳" maxlength="65" oninput="updatePushPreview()">
+                        </div>
+                        <div class="form-group">
+                            <label>Текст</label>
+                            <textarea id="push-body" class="styled-input" rows="3" placeholder="Загляните в приложение — мы добавили..." maxlength="180" oninput="updatePushPreview()"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Ссылка / Экран перехода</label>
+                            <select id="push-target-screen" class="styled-select" onchange="handlePushTargetChange()">
+                                <option value="">Без перехода</option>
+                                <option value="recipes">Экран: Рецепты</option>
+                                <option value="inventory">Экран: Холодильник</option>
+                                <option value="shopping">Экран: Список покупок</option>
+                                <option value="achievements">Экран: Достижения</option>
+                                <option value="profile">Экран: Профиль</option>
+                                <option value="custom">Своя ссылка (URL)</option>
+                            </select>
+                            <input type="text" id="push-target-custom" class="styled-input" placeholder="https://..." style="display:none; margin-top:10px;" oninput="updatePushPreview()">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Аудитория</label>
+                            <div class="dislike-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="push-audience" value="all" checked onchange="updatePushAudienceCount()">
+                                    <span class="radio-option-icon"><i class="fas fa-users"></i></span>
+                                    <span class="radio-option-text">Все пользователи</span>
+                                    <span class="radio-option-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="push-audience" value="premium" onchange="updatePushAudienceCount()">
+                                    <span class="radio-option-icon"><i class="fas fa-crown"></i></span>
+                                    <span class="radio-option-text">Только Premium</span>
+                                    <span class="radio-option-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="push-audience" value="active_week" onchange="updatePushAudienceCount()">
+                                    <span class="radio-option-icon"><i class="fas fa-bolt"></i></span>
+                                    <span class="radio-option-text">Активные за неделю</span>
+                                    <span class="radio-option-check"><i class="fas fa-check"></i></span>
+                                </label>
+                            </div>
+                            <div id="push-audience-count" class="push-audience-count"><i class="fas fa-circle-notch fa-spin"></i> Считаем аудиторию...</div>
+                        </div>
+
+                        <button id="push-send-btn" class="btn btn-primary" style="width:100%; margin-top:6px;" onclick="sendPushCampaign()">
+                            <i class="fas fa-paper-plane"></i> Отправить рассылку
+                        </button>
+                    </div>
+
+                    <div class="push-preview-wrap">
+                        <div class="push-preview-label">Превью уведомления</div>
+                        <div class="push-preview-card">
+                            <div class="push-preview-header">
+                                <i class="fas fa-utensils"></i> <span>Axio</span> <span class="push-preview-time">сейчас</span>
+                            </div>
+                            <div class="push-preview-title" id="push-preview-title">Заголовок уведомления</div>
+                            <div class="push-preview-body" id="push-preview-body">Текст сообщения появится здесь</div>
+                            <div class="push-preview-link" id="push-preview-link" style="display:none;"><i class="fas fa-link"></i> <span></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ИСТОРИЯ РАССЫЛОК ===== -->
+            <div id="push-view-history" class="push-subview" style="display:none;">
+                <div class="admin-toolbar">
+                    <h5 style="font-size:0.95em;">Прошедшие рассылки</h5>
+                    <button class="small-action-btn" onclick="loadPushHistory(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Заголовок</th>
+                                <th>Доставлено</th>
+                                <th>Клики/Открытия</th>
+                                <th class="text-right">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="push-history-list">
+                            <tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="push-history-empty" class="admin-empty-state" style="display:none;">
+                    <i class="fas fa-inbox"></i>
+                    <p>Рассылок пока не было.</p>
+                </div>
+            </div>
+
+            <!-- ===== ТРИГГЕРНЫЕ АВТО-ПУШИ ===== -->
+            <div id="push-view-triggers" class="push-subview" style="display:none;">
+                <p class="push-triggers-hint">
+                    Автоматические уведомления, которые уходят пользователю по событию — без участия администратора. Отредактируйте текст или отключите ненужный триггер.
+                </p>
+                <div id="push-triggers-list" class="push-triggers-list">
+                    <div class="admin-table-loading">Загрузка настроек...</div>
+                </div>
             </div>
         </div>
 
