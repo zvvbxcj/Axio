@@ -2585,11 +2585,35 @@ function copyFridgeCode() {
     showToast('Код скопирован', 'success');
 }
 
+// Единая точка для "поделиться в Telegram". Внутри самого Telegram Mini App
+// обычный window.open('https://t.me/share/url...') часто блокируется WebView'ом,
+// поэтому там нужно использовать нативные методы Telegram.WebApp — они
+// открывают штатный диалог "Переслать" и работают надёжно.
+function openTelegramShare(text, url) {
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url || '')}&text=${encodeURIComponent(text || '')}`;
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (isTelegramEnv() && tg && typeof tg.openTelegramLink === 'function') {
+        tg.openTelegramLink(shareUrl);
+    } else if (isTelegramEnv() && tg && typeof tg.openLink === 'function') {
+        tg.openLink(shareUrl);
+    } else {
+        window.open(shareUrl, '_blank');
+    }
+}
+
 function shareFridgeInvite() {
     const f = userFridges.find(fr => fr.id === managingFridgeId);
     if (!f || !f.inviteCode) return;
     const link = fridgeInviteLink(f.inviteCode);
     const text = `Присоединяйся к холодильнику «${f.name}» в Axio! Код: ${f.inviteCode}`;
+
+    if (isTelegramEnv()) {
+        // Внутри Telegram navigator.share и window.open ненадёжны — открываем
+        // родной диалог "Переслать" самого Telegram.
+        openTelegramShare(text, link);
+        return;
+    }
+
     if (navigator.share) {
         navigator.share({ title: 'Axio', text, url: link }).catch(() => {});
     } else if (navigator.clipboard) {
@@ -3195,8 +3219,7 @@ function shareTo(platform) {
     }
     else if (platform === 'telegram') {
         const cleanText = text.replace(/\*/g, ''); 
-        const encodedText = encodeURIComponent(cleanText);
-        window.open(`https://t.me/share/url?url=&text=${encodedText}`, '_blank');
+        openTelegramShare(cleanText, '');
     } 
     else if (platform === 'whatsapp') {
         const encodedText = encodeURIComponent(text);
@@ -5981,6 +6004,7 @@ let adminLogs = [];
 let allUsersCache = [];
 let adminFridgesCache = [];
 let adminFridgeUserNameCache = {}; // uid -> имя, чтобы не дергать базу повторно
+let adminContentCache = []; // опубликованные рецепты для "Менеджера Контента"
 let managingAdminFridgeId = null;
 let adminDauChart = null; // Chart.js инстанс графика DAU/MAU
 
@@ -6025,6 +6049,13 @@ function switchAdminTab(tabName) {
     }
 
     if (tabName === 'pending') loadPendingRecipes(); // Это лучше грузить свежим
+    if (tabName === 'contentmgr') {
+        if (!adminContentCache || adminContentCache.length === 0) {
+            loadAdminContent();
+        } else {
+            renderAdminContent(adminContentCache);
+        }
+    }
     if (tabName === 'feedback') loadFeedbackReports();
     if (tabName === 'push') initPushCenter();
     if (tabName === 'stats') renderDetailedStats();
@@ -6773,6 +6804,166 @@ function filterAdminFridges() {
         return nameMatch || idMatch || ownerMatch;
     });
     renderAdminFridges(filtered);
+}
+
+/* ============================================================
+   МЕНЕДЖЕР КОНТЕНТА — список уже опубликованных рецептов (public_recipes)
+   с возможностью быстро снять любой из них с публикации в один клик,
+   не переходя на страницу самого рецепта.
+   ============================================================ */
+
+function adminRecipeName(r) {
+    if (!r || !r.name) return 'Без названия';
+    return (typeof r.name === 'object') ? (r.name.ru || r.name.en || Object.values(r.name)[0] || 'Без названия') : r.name;
+}
+
+async function loadAdminContent(forceRefresh = false) {
+    const tbody = document.getElementById('adm-content-list');
+    if (!tbody) return;
+
+    if (forceRefresh || adminContentCache.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;"><div class="dots-loader" style="margin:0 auto"></div><br>Загрузка рецептов...</td></tr>';
+    }
+
+    try {
+        const snap = await db.collection('public_recipes').limit(2000).get();
+        adminContentCache = [];
+        snap.forEach(doc => adminContentCache.push({ id: doc.id, ...doc.data() }));
+
+        // Сортировка: сначала недавно опубликованные (если есть метка даты)
+        adminContentCache.sort((a, b) => {
+            const da = a.publishedDate || a.createdAt || '';
+            const db_ = b.publishedDate || b.createdAt || '';
+            return String(db_).localeCompare(String(da));
+        });
+
+        renderAdminContent(adminContentCache);
+        populateAdminContentCategoryFilter(adminContentCache);
+    } catch (e) {
+        console.error("Ошибка загрузки контента:", e);
+        tbody.innerHTML = `<tr><td colspan="4" style="color:var(--error); text-align:center;">Ошибка: ${e.message}</td></tr>`;
+    }
+}
+
+function populateAdminContentCategoryFilter(recipes) {
+    const sel = document.getElementById('admin-content-category-filter');
+    if (!sel) return;
+    const current = sel.value;
+    const categories = [...new Set(recipes.map(r => r.category).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">Все категории</option>' +
+        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (categories.includes(current)) sel.value = current;
+}
+
+function renderAdminContent(recipes) {
+    const list = document.getElementById('adm-content-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!recipes || recipes.length === 0) {
+        list.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">Рецепты не найдены</td></tr>';
+        return;
+    }
+
+    recipes.forEach(r => {
+        const name = adminRecipeName(r);
+        const row = document.createElement('tr');
+        row.className = 'fridge-admin-row';
+        row.innerHTML = `
+            <td>
+                <div class="user-cell">
+                    <div class="user-avatar-sm" style="display:flex; align-items:center; justify-content:center; background:var(--surface-light); overflow:hidden;">
+                        ${r.image ? `<img src="${r.image}" style="width:100%; height:100%; object-fit:cover;" alt="">` : `<i class="fas fa-utensils" style="color:var(--primary);"></i>`}
+                    </div>
+                    <div class="user-cell-info">
+                        <div class="user-name">${escapeHtml(name)}</div>
+                        <div class="user-email">ID: ${r.id}</div>
+                    </div>
+                </div>
+            </td>
+            <td>${escapeHtml(r.authorName || (r.authorId ? (adminFridgeUserNameCache[r.authorId] || r.authorId) : 'Axio'))}</td>
+            <td>${r.category ? `<span class="badge badge-primary">${escapeHtml(r.category)}</span>` : '—'}</td>
+            <td class="user-actions-cell">
+                <button class="icon-action-btn is-danger" title="Снять с публикации" onclick="quickUnpublishRecipe('${r.id}')">
+                    <i class="fas fa-file-circle-xmark"></i>
+                </button>
+            </td>
+        `;
+        list.appendChild(row);
+
+        if (r.authorId && !adminFridgeUserNameCache[r.authorId]) {
+            getAdminUserDisplayName(r.authorId).then(nameStr => {
+                const cell = row.children[1];
+                if (cell && !r.authorName) cell.textContent = nameStr;
+            });
+        }
+    });
+}
+
+function filterAdminContent() {
+    const q = (document.getElementById('admin-content-search')?.value || '').toLowerCase().trim();
+    const cat = document.getElementById('admin-content-category-filter')?.value || '';
+
+    const filtered = adminContentCache.filter(r => {
+        const name = adminRecipeName(r).toLowerCase();
+        const author = (r.authorName || adminFridgeUserNameCache[r.authorId] || r.authorId || '').toLowerCase();
+        const idMatch = String(r.id).toLowerCase().includes(q);
+        const matchesQuery = !q || name.includes(q) || author.includes(q) || idMatch;
+        const matchesCategory = !cat || r.category === cat;
+        return matchesQuery && matchesCategory;
+    });
+    renderAdminContent(filtered);
+}
+
+// Быстрое снятие с публикации: один клик + короткое подтверждение — без перехода
+// на страницу рецепта. Рецепт переносится в rejected_recipes (автор увидит статус
+// в "Моих публикациях"), удаляется из public_recipes, автору уходит уведомление,
+// действие фиксируется в журнале администратора.
+async function quickUnpublishRecipe(id) {
+    const recipe = adminContentCache.find(r => String(r.id) === String(id));
+    if (!recipe) return;
+    const name = adminRecipeName(recipe);
+
+    if (!confirm(`Снять «${name}» с публикации?`)) return;
+
+    try {
+        const idStr = String(id);
+        const docRef = db.collection('public_recipes').doc(idStr);
+
+        await db.collection('rejected_recipes').add({
+            ...recipe,
+            rejectionReason: "Снято с публикации модератором.",
+            rejectedDate: new Date().toISOString()
+        });
+        await docRef.delete();
+
+        adminContentCache = adminContentCache.filter(r => String(r.id) !== idStr);
+        globalRecipes = (typeof globalRecipes !== 'undefined') ? globalRecipes.filter(r => r.id != id) : globalRecipes;
+        renderAdminContent(adminContentCache);
+
+        if (recipe.authorId) {
+            const userRef = db.collection(USER_COLLECTION).doc(recipe.authorId);
+            const userDoc = await userRef.get();
+            if (userDoc.exists) {
+                const notifs = userDoc.data().notifications || [];
+                notifs.push({
+                    id: Date.now(),
+                    type: 'error',
+                    message: `Ваш рецепт "${name}" был снят с публикации модератором.`,
+                    icon: 'fas fa-ban',
+                    date: new Date().toISOString(),
+                    read: false
+                });
+                await userRef.update({ notifications: notifs });
+            }
+        }
+
+        showToast(`«${name}» снят с публикации`, 'success');
+        logAdmin(`Быстро снят с публикации рецепт «${name}» (автор: ${recipe.authorName || recipe.authorId || 'Axio'})`, 'moderation');
+    } catch (e) {
+        console.error("Quick unpublish error:", e);
+        showToast('Не удалось снять с публикации: ' + (e && e.message ? e.message : 'ошибка'), 'error');
+    }
 }
 
 // Открывает модалку полного управления конкретным холодильником
@@ -11202,6 +11393,7 @@ const ADMIN_COMMANDS = [
     { label: 'Пользователи', icon: 'fa-users', action: () => switchAdminTab('users') },
     { label: 'Холодильники', icon: 'fa-kitchen-set', action: () => switchAdminTab('fridges') },
     { label: 'Модерация рецептов', icon: 'fa-gavel', action: () => switchAdminTab('pending') },
+    { label: 'Менеджер Контента', icon: 'fa-file-circle-xmark', action: () => switchAdminTab('contentmgr') },
     { label: 'Обратная связь', icon: 'fa-comment-dots', action: () => switchAdminTab('feedback') },
     { label: 'Пуш-Уведомления', icon: 'fa-bell', action: () => switchAdminTab('push') },
     { label: 'Инструменты', icon: 'fa-tools', action: () => switchAdminTab('content') },
@@ -13663,6 +13855,7 @@ function fallbackCopy(text) {
         <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('contentmgr')"><i class="fas fa-file-circle-xmark"></i> Менеджер Контента</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('feedback')"><i class="fas fa-comment-dots"></i> Обратная связь <span id="feedback-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('push')"><i class="fas fa-bell"></i> Пуш-Уведомления</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('content')"><i class="fas fa-tools"></i> Инструменты</button>
@@ -13822,6 +14015,41 @@ function fallbackCopy(text) {
             <div id="admin-pending-empty" class="admin-empty-state" style="display:none;">
                 <i class="fas fa-check-circle"></i>
                 <p>Все чисто! Заявок на публикацию нет.</p>
+            </div>
+        </div>
+
+        <div id="admin-tab-contentmgr" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5>Опубликованные рецепты</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="admin-content-search" placeholder="Поиск (название, автор, категория)..." oninput="filterAdminContent()">
+                    </div>
+                    <select id="admin-content-category-filter" class="styled-input" style="width:auto; padding:8px 10px;" onchange="filterAdminContent()">
+                        <option value="">Все категории</option>
+                    </select>
+                    <button class="small-action-btn" onclick="loadAdminContent(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <p style="color:var(--text-secondary); font-size:0.85em; margin:-6px 0 12px;">
+                Список всех рецептов, уже опубликованных в общей базе. «Снять с публикации» — быстрое одношаговое действие: рецепт сразу пропадает из общего доступа, автор получает уведомление, действие фиксируется в журнале.
+            </p>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Рецепт</th>
+                            <th>Автор</th>
+                            <th>Категория</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adm-content-list">
+                        <tr><td colspan="4" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
