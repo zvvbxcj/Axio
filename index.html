@@ -1096,6 +1096,26 @@
                     </div>
                 </div>
 
+                <!-- Подтверждение присоединения: показывается и после ручного ввода кода,
+                     и после сканирования QR — вступление в холодильник происходит только
+                     после явного нажатия "Присоединиться" в этой модалке. -->
+                <div id="fridge-join-confirm-modal" class="modal" style="z-index: 10080;" onclick="if(event.target.id === 'fridge-join-confirm-modal') cancelJoinFridge()">
+                    <div class="modal-content" style="max-width: 380px; text-align:center;">
+                        <div class="modal-header">
+                            <h4><i class="fas fa-right-to-bracket"></i> Присоединиться?</h4>
+                            <span class="modal-close" onclick="cancelJoinFridge()">&times;</span>
+                        </div>
+                        <div id="join-confirm-icon" style="font-size:48px; margin: 6px 0;">🧊</div>
+                        <div id="join-confirm-name" style="font-size:1.2em; font-weight:bold; color:var(--text-primary);"></div>
+                        <div id="join-confirm-owner" style="color:var(--text-secondary); font-size:0.9em; margin-top:4px;"></div>
+                        <p style="color:var(--text-secondary); font-size:13px; margin-top:14px;">Вы получите доступ к продуктам и списку покупок этого холодильника.</p>
+                        <div class="modal-actions">
+                            <button class="btn btn-secondary" onclick="cancelJoinFridge()">Отмена</button>
+                            <button class="btn btn-primary" onclick="confirmJoinFridge()">Присоединиться</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="fridge-view-manage" style="display:none;">
                     <div id="fridge-manage-body"></div>
                     <div class="modal-actions">
@@ -2041,7 +2061,9 @@ function checkJoinFridgeFromUrl() {
             showModal('fridge-select-modal');
             showFridgeView('join');
             const input = document.getElementById('join-fridge-code');
-            if (input) input.value = code.toUpperCase();
+            const upperCode = code.toUpperCase();
+            if (input) input.value = upperCode;
+            submitJoinFridge(upperCode);
         }, 400);
     } catch (e) { console.error("Join URL parse error", e); }
 }
@@ -2092,11 +2114,10 @@ async function openFridgeQrScanner() {
                 const code = extractFridgeCodeFromScan(decodedText);
                 if (!code) return;
                 await closeFridgeQrScanner();
+                showFridgeView('join');
                 const input = document.getElementById('join-fridge-code');
                 if (input) input.value = code;
-                showFridgeView('join');
-                showToast('Код считан: ' + code, 'success');
-                submitJoinFridge();
+                submitJoinFridge(code);
             },
             () => { /* кадр без QR-кода — игнорируем, это штатная ситуация */ }
         );
@@ -2155,7 +2176,9 @@ async function initFridges(legacyInventory, legacyShopping) {
             // Публичная запись для поиска по коду приглашения — без неё код
             // с "Личного" холодильника никуда не ведёт (см. submitCreateFridge).
             await db.collection('fridge_invites').doc(inviteCode).set({
-                fridgeId: newRef.id, owner: currentUser.uid, name: fridgeDoc.name, icon: fridgeDoc.icon
+                fridgeId: newRef.id, owner: currentUser.uid,
+                ownerName: currentUser.name || currentUser.telegramUsername || 'Пользователь',
+                name: fridgeDoc.name, icon: fridgeDoc.icon
             }).catch(e => console.error("Personal fridge invite create error", e));
             fridgeDoc.id = newRef.id;
             userFridges = [fridgeDoc];
@@ -2298,7 +2321,9 @@ async function submitCreateFridge() {
         await newRef.set(fridgeDoc);
         // Публичная запись для поиска по коду приглашения (без доступа к содержимому холодильника)
         await db.collection('fridge_invites').doc(fridgeDoc.inviteCode).set({
-            fridgeId: newRef.id, owner: currentUser.uid, name, icon: meta.icon
+            fridgeId: newRef.id, owner: currentUser.uid,
+            ownerName: currentUser.name || currentUser.telegramUsername || 'Пользователь',
+            name, icon: meta.icon
         });
 
         fridgeDoc.id = newRef.id;
@@ -2314,22 +2339,57 @@ async function submitCreateFridge() {
     }
 }
 
-async function submitJoinFridge() {
+// Найденное по коду приглашение, ожидающее подтверждения пользователем
+// в модалке "Присоединиться к холодильнику?".
+let pendingJoinInvite = null;
+
+// Шаг 1: ищем код приглашения и, если найден, показываем модалку
+// подтверждения — сразу не присоединяем. codeOverride используется при
+// сканировании QR, чтобы не зависеть от значения текстового поля.
+async function submitJoinFridge(codeOverride) {
     const codeInput = document.getElementById('join-fridge-code');
-    const code = codeInput.value.trim().toUpperCase();
+    const code = (codeOverride || (codeInput ? codeInput.value : '')).trim().toUpperCase();
     if (!code) return showToast('Введите код', 'warning');
     if (!currentUser) return;
 
     try {
         const inviteDoc = await db.collection('fridge_invites').doc(code).get();
         if (!inviteDoc.exists) return showToast('Код не найден', 'error');
-        const { fridgeId } = inviteDoc.data();
+        const { fridgeId, name, icon, ownerName } = inviteDoc.data();
 
         if (userFridges.find(f => f.id === fridgeId)) {
             showToast('Вы уже в этом холодильнике', 'warning');
             return switchActiveFridge(fridgeId);
         }
 
+        pendingJoinInvite = { fridgeId, name, icon };
+
+        const iconEl = document.getElementById('join-confirm-icon');
+        const nameEl = document.getElementById('join-confirm-name');
+        const ownerEl = document.getElementById('join-confirm-owner');
+        if (iconEl) iconEl.textContent = icon || '🧊';
+        if (nameEl) nameEl.textContent = name || 'Холодильник';
+        if (ownerEl) ownerEl.textContent = ownerName ? `Владелец: ${ownerName}` : '';
+
+        showModal('fridge-join-confirm-modal');
+    } catch (e) {
+        console.error("Join fridge lookup error", e);
+        showToast('Не удалось найти холодильник: ' + (e && e.code ? e.code : (e && e.message ? e.message : 'неизвестная ошибка')), 'error');
+    }
+}
+
+function cancelJoinFridge() {
+    pendingJoinInvite = null;
+    hideModal('fridge-join-confirm-modal');
+}
+
+// Шаг 2: пользователь подтвердил в модалке — теперь реально присоединяем.
+async function confirmJoinFridge() {
+    if (!pendingJoinInvite || !currentUser) return;
+    const { fridgeId } = pendingJoinInvite;
+    hideModal('fridge-join-confirm-modal');
+
+    try {
         if (activeFridgeId) await saveData();
 
         await db.collection('fridges').doc(fridgeId).update({
@@ -2347,6 +2407,8 @@ async function submitJoinFridge() {
     } catch (e) {
         console.error("Join fridge error", e);
         showToast('Не удалось присоединиться: ' + (e && e.code ? e.code : (e && e.message ? e.message : 'неизвестная ошибка')), 'error');
+    } finally {
+        pendingJoinInvite = null;
     }
 }
 
@@ -2504,7 +2566,9 @@ async function regenerateFridgeCode() {
         const oldCode = f.inviteCode;
         const newCode = generateInviteCode();
         await db.collection('fridge_invites').doc(newCode).set({
-            fridgeId: f.id, owner: f.owner, name: f.name, icon: f.icon
+            fridgeId: f.id, owner: f.owner,
+            ownerName: currentUser.name || currentUser.telegramUsername || 'Пользователь',
+            name: f.name, icon: f.icon
         });
         await db.collection('fridges').doc(f.id).update({ inviteCode: newCode });
         if (oldCode) db.collection('fridge_invites').doc(oldCode).delete().catch(() => {});
