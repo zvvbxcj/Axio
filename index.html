@@ -12286,25 +12286,60 @@ function renderPlanner() {
 }
 
 /* --- FEATURE 5: SMART IMPORT --- */
+// Распознаёт число + единицу измерения (л, мл, кг, г, шт — включая словоформы
+// и слитное написание типа "2л"/"500г") и вычищает их из названия товара.
+const IMPORT_UNIT_REGEX = /(\d+(?:[.,]\d+)?)\s*(литров|литра|литр|л|миллилитров|миллилитра|миллилитр|мл|килограммов|килограмма|килограмм|кг|граммов|грамма|грамм|гр|г|штук|штуки|шт)(?![а-яёa-z])/i;
+const IMPORT_UNIT_MAP = {
+    'л': 'л', 'литр': 'л', 'литра': 'л', 'литров': 'л',
+    'мл': 'мл', 'миллилитр': 'мл', 'миллилитра': 'мл', 'миллилитров': 'мл',
+    'кг': 'кг', 'килограмм': 'кг', 'килограмма': 'кг', 'килограммов': 'кг',
+    'г': 'г', 'гр': 'г', 'грамм': 'г', 'грамма': 'г', 'граммов': 'г',
+    'шт': 'шт', 'штук': 'шт', 'штуки': 'шт'
+};
+
+function parseImportLine(line) {
+    const trimmed = line.trim();
+    let qty = 1;
+    let unit = 'шт';
+    let name = trimmed;
+
+    const unitMatch = trimmed.match(IMPORT_UNIT_REGEX);
+    if (unitMatch) {
+        // Число явно привязано к единице измерения: "2л", "500 г", "1.5 кг"
+        qty = parseFloat(unitMatch[1].replace(',', '.'));
+        unit = IMPORT_UNIT_MAP[unitMatch[2].toLowerCase()] || 'шт';
+        name = trimmed.slice(0, unitMatch.index) + trimmed.slice(unitMatch.index + unitMatch[0].length);
+    } else {
+        // Единицы нет — число (если есть) считаем количеством штук
+        const numMatch = trimmed.match(/\d+(?:[.,]\d+)?/);
+        if (numMatch) {
+            qty = parseFloat(numMatch[0].replace(',', '.'));
+            name = trimmed.slice(0, numMatch.index) + trimmed.slice(numMatch.index + numMatch[0].length);
+        }
+    }
+
+    qty = (unit === 'шт') ? Math.max(1, Math.round(qty)) : Math.round(qty * 100) / 100;
+    name = name.replace(/\s{2,}/g, ' ').replace(/^[-–—.,;:]+|[-–—.,;:]+$/g, '').trim();
+
+    return { name, qty, unit };
+}
+
 function processTextImport() {
     const text = document.getElementById('import-textarea').value;
     if(!text) return;
-    
+
     const lines = text.split('\n');
     let count = 0;
     lines.forEach(line => {
         if(line.trim()) {
-            // Простая логика: если есть цифра, считаем это кол-вом
-            const match = line.match(/(\d+)/);
-            const qty = match ? parseInt(match[0]) : 1;
-            const name = line.replace(/\d+/, '').trim();
-            
+            const { name, qty, unit } = parseImportLine(line);
+
             if(name) {
                 userShopping.push({
                     id: Date.now() + count,
                     name: name,
                     qty: qty,
-                    unit: 'шт',
+                    unit: unit,
                     completed: false
                 });
                 count++;
