@@ -6543,6 +6543,46 @@ adsgram-task {
 .admin-modal-hint { color: var(--text-secondary); font-size: 0.85em; margin-bottom: 10px; }
 .admin-scroll-list { max-height: 400px; overflow-y: auto; }
 
+/* --- Расширенная аналитика: DAU/MAU, конверсия, топ-контент --- */
+.conversion-meter-row { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.conversion-meter-circle {
+    --pct: 0;
+    width: 108px; height: 108px; border-radius: 50%; flex-shrink: 0;
+    background: conic-gradient(var(--primary) calc(var(--pct) * 1%), var(--surface-light) 0);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+}
+.conversion-meter-circle::before {
+    content: ''; position: absolute; inset: 9px;
+    background: var(--surface); border-radius: 50%;
+}
+.conversion-meter-circle span {
+    position: relative; z-index: 1; font-size: 1.3em; font-weight: 800; color: var(--text-primary);
+}
+.conversion-meter-info { flex: 1; min-width: 220px; color: var(--text-secondary); font-size: 0.9em; line-height: 1.6; }
+
+.admin-top-content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 640px) { .admin-top-content-grid { grid-template-columns: 1fr; } }
+
+.top-content-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 10px;
+    background: var(--surface-light); border: 1px solid var(--border-color);
+    margin-bottom: 8px;
+}
+.top-content-item:last-child { margin-bottom: 0; }
+.top-content-rank {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(16, 185, 129, 0.15); color: var(--primary);
+    font-weight: 800; font-size: 0.8em;
+    display: flex; align-items: center; justify-content: center;
+}
+.top-content-name {
+    flex: 1; min-width: 0; font-size: 0.9em; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.top-content-count { font-size: 0.85em; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+
 /* --- Мобильная адаптация: во весь экран на узких экранах --- */
 @media (max-width: 560px) {
     .admin-shell {
@@ -6786,4 +6826,157 @@ adsgram-task {
 .push-trigger-text {
     font-size: 0.85em;
     resize: vertical;
+}
+/* =========================================================================
+   АДМИН: ANALYTICS HUB — расширенная глобальная статистика
+   ========================================================================= */
+
+.analytics-hub-nav {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 14px 0 20px;
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg-main, var(--surface));
+    padding: 6px 0;
+}
+.analytics-hub-pill {
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    transition: 0.18s;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+}
+.analytics-hub-pill:hover { color: var(--text-primary); border-color: var(--primary); }
+.analytics-hub-pill i { color: var(--primary); }
+
+.analytics-hub-section { scroll-margin-top: 54px; margin-bottom: 26px; }
+.analytics-section-title {
+    display: flex; align-items: center; gap: 10px;
+    margin: 0 0 12px;
+    font-size: 1em; font-weight: 800; color: var(--text-primary);
+}
+.analytics-section-title i {
+    width: 32px; height: 32px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(16, 185, 129, 0.12); color: var(--primary); font-size: 0.9em;
+}
+.analytics-section-sub {
+    font-size: 0.78em; font-weight: 500; color: var(--text-secondary);
+    margin-left: auto;
+}
+
+/* --- Воронка онбординга --- */
+.funnel-wrap { display: flex; flex-direction: column; gap: 4px; }
+.funnel-step { display: flex; flex-direction: column; gap: 4px; }
+.funnel-step-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-size: 0.85em;
+}
+.funnel-step-label { color: var(--text-primary); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.funnel-step-label .funnel-step-num {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--primary); color: #fff; font-size: 0.72em; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.funnel-step-count { color: var(--text-primary); font-weight: 800; }
+.funnel-step-pct { color: var(--text-secondary); font-size: 0.9em; margin-left: 6px; }
+.funnel-bar-track {
+    width: 100%; height: 30px; border-radius: 8px;
+    background: var(--surface-light, rgba(148,163,184,0.12));
+    overflow: hidden;
+}
+.funnel-bar-fill {
+    height: 100%; border-radius: 8px;
+    background: linear-gradient(90deg, var(--primary-dark, var(--primary)), var(--primary));
+    transition: width 0.5s ease;
+    min-width: 3%;
+}
+.funnel-drop {
+    font-size: 0.72em; color: var(--error); font-weight: 700;
+    display: flex; align-items: center; gap: 4px;
+    margin: 2px 0 4px 2px;
+}
+.funnel-drop i { font-size: 0.8em; }
+
+/* --- Тепловая карта активности --- */
+.heatmap-scroll { overflow-x: auto; padding-bottom: 4px; }
+.heatmap-grid-wrap { min-width: 620px; }
+.heatmap-hours-row {
+    display: grid; grid-template-columns: 46px repeat(24, 1fr);
+    gap: 3px; margin-bottom: 3px;
+}
+.heatmap-hour-lbl { font-size: 0.62em; color: var(--text-secondary); text-align: center; }
+.heatmap-day-row {
+    display: grid; grid-template-columns: 46px repeat(24, 1fr);
+    gap: 3px; margin-bottom: 3px; align-items: center;
+}
+.heatmap-day-lbl { font-size: 0.72em; color: var(--text-secondary); font-weight: 700; }
+.heatmap-cell {
+    aspect-ratio: 1 / 1; border-radius: 4px;
+    background: var(--surface-light, rgba(148,163,184,0.12));
+    min-width: 18px; min-height: 18px;
+    transition: transform 0.12s;
+}
+.heatmap-cell:hover { transform: scale(1.25); position: relative; z-index: 2; }
+.heatmap-legend {
+    display: flex; align-items: center; gap: 6px; margin-top: 10px;
+    font-size: 0.72em; color: var(--text-secondary);
+}
+.heatmap-legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+/* --- Метрики парами (сред. размер холодильника / шеринг) --- */
+.metric-duo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 640px) { .metric-duo-grid { grid-template-columns: 1fr; } }
+.metric-duo-card {
+    background: var(--surface-light, rgba(148,163,184,0.08));
+    border: 1px solid var(--border-color);
+    border-radius: 12px; padding: 14px;
+    display: flex; align-items: center; gap: 12px;
+}
+.metric-duo-icon {
+    width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1em;
+}
+.metric-duo-val { font-size: 1.3em; font-weight: 800; color: var(--text-primary); line-height: 1.1; }
+.metric-duo-lbl { font-size: 0.72em; color: var(--text-secondary); margin-top: 2px; }
+
+.donut-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.donut-canvas-box { width: 130px; height: 130px; flex-shrink: 0; position: relative; }
+.donut-legend { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 8px; }
+.donut-legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: var(--text-primary); }
+.donut-legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.donut-legend-val { margin-left: auto; font-weight: 800; }
+
+/* --- AI Chef --- */
+.ai-chef-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+@media (max-width: 640px) { .ai-chef-stats-row { grid-template-columns: 1fr 1fr; } }
+.ai-chef-empty-hint {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: rgba(139, 92, 246, 0.08); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 12px 14px; margin-top: 10px;
+    font-size: 0.8em; color: var(--text-secondary); line-height: 1.5;
+}
+.ai-chef-empty-hint i { color: var(--accent); margin-top: 2px; }
+
+/* --- Причины скрытия рецептов --- */
+.reason-bar-list { display: flex; flex-direction: column; gap: 12px; }
+.reason-bar-item { display: flex; flex-direction: column; gap: 5px; }
+.reason-bar-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.85em; }
+.reason-bar-name { display: flex; align-items: center; gap: 8px; color: var(--text-primary); font-weight: 600; }
+.reason-bar-count { font-weight: 800; color: var(--text-primary); }
+.reason-bar-track { height: 10px; border-radius: 6px; background: var(--surface-light, rgba(148,163,184,0.12)); overflow: hidden; }
+.reason-bar-fill { height: 100%; border-radius: 6px; transition: width 0.4s ease; }
+
+/* --- Мобильная адаптация Analytics Hub --- */
+@media (max-width: 560px) {
+    .analytics-hub-nav { gap: 6px; }
+    .analytics-hub-pill { padding: 6px 10px; font-size: 0.75em; }
+    .ai-chef-stats-row { grid-template-columns: 1fr 1fr; }
+    .heatmap-hour-lbl { font-size: 0.55em; }
 }

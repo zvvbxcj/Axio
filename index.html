@@ -5198,7 +5198,7 @@ async function checkSystemStatus(uid) {
             const status = conf.serverStatus || (conf.maintenanceMode ? 'maintenance' : 'online');
             const msg = conf.message || "Ведутся работы";
 
-            // 1. MAINTENANCE (Закрываем доступ всем, кроме админа)
+            // MAINTENANCE (Закрываем доступ всем, кроме админа)
             if (status === 'maintenance') {
                 if (uid === ADMIN_UID) {
                     showToast("⚠️ Режим ТЕХ. РАБОТ (Вы Админ)", "warning");
@@ -5207,24 +5207,6 @@ async function checkSystemStatus(uid) {
                     showMaintenanceScreen(msg); 
                     return false; 
                 }
-            }
-
-            // 2. READ ONLY (Уведомляем и ставим флаг)
-            if (status === 'readonly') {
-                if (uid !== ADMIN_UID) {
-                    showToast("🔵 Режим 'Только чтение'. Сохранение отключено.", "info");
-                    window.isReadOnlyMode = true; // Используй этот флаг в saveData()
-                }
-            }
-
-            // 3. OVERLOAD (Просто предупреждение)
-            if (status === 'overload') {
-                showToast("🔴 Высокая нагрузка. Возможны задержки.", "warning");
-            }
-            
-            // Сброс флага если Online
-            if (status === 'online') {
-                window.isReadOnlyMode = false;
             }
         }
     } catch (e) { console.error("Status check failed", e); }
@@ -5244,6 +5226,7 @@ async function checkSystemStatus(uid) {
 }
 
 // Отображение экрана блокировки
+// type: "ban" — экран бана, либо текст сообщения тех. работ (или undefined/пусто — покажем текст по умолчанию)
 function showMaintenanceScreen(type) {
     const screen = document.getElementById('maintenance-screen');
     const title = document.getElementById('maint-title');
@@ -5263,7 +5246,17 @@ function showMaintenanceScreen(type) {
         document.getElementById('maint-retry-btn').style.display = 'none'; // Скрываем кнопку "Проверить" для забаненных
     } else {
         screen.classList.remove('banned-mode');
-        // Стандартный текст уже в HTML
+        // Восстанавливаем стандартную иконку и кнопку — экран мог до этого показывать бан другого юзера в этой же сессии
+        iconContainer.innerHTML = '<i class="fas fa-tools maint-tools"></i><i class="fas fa-utensils maint-utensils"></i>';
+        document.getElementById('maint-retry-btn').style.display = '';
+        title.innerText = "Кухня закрыта";
+
+        // Сообщение, заданное администратором в панели, подставляем сюда.
+        // Раньше эта ветка ничего не делала, из-за чего сохранённый текст никогда не показывался пользователю.
+        const customMsg = (typeof type === 'string') ? type.trim() : '';
+        text.innerHTML = customMsg
+            ? escapeHtml(customMsg).replace(/\n/g, '<br>')
+            : "Шеф-повар проводит инвентаризацию и обновление меню.<br>Axio скоро вернется!";
     }
 }
 
@@ -6007,6 +6000,9 @@ let adminFridgeUserNameCache = {}; // uid -> имя, чтобы не дерга�
 let adminContentCache = []; // опубликованные рецепты для "Менеджера Контента"
 let managingAdminFridgeId = null;
 let adminDauChart = null; // Chart.js инстанс графика DAU/MAU
+let adminFoodWasteChart = null; // Chart.js инстанс доната "Списание vs Использование"
+let adminSharingChart = null; // Chart.js инстанс доната "Личные vs Совместные холодильники"
+let adminXpLevelChart = null; // Chart.js инстанс бар-чарта распределения уровней
 
 function openAdminPanel() {
     if (!currentUser || currentUser.uid !== ADMIN_UID) {
@@ -6427,24 +6423,19 @@ async function updateServerStatus(status) {
     const btn = document.getElementById(`state-btn-${status}`);
     if(btn) btn.classList.add('active');
 
-    // 2. Логика статусов
-    let maintenanceMode = false;
-    let isDevMode = false;
-
-    if (status === 'maintenance') maintenanceMode = true;
-    if (status === 'dev') isDevMode = true; // Приватный режим
+    // 2. Логика статусов (осталось только 2 состояния: online / maintenance)
+    let maintenanceMode = (status === 'maintenance');
 
     try {
         await db.collection('global_settings').doc('config').set({
             serverStatus: status,
             maintenanceMode: maintenanceMode,
-            devMode: isDevMode,
+            devMode: false,
         }, { merge: true });
         
         const labels = {
             'online': 'Штатный режим',
             'maintenance': 'Тех. Работы',
-            'dev': 'Приватный режим',
         };
 
         showToast(`Статус сервера: ${labels[status]}`, "success");
@@ -12723,12 +12714,19 @@ async function renderDetailedStats() {
         
         container.innerHTML = html;
 
-        // Расширенная аналитика: DAU/MAU, конверсия в первый товар, топ-контент.
+        // Расширенная аналитика (Analytics Hub): DAU/MAU, воронка онбординга, тепловая карта
+        // активности, топ-контент, отходы, шеринг, AI Chef, причины дизлайков, уровни.
         // Каждая функция сама себя изолирует try/catch — падение одной не должно
         // портить остальные блоки.
         renderDauMauChart();
-        renderConversionMetric();
+        renderOnboardingFunnel();
+        renderPeakHoursHeatmap();
         renderTopContent();
+        renderFoodWasteRate();
+        renderFridgeSharingMetrics();
+        renderAIChefMetrics();
+        renderDislikeReasonsChart();
+        renderXPLevelDistribution();
 
     } catch (e) {
         console.error(e);
@@ -12916,7 +12914,7 @@ async function renderTopProducts() {
             });
         });
 
-        const top = Object.values(tally).sort((a, b) => b.count - a.count).slice(0, 5);
+        const top = Object.values(tally).sort((a, b) => b.count - a.count).slice(0, 10);
 
         if (top.length === 0) {
             list.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-inbox"></i><p>Нет добавлений с датой за последние 30 дней</p></div>';
@@ -12932,6 +12930,475 @@ async function renderTopProducts() {
     } catch (e) {
         console.error('Top products error:', e);
         list.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+    }
+}
+
+/* ============================================================
+   АДМИН: ANALYTICS HUB — расширенная глобальная статистика
+   (воронка онбординга, тепловая карта, отходы, шеринг,
+   AI Chef, причины дизлайков, распределение по уровням)
+   ============================================================ */
+
+// --- 1. Воронка онбординга: Регистрация → Холодильник → Первый товар → Первый рецепт ---
+async function renderOnboardingFunnel() {
+    const container = document.getElementById('onboarding-funnel-container');
+    if (!container) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+        if (!adminFridgesCache || adminFridgesCache.length === 0) await loadAdminFridges(true);
+
+        const registered = allUsersCache.length || 0;
+
+        const joinedFridgeUids = new Set();
+        const addedProductUids = new Set();
+        adminFridgesCache.forEach(f => {
+            (f.members || []).forEach(uid => joinedFridgeUids.add(uid));
+            if ((f.items || []).length > 0) {
+                (f.members || []).forEach(uid => addedProductUids.add(uid));
+            }
+        });
+
+        const cookedFirstRecipe = allUsersCache.filter(u => (u.cookedDishes || 0) > 0).length;
+
+        const steps = [
+            { label: 'Зарегистрировался', icon: 'fa-user-plus', count: registered },
+            { label: 'Создал/присоединился к холодильнику', icon: 'fa-kitchen-set', count: joinedFridgeUids.size },
+            { label: 'Добавил первый продукт', icon: 'fa-carrot', count: addedProductUids.size },
+            { label: 'Приготовил первый рецепт', icon: 'fa-utensils', count: cookedFirstRecipe }
+        ];
+
+        const base = steps[0].count || 1;
+        let html = '';
+        steps.forEach((step, idx) => {
+            const pctOfTotal = Math.round((step.count / base) * 100);
+            if (idx > 0) {
+                const prevCount = steps[idx - 1].count || 0;
+                const dropPct = prevCount > 0 ? Math.round(((prevCount - step.count) / prevCount) * 100) : 0;
+                if (dropPct > 0) {
+                    html += `<div class="funnel-drop"><i class="fas fa-arrow-turn-down"></i> Отвал на этом шаге: ${dropPct}%</div>`;
+                }
+            }
+            html += `
+                <div class="funnel-step">
+                    <div class="funnel-step-head">
+                        <span class="funnel-step-label"><span class="funnel-step-num">${idx + 1}</span> <i class="fas ${step.icon}"></i> ${step.label}</span>
+                        <span><span class="funnel-step-count">${step.count}</span><span class="funnel-step-pct">${pctOfTotal}%</span></span>
+                    </div>
+                    <div class="funnel-bar-track">
+                        <div class="funnel-bar-fill" style="width:${Math.max(pctOfTotal, 3)}%;"></div>
+                    </div>
+                </div>`;
+        });
+
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('Onboarding funnel error:', e);
+        container.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка расчёта: ${e.message}</p></div>`;
+    }
+}
+
+// --- 2. Тепловая карта пиковых часов активности (по activity_log за 30 дней) ---
+async function renderPeakHoursHeatmap() {
+    const container = document.getElementById('activity-heatmap-container');
+    if (!container) return;
+
+    const dayLabels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+    try {
+        const startDate = dateStringNDaysAgo(29);
+        const snap = await db.collection('activity_log').where('date', '>=', startDate).get();
+
+        // matrix[dayOfWeek(0=Пн..6=Вс)][hour(0-23)] = count
+        const matrix = Array.from({ length: 7 }, () => new Array(24).fill(0));
+        let maxCount = 0;
+
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (!d.ts || typeof d.ts.toDate !== 'function') return;
+            const dt = d.ts.toDate();
+            const jsDay = dt.getDay(); // 0=Вс..6=Сб
+            const rowIdx = jsDay === 0 ? 6 : jsDay - 1; // переводим в 0=Пн..6=Вс
+            const hour = dt.getHours();
+            matrix[rowIdx][hour]++;
+            if (matrix[rowIdx][hour] > maxCount) maxCount = matrix[rowIdx][hour];
+        });
+
+        if (maxCount === 0) {
+            container.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-inbox"></i><p>Пока нет данных об активности</p></div>';
+            return;
+        }
+
+        let hoursRowHtml = '<div class="heatmap-hours-row"><div></div>';
+        for (let h = 0; h < 24; h++) {
+            hoursRowHtml += `<div class="heatmap-hour-lbl">${h % 3 === 0 ? h : ''}</div>`;
+        }
+        hoursRowHtml += '</div>';
+
+        let bodyHtml = '';
+        for (let dRow = 0; dRow < 7; dRow++) {
+            bodyHtml += `<div class="heatmap-day-row"><div class="heatmap-day-lbl">${dayLabels[dRow]}</div>`;
+            for (let h = 0; h < 24; h++) {
+                const count = matrix[dRow][h];
+                const intensity = count / maxCount;
+                const bg = count === 0
+                    ? ''
+                    : `background: rgba(16, 185, 129, ${Math.max(0.12, intensity).toFixed(2)});`;
+                bodyHtml += `<div class="heatmap-cell" style="${bg}" title="${dayLabels[dRow]}, ${h}:00 — ${count} польз."></div>`;
+            }
+            bodyHtml += '</div>';
+        }
+
+        container.innerHTML = `
+            <div class="heatmap-scroll">
+                <div class="heatmap-grid-wrap">
+                    ${hoursRowHtml}
+                    ${bodyHtml}
+                </div>
+            </div>
+            <div class="heatmap-legend">
+                <span>Меньше</span>
+                <span class="heatmap-legend-swatch" style="background:rgba(16,185,129,0.12);"></span>
+                <span class="heatmap-legend-swatch" style="background:rgba(16,185,129,0.4);"></span>
+                <span class="heatmap-legend-swatch" style="background:rgba(16,185,129,0.7);"></span>
+                <span class="heatmap-legend-swatch" style="background:rgba(16,185,129,1);"></span>
+                <span>Больше</span>
+            </div>`;
+    } catch (e) {
+        console.error('Peak hours heatmap error:', e);
+        container.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка расчёта: ${e.message}</p></div>`;
+    }
+}
+
+// --- 3. Food Waste Rate: списано (просрочено/выброшено) vs использовано, по всем пользователям ---
+async function renderFoodWasteRate() {
+    const canvas = document.getElementById('foodWasteChart');
+    const legend = document.getElementById('food-waste-legend');
+    if (!canvas || !legend) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+
+        let wasted = 0, used = 0;
+        allUsersCache.forEach(u => {
+            wasted += (u.stats && u.stats.wastedCount) || 0;
+            used += (u.stats && u.stats.usedCount) || 0;
+        });
+
+        const total = wasted + used;
+        const wastePct = total > 0 ? Math.round((wasted / total) * 100) : 0;
+
+        if (adminFoodWasteChart) adminFoodWasteChart.destroy();
+        const ctx = canvas.getContext('2d');
+        adminFoodWasteChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Выброшено/Просрочено', 'Использовано/Приготовлено'],
+                datasets: [{
+                    data: total === 0 ? [1, 0] : [wasted, used],
+                    backgroundColor: ['#EF4444', '#10B981'],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '68%',
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        legend.innerHTML = `
+            <div class="donut-legend-item"><span class="donut-legend-swatch" style="background:#EF4444;"></span> Выброшено <span class="donut-legend-val">${wasted}</span></div>
+            <div class="donut-legend-item"><span class="donut-legend-swatch" style="background:#10B981;"></span> Использовано <span class="donut-legend-val">${used}</span></div>
+            <div class="donut-legend-item" style="border-top:1px solid var(--border-color); padding-top:6px; margin-top:2px;">Доля отходов <span class="donut-legend-val" style="color:${wastePct > 50 ? 'var(--error)' : 'var(--text-primary)'}">${wastePct}%</span></div>`;
+    } catch (e) {
+        console.error('Food waste rate error:', e);
+        legend.innerHTML = `<div style="color:var(--error);">Ошибка: ${e.message}</div>`;
+    }
+}
+
+// --- 4. Средний размер холодильника + Шеринг-активность (Личные vs Совместные) ---
+async function renderFridgeSharingMetrics() {
+    const avgSizeEl = document.getElementById('avg-fridge-size-val');
+    const avgMembersEl = document.getElementById('avg-shared-members-val');
+    const canvas = document.getElementById('sharingChart');
+    const legend = document.getElementById('sharing-legend');
+    if (!avgSizeEl && !canvas) return;
+
+    try {
+        if (!adminFridgesCache || adminFridgesCache.length === 0) await loadAdminFridges(true);
+
+        const activeFridges = adminFridgesCache.filter(f => (f.items || []).length > 0);
+        const totalItems = activeFridges.reduce((sum, f) => sum + (f.items || []).length, 0);
+        const avgSize = activeFridges.length > 0 ? (totalItems / activeFridges.length).toFixed(1) : '0';
+        if (avgSizeEl) avgSizeEl.textContent = avgSize;
+
+        const personalFridges = adminFridgesCache.filter(f => f.type === 'personal');
+        const sharedFridges = adminFridgesCache.filter(f => f.type !== 'personal');
+        const avgMembers = sharedFridges.length > 0
+            ? (sharedFridges.reduce((sum, f) => sum + (f.members || []).length, 0) / sharedFridges.length).toFixed(1)
+            : '0';
+        if (avgMembersEl) avgMembersEl.textContent = avgMembers;
+
+        if (!canvas || !legend) return;
+
+        if (adminSharingChart) adminSharingChart.destroy();
+        const ctx = canvas.getContext('2d');
+        const totalFridges = adminFridgesCache.length || 1;
+        adminSharingChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Личные', 'Совместные'],
+                datasets: [{
+                    data: [personalFridges.length, sharedFridges.length],
+                    backgroundColor: ['#3B82F6', '#F59E0B'],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '68%',
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const personalPct = Math.round((personalFridges.length / totalFridges) * 100);
+        const sharedPct = 100 - personalPct;
+        legend.innerHTML = `
+            <div class="donut-legend-item"><span class="donut-legend-swatch" style="background:#3B82F6;"></span> Личные <span class="donut-legend-val">${personalFridges.length} (${personalPct}%)</span></div>
+            <div class="donut-legend-item"><span class="donut-legend-swatch" style="background:#F59E0B;"></span> Совместные <span class="donut-legend-val">${sharedFridges.length} (${sharedPct}%)</span></div>`;
+    } catch (e) {
+        console.error('Fridge/sharing metrics error:', e);
+        if (legend) legend.innerHTML = `<div style="color:var(--error);">Ошибка: ${e.message}</div>`;
+    }
+}
+
+// --- 5. AI Chef: метрики генераций ---
+// Пишем в новую коллекцию 'ai_chef_log' через window.axioLogAIChefGeneration(durationMs, success, recipeId).
+// Ниже есть попытка автоматически обернуть распространённые имена функций генерации (см. installAIChefTracking),
+// но если ai_chef.js использует другое имя — просто вызовите window.axioLogAIChefGeneration(...) вручную
+// сразу после получения (или ошибки) ответа от AI, чтобы метрики стали точными.
+async function renderAIChefMetrics() {
+    const todayEl = document.getElementById('ai-gen-today-val');
+    const monthEl = document.getElementById('ai-gen-month-val');
+    const avgTimeEl = document.getElementById('ai-gen-avgtime-val');
+    const convValEl = document.getElementById('ai-conversion-val');
+    const convDescEl = document.getElementById('ai-conversion-desc');
+    const convCircleEl = document.getElementById('ai-conversion-circle');
+    const emptyHint = document.getElementById('ai-chef-empty-hint');
+    if (!todayEl) return;
+
+    try {
+        const startDate = dateStringNDaysAgo(29);
+        const snap = await db.collection('ai_chef_log').where('date', '>=', startDate).get();
+
+        if (snap.empty) {
+            todayEl.textContent = '—'; monthEl.textContent = '—'; avgTimeEl.textContent = '—';
+            if (convValEl) convValEl.textContent = '—';
+            if (convDescEl) convDescEl.textContent = 'Данных о генерациях AI Chef пока нет.';
+            if (emptyHint) emptyHint.style.display = 'flex';
+            return;
+        }
+        if (emptyHint) emptyHint.style.display = 'none';
+
+        const todayStr = getLocalDateString();
+        let todayCount = 0, monthCount = 0, totalDuration = 0, durationSamples = 0;
+        const generatedRecipeIds = new Set();
+
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (d.success === false) return; // считаем успешные генерации
+            monthCount++;
+            if (d.date === todayStr) todayCount++;
+            if (typeof d.durationMs === 'number') { totalDuration += d.durationMs; durationSamples++; }
+            if (d.recipeId) generatedRecipeIds.add(String(d.recipeId));
+        });
+
+        todayEl.textContent = todayCount;
+        monthEl.textContent = monthCount;
+        avgTimeEl.textContent = durationSamples > 0 ? (totalDuration / durationSamples / 1000).toFixed(1) + ' с' : '—';
+
+        // Конверсия: доля сгенерированных рецептов (с известным id), которые были сохранены
+        // в избранное или приготовлены хотя бы одним пользователем.
+        if (generatedRecipeIds.size === 0) {
+            if (convValEl) convValEl.textContent = '—';
+            if (convDescEl) convDescEl.textContent = 'Для расчёта конверсии AI Chef должен передавать recipeId в лог генерации.';
+            if (convCircleEl) convCircleEl.style.setProperty('--pct', 0);
+            return;
+        }
+
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+        const keptRecipeIds = new Set();
+        allUsersCache.forEach(u => {
+            (u.favorites || []).forEach(id => keptRecipeIds.add(String(id)));
+            (u.history || []).forEach(h => { if (h.type === 'cook' && h.recipeId) keptRecipeIds.add(String(h.recipeId)); });
+        });
+
+        let convertedCount = 0;
+        generatedRecipeIds.forEach(id => { if (keptRecipeIds.has(id)) convertedCount++; });
+        const convPct = Math.round((convertedCount / generatedRecipeIds.size) * 100);
+
+        if (convValEl) convValEl.textContent = convPct + '%';
+        if (convCircleEl) convCircleEl.style.setProperty('--pct', convPct);
+        if (convDescEl) {
+            convDescEl.innerHTML = `<b>${convertedCount}</b> из <b>${generatedRecipeIds.size}</b> сгенерированных AI рецептов пользователи сохранили в избранное или приготовили.`;
+        }
+    } catch (e) {
+        console.error('AI Chef metrics error:', e);
+        todayEl.textContent = '—'; monthEl.textContent = '—'; avgTimeEl.textContent = '—';
+        if (convDescEl) convDescEl.textContent = 'Ошибка расчёта: ' + e.message;
+    }
+}
+
+// Экспонируем глобальную функцию логирования для ai_chef.js (или любой другой точки вызова AI).
+// durationMs: время ответа AI в миллисекундах. success: true/false. recipeId: опционально, id сгенерированного рецепта.
+window.axioLogAIChefGeneration = function (durationMs, success, recipeId) {
+    try {
+        if (typeof db === 'undefined' || !db) return;
+        db.collection('ai_chef_log').add({
+            date: getLocalDateString(),
+            ts: firebase.firestore.FieldValue.serverTimestamp(),
+            durationMs: typeof durationMs === 'number' ? durationMs : null,
+            success: success !== false,
+            recipeId: recipeId || null,
+            uid: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : null
+        }).catch(e => console.warn('AI Chef log write failed', e));
+    } catch (e) { /* не критично — аналитика не должна ломать генерацию рецептов */ }
+};
+
+// Пытаемся автоматически обернуть распространённые имена функций генерации рецептов через AI,
+// чтобы метрики заполнялись без правок ai_chef.js. Если ни одно из имён не найдено — ничего не делаем;
+// используйте window.axioLogAIChefGeneration(...) вручную внутри ai_chef.js.
+function installAIChefTracking() {
+    const candidateNames = ['generateAIRecipe', 'generateRecipeWithAI', 'aiGenerateRecipe', 'runAIChef'];
+    candidateNames.forEach(fnName => {
+        if (typeof window[fnName] !== 'function' || window[fnName]._axioWrapped) return;
+        const original = window[fnName];
+        const wrapped = function (...args) {
+            const startTs = Date.now();
+            let result;
+            try {
+                result = original.apply(this, args);
+            } catch (err) {
+                window.axioLogAIChefGeneration(Date.now() - startTs, false);
+                throw err;
+            }
+            if (result && typeof result.then === 'function') {
+                return result.then(
+                    (val) => { window.axioLogAIChefGeneration(Date.now() - startTs, true); return val; },
+                    (err) => { window.axioLogAIChefGeneration(Date.now() - startTs, false); throw err; }
+                );
+            }
+            window.axioLogAIChefGeneration(Date.now() - startTs, true);
+            return result;
+        };
+        wrapped._axioWrapped = true;
+        window[fnName] = wrapped;
+    });
+}
+document.addEventListener('DOMContentLoaded', () => setTimeout(installAIChefTracking, 500));
+
+// --- 6. Причины скрытия (дизлайка) рецептов ---
+async function renderDislikeReasonsChart() {
+    const container = document.getElementById('dislike-reasons-container');
+    if (!container) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+
+        const counts = { taste: 0, ingredients: 0, complexity: 0, other: 0 };
+        let total = 0;
+        allUsersCache.forEach(u => {
+            (u.dislikes || []).forEach(d => {
+                const reason = counts.hasOwnProperty(d.reason) ? d.reason : 'other';
+                counts[reason]++;
+                total++;
+            });
+        });
+
+        if (total === 0) {
+            container.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-face-smile"></i><p>Пока никто не скрывал рецепты</p></div>';
+            return;
+        }
+
+        const meta = (typeof FEEDBACK_REASON_LABELS !== 'undefined') ? FEEDBACK_REASON_LABELS : {
+            taste: { label: 'Невкусно', icon: 'fa-utensils', color: '#EF4444' },
+            ingredients: { label: 'Сложные ингредиенты', icon: 'fa-carrot', color: '#F59E0B' },
+            complexity: { label: 'Слишком сложно', icon: 'fa-clock', color: '#3B82F6' },
+            other: { label: 'Другое', icon: 'fa-ellipsis', color: 'var(--text-secondary)' }
+        };
+
+        const ordered = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+        container.innerHTML = ordered.map(([key, count]) => {
+            const m = meta[key] || meta.other;
+            const pct = Math.round((count / total) * 100);
+            return `
+                <div class="reason-bar-item">
+                    <div class="reason-bar-head">
+                        <span class="reason-bar-name"><i class="fas ${m.icon}" style="color:${m.color};"></i> ${escapeHtml(m.label)}</span>
+                        <span class="reason-bar-count">${count} <span style="color:var(--text-secondary); font-weight:500;">(${pct}%)</span></span>
+                    </div>
+                    <div class="reason-bar-track">
+                        <div class="reason-bar-fill" style="width:${Math.max(pct, 2)}%; background:${m.color};"></div>
+                    </div>
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Dislike reasons chart error:', e);
+        container.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+    }
+}
+
+// --- 7. XP Level Distribution: сколько пользователей на каждом уровне ---
+async function renderXPLevelDistribution() {
+    const canvas = document.getElementById('xpLevelChart');
+    if (!canvas) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+
+        const buckets = {}; // '1'..'9', '10+'
+        allUsersCache.forEach(u => {
+            const lvl = u.level || 1;
+            const key = lvl >= 10 ? '10+' : String(lvl);
+            buckets[key] = (buckets[key] || 0) + 1;
+        });
+
+        const labels = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+'];
+        const values = labels.map(l => buckets[l] || 0);
+
+        if (adminXpLevelChart) adminXpLevelChart.destroy();
+        const ctx = canvas.getContext('2d');
+        adminXpLevelChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.map(l => 'Ур. ' + l),
+                datasets: [{
+                    label: 'Пользователей',
+                    data: values,
+                    backgroundColor: 'rgba(139, 92, 246, 0.55)',
+                    borderRadius: 4,
+                    barPercentage: 0.85,
+                    categoryPercentage: 0.9
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#94A3B8' }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: '#94A3B8', precision: 0 }, grid: { color: 'rgba(148,163,184,0.1)' } }
+                }
+            }
+        });
+    } catch (e) {
+        console.error('XP level distribution error:', e);
     }
 }
 
@@ -13906,15 +14373,6 @@ function fallbackCopy(text) {
                         </div>
                         <i class="fas fa-check-circle state-check"></i>
                     </label>
-
-                    <label class="server-state-btn" id="state-btn-dev" onclick="updateServerStatus('dev')">
-                        <div class="state-dot" style="background:#8B5CF6; box-shadow: 0 0 8px #8B5CF6;"></div>
-                        <div class="state-info">
-                            <strong>Приватный режим</strong>
-                            <span>Вход только для админов</span>
-                        </div>
-                        <i class="fas fa-check-circle state-check"></i>
-                    </label>
                 </div>
 
                 <div class="admin-maint-message">
@@ -14316,58 +14774,180 @@ function fallbackCopy(text) {
 
         <div id="admin-tab-stats" class="admin-tab-content" style="display:none;">
             <div class="admin-toolbar">
-                <h5><i class="fas fa-chart-bar"></i> Глобальная аналитика</h5>
-                <button class="small-action-btn" onclick="renderDetailedStats()"><i class="fas fa-sync"></i> Обновить</button>
+                <h5><i class="fas fa-chart-bar"></i> Analytics Hub</h5>
+                <button class="small-action-btn" onclick="renderDetailedStats()"><i class="fas fa-sync"></i> Обновить всё</button>
             </div>
 
-            <div id="mega-stats-container" class="stats-grid-mega">
-                <div class="admin-table-loading" style="width:100%;">Загрузка данных аналитики...</div>
+            <div class="analytics-hub-nav">
+                <a href="#ah-overview" class="analytics-hub-pill"><i class="fas fa-gauge-high"></i> Обзор</a>
+                <a href="#ah-activity" class="analytics-hub-pill"><i class="fas fa-users"></i> Активность</a>
+                <a href="#ah-inventory" class="analytics-hub-pill"><i class="fas fa-kitchen-set"></i> Продукты</a>
+                <a href="#ah-content" class="analytics-hub-pill"><i class="fas fa-robot"></i> Рецепты и AI</a>
+                <a href="#ah-business" class="analytics-hub-pill"><i class="fas fa-chart-pie"></i> Бизнес</a>
             </div>
 
-            <div class="admin-panel-card admin-panel-card-spaced">
-                <h5><i class="fas fa-chart-line"></i> DAU / MAU</h5>
-                <div class="admin-stats-row" style="margin-bottom:15px;">
-                    <div class="admin-stat-widget">
-                        <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-day"></i></div>
-                        <div><div class="stat-val" id="dau-today-val">—</div><div class="stat-lbl">DAU сегодня</div></div>
-                    </div>
-                    <div class="admin-stat-widget">
-                        <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-calendar-days"></i></div>
-                        <div><div class="stat-val" id="mau-30d-val">—</div><div class="stat-lbl">MAU (30 дней)</div></div>
-                    </div>
-                    <div class="admin-stat-widget">
-                        <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-percent"></i></div>
-                        <div><div class="stat-val" id="dau-mau-ratio-val">—</div><div class="stat-lbl">Стикинес (DAU/MAU)</div></div>
-                    </div>
-                </div>
-                <div style="position:relative; height:220px;">
-                    <canvas id="dauChart"></canvas>
-                </div>
-                <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
-                    Число уникальных пользователей, открывавших приложение в каждый из последних 30 дней. Один визит в сутки = 1 отметка.
-                </p>
-            </div>
-
-            <div class="admin-panel-card admin-panel-card-spaced">
-                <h5><i class="fas fa-bullseye"></i> Конверсия в первый товар</h5>
-                <div class="conversion-meter-row">
-                    <div class="conversion-meter-circle" id="conversion-meter-circle">
-                        <span id="conversion-meter-val">—</span>
-                    </div>
-                    <div class="conversion-meter-info" id="conversion-meter-desc">Загрузка данных...</div>
+            <!-- ============ ОБЗОР ============ -->
+            <div id="ah-overview" class="analytics-hub-section">
+                <div id="mega-stats-container" class="stats-grid-mega">
+                    <div class="admin-table-loading" style="width:100%;">Загрузка данных аналитики...</div>
                 </div>
             </div>
 
-            <div class="admin-panel-card admin-panel-card-spaced">
-                <div class="admin-top-content-grid">
-                    <div>
-                        <h5><i class="fas fa-trophy"></i> Топ-5 рецептов</h5>
-                        <div id="top-recipes-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+            <!-- ============ 1. АКТИВНОСТЬ И УДЕРЖАНИЕ ============ -->
+            <div id="ah-activity" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-users"></i> Активность и удержание</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-chart-line"></i> DAU / MAU</h5>
+                    <div class="admin-stats-row" style="margin-bottom:15px;">
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-day"></i></div>
+                            <div><div class="stat-val" id="dau-today-val">—</div><div class="stat-lbl">DAU сегодня</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-calendar-days"></i></div>
+                            <div><div class="stat-val" id="mau-30d-val">—</div><div class="stat-lbl">MAU (30 дней)</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-percent"></i></div>
+                            <div><div class="stat-val" id="dau-mau-ratio-val">—</div><div class="stat-lbl">Стикинес (DAU/MAU)</div></div>
+                        </div>
                     </div>
-                    <div>
-                        <h5><i class="fas fa-carrot"></i> Топ продуктов <span style="font-weight:400; font-size:0.75em; color:var(--text-secondary);">(30 дней)</span></h5>
-                        <div id="top-products-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                    <div style="position:relative; height:220px;">
+                        <canvas id="dauChart"></canvas>
                     </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Число уникальных пользователей, открывавших приложение в каждый из последних 30 дней. Один визит в сутки = 1 отметка.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-filter"></i> Воронка онбординга</h5>
+                    <div id="onboarding-funnel-container" class="funnel-wrap">
+                        <div class="admin-table-loading">Загрузка данных...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Регистрация → холодильник → первый товар → первый рецепт. Шаги считаются по независимым признакам (владение холодильником, наличие товаров, счётчик приготовленных блюд), поэтому в редких случаях возможны небольшие расхождения с идеальной монотонностью.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-fire"></i> Пиковые часы активности</h5>
+                    <div id="activity-heatmap-container">
+                        <div class="admin-table-loading">Загрузка данных...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Тепловая карта по дням недели и часам суток за последние 30 дней. Строится по первой ежедневной отметке присутствия пользователя — хороший ориентир для времени Push-рассылок, но не отражает все открытия приложения за день.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============ 2. ПРОДУКТЫ И ХОЛОДИЛЬНИКИ ============ -->
+            <div id="ah-inventory" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-kitchen-set"></i> Продукты и холодильники</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-carrot"></i> Топ-10 популярных продуктов <span style="font-weight:400; font-size:0.75em; color:var(--text-secondary);">(30 дней)</span></h5>
+                    <div id="top-products-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-trash-can"></i> Списание vs Использование продуктов</h5>
+                    <div class="donut-row">
+                        <div class="donut-canvas-box"><canvas id="foodWasteChart"></canvas></div>
+                        <div class="donut-legend" id="food-waste-legend">
+                            <div class="admin-table-loading">Загрузка...</div>
+                        </div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Продукты, отмеченные «Просрочено» / выброшенные, против продуктов, реально использованных в рецептах — суммарно по всем пользователям.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-boxes-stacked"></i> Средний чек и шеринг</h5>
+                    <div class="metric-duo-grid" style="margin-bottom:14px;">
+                        <div class="metric-duo-card">
+                            <div class="metric-duo-icon" style="background:rgba(16,185,129,0.12); color:#10B981;"><i class="fas fa-box-open"></i></div>
+                            <div>
+                                <div class="metric-duo-val" id="avg-fridge-size-val">—</div>
+                                <div class="metric-duo-lbl">Ср. товаров в активном холодильнике</div>
+                            </div>
+                        </div>
+                        <div class="metric-duo-card">
+                            <div class="metric-duo-icon" style="background:rgba(139,92,246,0.12); color:#8B5CF6;"><i class="fas fa-user-group"></i></div>
+                            <div>
+                                <div class="metric-duo-val" id="avg-shared-members-val">—</div>
+                                <div class="metric-duo-lbl">Ср. участников в совместном холодильнике</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="donut-row">
+                        <div class="donut-canvas-box"><canvas id="sharingChart"></canvas></div>
+                        <div class="donut-legend" id="sharing-legend">
+                            <div class="admin-table-loading">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. РЕЦЕПТЫ И AI CHEF ============ -->
+            <div id="ah-content" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-robot"></i> Рецепты и AI Chef</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-wand-magic-sparkles"></i> Метрики AI Chef</h5>
+                    <div class="ai-chef-stats-row">
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-bolt"></i></div>
+                            <div><div class="stat-val" id="ai-gen-today-val">—</div><div class="stat-lbl">Сегодня</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-days"></i></div>
+                            <div><div class="stat-val" id="ai-gen-month-val">—</div><div class="stat-lbl">За 30 дней</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-stopwatch"></i></div>
+                            <div><div class="stat-val" id="ai-gen-avgtime-val">—</div><div class="stat-lbl">Ср. время ответа</div></div>
+                        </div>
+                    </div>
+                    <div class="conversion-meter-row">
+                        <div class="conversion-meter-circle" id="ai-conversion-circle">
+                            <span id="ai-conversion-val">—</span>
+                        </div>
+                        <div class="conversion-meter-info" id="ai-conversion-desc">Загрузка данных...</div>
+                    </div>
+                    <div id="ai-chef-empty-hint" class="ai-chef-empty-hint" style="display:none;">
+                        <i class="fas fa-circle-info"></i>
+                        <span>Сбор аналитики AI Chef подключён (коллекция <code>ai_chef_log</code>), но данных пока нет — счётчик наполнится после первых генераций рецептов.</span>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-face-frown"></i> Причины скрытия рецептов</h5>
+                    <div id="dislike-reasons-container" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-trophy"></i> Топ-5 рецептов</h5>
+                    <div id="top-recipes-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                </div>
+            </div>
+
+            <!-- ============ 4. BUSINESS METRICS ============ -->
+            <div id="ah-business" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-chart-pie"></i> Business Metrics</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-ranking-star"></i> Распределение по уровням (XP Level)</h5>
+                    <div style="position:relative; height:240px;">
+                        <canvas id="xpLevelChart"></canvas>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Сколько пользователей находится на каждом уровне. Помогает оценить, не слишком ли быстро/медленно балансируется геймификация.
+                    </p>
                 </div>
             </div>
         </div>
