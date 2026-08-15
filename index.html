@@ -1134,11 +1134,11 @@
         </div>
         
         <div class="settings-section">
-            <div class="settings-row" id="push-notif-row">
-                <div class="settings-row-left">
-                    <div class="settings-row-icon"><i class="fas fa-bell"></i></div>
-                    <div class="settings-row-text">
-                        <div class="settings-row-title">Push-уведомления</div>
+            <div class="settings-row notif-settings-row" id="push-notif-row">
+                <div class="notif-row-left">
+                    <div class="notif-icon-badge"><i class="fas fa-bell"></i></div>
+                    <div class="notif-row-text">
+                        <div class="notif-row-title">Push-уведомления</div>
                         <div class="push-notif-status" id="push-notif-status"><i class="fas fa-circle-notch fa-spin"></i> Проверка статуса…</div>
                     </div>
                 </div>
@@ -1149,12 +1149,7 @@
             </div>
 
             <div class="settings-row">
-                <div class="settings-row-left">
-                    <div class="settings-row-icon"><i class="fas fa-circle-half-stroke"></i></div>
-                    <div class="settings-row-text">
-                        <div class="settings-row-title" data-translate="ThemeLabel">Тема оформления</div>
-                    </div>
-                </div>
+                <div class="sticker-label" data-translate="ThemeLabel">Тема оформления</div>
                 <input type="checkbox" id="theme-switch" class="theme-toggle-input" />
                 <label for="theme-switch" class="theme-toggle-wrapper">
                     <div class="theme-icon moon"><i class="fas fa-moon"></i></div>
@@ -1162,72 +1157,62 @@
                     <div class="theme-toggle-circle"></div>
                 </label>
             </div>
+            
+            <div class="settings-row luxury-lang-row">
+    <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
 
-            <div class="settings-row" id="language-row">
-                <div class="settings-row-left">
-                    <div class="settings-row-icon"><i class="fas fa-language"></i></div>
-                    <div class="settings-row-text">
-                        <div class="settings-row-title" data-translate="LanguageLabel">Язык интерфейса</div>
-                    </div>
-                </div>
-
-                <!-- Языковой "паспорт" — теперь компактная плашка справа в строке -->
-                <div class="lang-picker-luxury" id="lang-picker">
-                    <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
-                        <div class="lang-seal">
-                            <div class="lang-seal-ring"></div>
-                            <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
-                        </div>
-                        <div class="lang-info">
-                            <span class="lang-picker-name" id="lang-picker-name">Русский</span>
-                        </div>
-                        <div class="lang-arrow-icon">
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                    </button>
-
-                    <!-- Компактная панель: 3 быстрых языка + переход в полный список -->
-                    <div class="lang-picker-panel glass-panel" id="lang-picker-panel">
-                        <div class="lang-panel-header">
-                            <i class="fas fa-bolt"></i> <span data-translate="QuickLanguageTitle">Быстрый выбор</span>
-                        </div>
-                        <div class="lang-options-grid" id="lang-quick-grid">
-                        </div>
-
-                        <button type="button" class="lang-more-btn" onclick="openLangModal()">
-                            <span class="lang-more-icon"><i class="fas fa-earth-europe"></i></span>
-                            <span class="lang-more-text">
-                                <span data-translate="MoreLanguages">Ещё языки мира</span>
-                                <small id="lang-more-count">+22</small>
-                            </span>
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <select id="language-select" class="lang-native-fallback" aria-hidden="true">
-                </select>
+    <!-- Языковой "паспорт" -->
+    <div class="lang-picker-luxury" id="lang-picker">
+        <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
+            <div class="lang-seal">
+                <div class="lang-seal-ring"></div>
+                <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
             </div>
+            <div class="lang-info">
+                <span class="lang-picker-name" id="lang-picker-name">Русский</span>
+            </div>
+            <div class="lang-arrow-icon">
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </button>
+
+        <!-- Компактная панель: 3 быстрых языка + переход в полный список -->
+        <div class="lang-picker-panel glass-panel" id="lang-picker-panel">
+            <div class="lang-panel-header">
+                <i class="fas fa-bolt"></i> <span data-translate="QuickLanguageTitle">Быстрый выбор</span>
+            </div>
+            <div class="lang-options-grid" id="lang-quick-grid">
+            </div>
+
+            <button type="button" class="lang-more-btn" onclick="openLangModal()">
+                <span class="lang-more-icon"><i class="fas fa-earth-europe"></i></span>
+                <span class="lang-more-text">
+                    <span data-translate="MoreLanguages">Ещё языки мира</span>
+                    <small id="lang-more-count">+22</small>
+                </span>
+                <i class="fas fa-chevron-right"></i>
+            </button>
         </div>
+    </div>
+
+    <select id="language-select" class="lang-native-fallback" aria-hidden="true">
+    </select>
+</div>
 
         <div class="settings-section">
-            <div class="settings-row settings-row--action" onclick="openAllergiesModal()">
-                <div class="settings-row-left">
-                    <div class="settings-row-icon"><i class="fas fa-shield-virus"></i></div>
-                    <div class="settings-row-text">
-                        <div class="settings-row-title">Пищевые ограничения</div>
-                    </div>
-                </div>
-                <div class="settings-row-value">
-                    <i class="fas fa-chevron-right settings-row-chevron"></i>
-                </div>
+            <div class="settings-block-title" style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
+                <span>⚠️ Пищевые ограничения</span>
+                <button class="small-action-btn" onclick="openAllergiesModal()" style="font-size: 0.8em; padding: 4px 10px;">
+                    <i class="fas fa-pen"></i> Изменить
+                </button>
             </div>
-
-            <div id="active-allergens-display" class="settings-allergens-wrap">
-                <span class="settings-allergens-empty">Нет ограничений</span>
+            
+            <div id="active-allergens-display" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 20px; margin-top: 10px;">
+                <span style="font-size: 0.85em; color: var(--text-secondary); font-style: italic;">Нет ограничений</span>
             </div>
-
-            <div id="blacklist-tags" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        </div>        
+    
+    <div id="blacklist-tags" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
     </div>
 </div>

@@ -535,114 +535,26 @@
 #state-btn-overload.active { border-color: #EF4444; background: rgba(239, 68, 68, 0.1); }
 #state-btn-overload.active .state-check { color: #EF4444; }
 
-/* --- SETTINGS: UNIFIED PREMIUM ROW SYSTEM (based on the Language row) --- */
+/* --- UI FIX: Settings Spacing --- */
 .settings-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px 0;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-color);
 }
-.settings-section + .settings-section {
-    margin-top: 4px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border-color);
+.settings-section:last-child {
+    border-bottom: none;
 }
-
 .settings-row {
-    position: relative;
-    display: flex;
+    display: flex; 
+    justify-content: space-between; 
     align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 13px 16px;
-    border-radius: 18px;
-    background: linear-gradient(135deg, var(--surface-light), var(--surface));
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 14px -8px rgba(0,0,0,0.3);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    margin-bottom: 15px;
 }
-/* Примечание: сама "плашка" языка (.lang-picker-trigger) уже несёт золотой
-   блик при наведении (со своим собственным overflow:hidden) — здесь на
-   уровне строки overflow не задаём, иначе выпадающая панель выбора языка
-   (глубже во вложенности) будет обрезаться границами строки. */
-.settings-row:hover {
-    border-color: rgba(255, 215, 0, 0.35);
-    box-shadow: 0 6px 18px -8px rgba(255, 215, 0, 0.18);
-}
-.settings-row.is-on {
-    border-color: rgba(16, 185, 129, 0.35);
-    box-shadow: 0 6px 18px -8px rgba(16,185,129,0.28);
-}
-.settings-row--action { cursor: pointer; }
-
-.settings-row-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-.settings-row-icon {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05em;
-    color: var(--text-secondary);
-    background: var(--surface-lighter);
-    border: 1px solid var(--border-color);
-    transition: 0.3s;
-}
-.settings-row.is-on .settings-row-icon {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #fff;
-    border-color: transparent;
-    box-shadow: 0 4px 10px rgba(16,185,129,0.35);
-}
-
-.settings-row-text { min-width: 0; }
-.settings-row-title {
-    font-weight: 700;
-    font-size: 0.98em;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.settings-row-value {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-    font-size: 0.85em;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-.settings-row-chevron { font-size: 0.75em; opacity: 0.55; }
-
 .settings-block-title {
     font-size: 1em; 
     font-weight: 600; 
     color: var(--text-primary); 
     margin-bottom: 10px;
     display: block;
-}
-
-.settings-allergens-wrap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    min-height: 20px;
-    padding: 0 4px;
-}
-.settings-allergens-empty {
-    font-size: 0.85em;
-    color: var(--text-secondary);
-    font-style: italic;
 }
 
 /* --- LOGOUT BUTTON (top of profile card) --- */
@@ -675,18 +587,74 @@
 
 .logout-btn-top i { font-size: 0.95em; }
 
-/* --- PREMIUM NOTIFICATION SETTINGS ROW ---
-   Card look, icon badge and title/value now come from the unified
-   .settings-row / .settings-row-icon / .settings-row-title system above;
-   this block only keeps the status-pill styling that is specific to
-   notifications (the on/off/blocked chip rendered under the title). */
+/* --- PREMIUM NOTIFICATION SETTINGS ROW --- */
+.notif-settings-row {
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--surface-light), var(--surface));
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 14px -8px rgba(0,0,0,0.3);
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.notif-settings-row.is-on {
+    border-color: rgba(16, 185, 129, 0.35);
+    box-shadow: 0 6px 18px -8px rgba(16,185,129,0.28);
+}
+
+.notif-row-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.notif-icon-badge {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1em;
+    color: var(--text-secondary);
+    background: var(--surface-lighter);
+    border: 1px solid var(--border-color);
+    transition: 0.3s;
+}
+
+.notif-settings-row.is-on .notif-icon-badge {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 10px rgba(16,185,129,0.35);
+}
+
+.notif-row-text { min-width: 0; }
+
+.notif-row-title {
+    font-weight: 700;
+    font-size: 1em;
+    color: var(--text-primary);
+}
+
+.notif-row-desc {
+    font-size: 0.78em;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    line-height: 1.35;
+}
+
 .push-notif-status {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     font-size: 0.75em;
     font-weight: 700;
-    margin-top: 4px;
+    margin-top: 6px;
     padding: 3px 9px;
     border-radius: 20px;
 }
@@ -4157,26 +4125,26 @@ adsgram-task {
             filter: brightness(1.1);
         }
         
-        /* Settings Switches — resized to match the premium-switch (56x32) used
-           for notifications, so every control in the row occupies the same
-           footprint on the right-hand side of the unified settings row. */
+        /* Settings Switches */
+        .sticker-switch-container { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-top: 1px solid var(--border-color); }
+        .sticker-label { font-size: 1.1em; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+        
         .theme-toggle-wrapper {
-            position: relative; width: 56px; height: 32px; flex-shrink: 0;
-            background: var(--surface-lighter); border: 1px solid var(--border-color);
-            border-radius: 40px; cursor: pointer; padding: 3px; transition: 0.35s;
+            position: relative; width: 80px; height: 40px; background: var(--surface-light);
+            border-radius: 40px; cursor: pointer; padding: 4px; transition: 0.4s;
             box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
             display: flex; align-items: center; justify-content: space-between;
         }
         .theme-toggle-input { display: none; }
-        .theme-icon { z-index: 1; width: 24px; text-align: center; font-size: 0.85em; transition: 0.35s; }
+        .theme-icon { z-index: 1; width: 32px; text-align: center; font-size: 1.2em; transition: 0.4s; }
         .theme-icon.moon { color: #fff; opacity: 1; }
         .theme-icon.sun { color: var(--text-secondary); opacity: 0.3; }
         .theme-toggle-circle {
-            position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+            position: absolute; top: 4px; left: 4px; width: 32px; height: 32px;
             background: var(--surface); border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            transition: 0.35s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transition: 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
         }
-        .theme-toggle-input:checked + .theme-toggle-wrapper .theme-toggle-circle { transform: translateX(26px); background: #FFD700; }
+        .theme-toggle-input:checked + .theme-toggle-wrapper .theme-toggle-circle { transform: translateX(40px); background: #FFD700; }
         .theme-toggle-input:checked + .theme-toggle-wrapper .theme-icon.moon { color: var(--text-secondary); opacity: 0.3; }
         .theme-toggle-input:checked + .theme-toggle-wrapper .theme-icon.sun { color: #FFA500; opacity: 1; }
 
@@ -4978,28 +4946,24 @@ adsgram-task {
     transform: rotate(90deg); 
 }
 
-/* Контейнер триггера — компактная "плашка" в правой части строки настроек,
-   а не полноширинный блок: единый строчный формат наравне с остальными
-   переключателями (Push-уведомления, Тема). */
+/* Контейнер триггера */
 .lang-picker-luxury {
     position: relative;
-    width: auto;
-    max-width: none;
-    flex-shrink: 0;
+    width: 100%;
+    max-width: 320px;
 }
 
 .lang-picker-trigger {
     display: flex;
     align-items: center;
-    gap: 8px;
-    justify-content: flex-start;
-    width: auto;
-    padding: 5px 12px 5px 5px;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 16px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 999px;
+    border-radius: 16px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -5058,15 +5022,14 @@ adsgram-task {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-grow: 0;
-    margin-left: 0;
+    flex-grow: 1;
+    margin-left: 12px;
 }
 
 .lang-picker-name {
     font-weight: 600;
-    font-size: 13px;
+    font-size: 15px;
     color: #fff;
-    white-space: nowrap;
 }
 .light-theme .lang-picker-name { color: var(--text-primary); }
 
@@ -5086,21 +5049,17 @@ adsgram-task {
 
 .lang-arrow-icon {
     color: rgba(255, 255, 255, 0.5);
-    font-size: 11px;
+    font-size: 12px;
     transition: transform 0.3s ease;
 }
 .light-theme .lang-arrow-icon { color: rgba(15, 23, 42, 0.4); }
 
-/* Выпадающая премиум-панель — теперь триггер компактный (плашка справа
-   в строке), поэтому панель раскрывается от его правого края фиксированной
-   шириной, а не растягивается на всю строку настроек. */
+/* Выпадающая премиум-панель */
 .glass-panel {
     position: absolute;
     top: calc(100% + 8px);
+    left: 0;
     right: 0;
-    left: auto;
-    width: 272px;
-    max-width: calc(100vw - 80px);
     background: rgba(20, 20, 28, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -5220,8 +5179,8 @@ adsgram-task {
 /* Флаг-"печать": круглый флаг в золотом кольце вместо квадратного бейджа */
 .lang-seal {
     position: relative;
-    width: 26px;
-    height: 26px;
+    width: 34px;
+    height: 34px;
     flex-shrink: 0;
     border-radius: 50%;
     display: flex;
