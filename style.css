@@ -557,6 +557,195 @@
     display: block;
 }
 
+/* ============================================================
+   UNIFIED PREMIUM SETTINGS ROW — единый строчный формат
+   Эталон — блок «Язык интерфейса»: иконка + подпись слева,
+   компактный контрол справа, всё в одну строку.
+   ============================================================ */
+.settings-section-premium {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 4px 0 6px;
+}
+
+.settings-row-premium {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 13px 14px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--surface-light), var(--surface));
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 14px -8px rgba(0,0,0,0.3);
+    transition: border-color 0.3s, box-shadow 0.3s, transform 0.25s;
+}
+
+.settings-row-premium.is-clickable,
+.settings-row-clickable {
+    cursor: pointer;
+}
+
+.settings-row-premium.is-clickable:hover {
+    border-color: rgba(255, 215, 0, 0.4);
+    box-shadow: 0 6px 20px -8px rgba(255, 215, 0, 0.2);
+    transform: translateY(-1px);
+}
+
+.settings-row-premium.is-on {
+    border-color: rgba(16, 185, 129, 0.35);
+    box-shadow: 0 6px 18px -8px rgba(16,185,129,0.28);
+}
+
+/* Строка «Пищевые ограничения» может занимать чуть больше места из-за тегов */
+.settings-row-premium-tall {
+    align-items: flex-start;
+}
+.settings-row-premium-tall .settings-row-control {
+    padding-top: 10px;
+}
+
+.settings-row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.settings-row-icon {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05em;
+    color: var(--text-secondary);
+    background: var(--surface-lighter);
+    border: 1px solid var(--border-color);
+    transition: 0.3s;
+    overflow: hidden;
+}
+
+.settings-row-premium.is-on .settings-row-icon {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 10px rgba(16,185,129,0.35);
+}
+
+/* Иконка-печать для строки языка — сама иконка становится флагом-медальоном */
+.settings-row-icon.lang-row-icon {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.settings-row-text { min-width: 0; }
+
+.settings-row-title {
+    font-weight: 700;
+    font-size: 0.9em;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+
+.settings-row-desc {
+    font-size: 0.78em;
+    color: var(--text-secondary);
+    margin-top: 3px;
+    line-height: 1.35;
+}
+
+.settings-row-control {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Компактный чип-значение справа (использован в строке языка) */
+.settings-row-value-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 6px 12px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+.settings-row-value-trigger:hover {
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 4px 14px rgba(255, 215, 0, 0.15);
+    transform: translateY(-1px);
+}
+.light-theme .settings-row-value-trigger {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.05), rgba(15, 23, 42, 0.015));
+    border-color: rgba(15, 23, 42, 0.12);
+}
+.light-theme .settings-row-value-trigger:hover {
+    border-color: rgba(217, 119, 6, 0.5);
+    box-shadow: 0 4px 14px rgba(217, 119, 6, 0.12);
+}
+.settings-row-value-trigger::after {
+    content: "";
+    position: absolute;
+    top: 0; left: -150%;
+    width: 55%; height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255, 215, 0, 0.16), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.6s ease;
+    pointer-events: none;
+}
+.settings-row-value-trigger:hover::after { left: 150%; }
+
+.settings-row-value-text {
+    font-weight: 600;
+    font-size: 0.8em;
+    color: #fff;
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.light-theme .settings-row-value-text { color: var(--text-primary); }
+
+.settings-row-chevron {
+    font-size: 0.72em;
+    color: rgba(255, 255, 255, 0.5);
+    transition: transform 0.3s ease;
+}
+.light-theme .settings-row-chevron { color: rgba(15, 23, 42, 0.4); }
+
+.lang-picker-luxury.open .settings-row-value-trigger .settings-row-chevron {
+    transform: rotate(180deg);
+}
+
+/* Теги пищевых ограничений внутри единой строки */
+.allergens-tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.allergens-empty-hint {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+@media (max-width: 430px) {
+    .settings-row-premium .push-notif-status { display: none; }
+}
+
 /* --- LOGOUT BUTTON (top of profile card) --- */
 .logout-btn-top {
     position: absolute;
@@ -587,67 +776,10 @@
 
 .logout-btn-top i { font-size: 0.95em; }
 
-/* --- PREMIUM NOTIFICATION SETTINGS ROW --- */
-.notif-settings-row {
-    align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    border-radius: 18px;
-    background: linear-gradient(135deg, var(--surface-light), var(--surface));
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 14px -8px rgba(0,0,0,0.3);
-    transition: border-color 0.3s, box-shadow 0.3s;
-}
-
-.notif-settings-row.is-on {
-    border-color: rgba(16, 185, 129, 0.35);
-    box-shadow: 0 6px 18px -8px rgba(16,185,129,0.28);
-}
-
-.notif-row-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-.notif-icon-badge {
-    flex-shrink: 0;
-    width: 42px;
-    height: 42px;
-    border-radius: 13px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1em;
-    color: var(--text-secondary);
-    background: var(--surface-lighter);
-    border: 1px solid var(--border-color);
-    transition: 0.3s;
-}
-
-.notif-settings-row.is-on .notif-icon-badge {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #fff;
-    border-color: transparent;
-    box-shadow: 0 4px 10px rgba(16,185,129,0.35);
-}
-
-.notif-row-text { min-width: 0; }
-
-.notif-row-title {
-    font-weight: 700;
-    font-size: 1em;
-    color: var(--text-primary);
-}
-
-.notif-row-desc {
-    font-size: 0.78em;
-    color: var(--text-secondary);
-    margin-top: 2px;
-    line-height: 1.35;
-}
-
+/* --- PREMIUM NOTIFICATION STATUS BADGE ---
+   Строка уведомлений теперь использует общий .settings-row-premium
+   (см. блок "UNIFIED PREMIUM SETTINGS ROW" выше); здесь остаётся
+   только сам статус-бейдж и переключатель. --- */
 .push-notif-status {
     display: inline-flex;
     align-items: center;
@@ -4148,6 +4280,12 @@ adsgram-task {
         .theme-toggle-input:checked + .theme-toggle-wrapper .theme-icon.moon { color: var(--text-secondary); opacity: 0.3; }
         .theme-toggle-input:checked + .theme-toggle-wrapper .theme-icon.sun { color: #FFA500; opacity: 1; }
 
+        /* Компактная версия переключателя темы для единой строки настроек */
+        .theme-toggle-wrapper-compact { width: 64px; height: 34px; padding: 3px; }
+        .theme-toggle-wrapper-compact .theme-icon { width: 26px; font-size: 1em; }
+        .theme-toggle-wrapper-compact .theme-toggle-circle { width: 28px; height: 28px; top: 3px; left: 3px; }
+        .theme-toggle-input:checked + .theme-toggle-wrapper-compact .theme-toggle-circle { transform: translateX(30px); }
+
         /* Recipe Detail Modal Styles */
         #recipe-detail-modal .modal-content { max-width: 550px; padding: 0; }
         .recipe-detail-img { width: 100%; height: 200px; object-fit: cover; border-top-left-radius: 20px; border-top-right-radius: 20px; }
@@ -4451,13 +4589,6 @@ adsgram-task {
     object-fit: cover;
     background: var(--surface-light);
 }
-
-/* ============================================================
-   PREMIUM MEAL PLANNER — Календарный планировщик питания
-   Золотисто-стеклянная премиальная тема, единый язык с
-   .lang-picker-luxury. Все интерактивные элементы остаются
-   видимыми без hover (приложение — мобильный Telegram Mini App).
-   ============================================================ */
 
 #meal-planner-modal .planner-modal-content {
     max-width: 900px;
@@ -4960,6 +5091,20 @@ adsgram-task {
     max-width: 320px;
 }
 
+/* Внутри единой строки настроек триггер языка — компактный чип,
+   а не блок на всю ширину; выпадающая панель при этом сохраняет
+   удобную ширину и раскрывается вправо-вниз от чипа. */
+.settings-row-premium .lang-picker-luxury {
+    width: auto;
+    max-width: none;
+    flex-shrink: 0;
+}
+.settings-row-premium .lang-picker-luxury .lang-picker-panel {
+    left: auto;
+    right: 0;
+    width: min(300px, 82vw);
+}
+
 .lang-picker-trigger {
     display: flex;
     align-items: center;
@@ -5212,6 +5357,15 @@ adsgram-task {
     animation: langSealSpin 14s linear infinite;
 }
 @keyframes langSealSpin { to { transform: rotate(360deg); } }
+
+/* Компактная «печать»-флаг, используемая как иконка в единой строке настроек */
+.lang-seal-compact {
+    width: 28px;
+    height: 28px;
+}
+.lang-seal-compact .lang-flag-img {
+    border-width: 1.5px;
+}
 
 /* Кнопка "Ещё языки мира" в компактной панели */
 .lang-more-btn {
