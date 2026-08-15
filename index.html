@@ -5108,11 +5108,13 @@ const DELIVERY_CATEGORIES = [
 
 let currentDeliverySearchQuery = '';
 let currentDeliveryCategoryId = 'marketplaces';
+let currentDeliveryCartItems = null;
 
-function openDeliverySearch(productName, isCart = false, itemsCount = 0) {
+function openDeliverySearch(productName, isCart = false, itemsCount = 0, cartItems = null) {
     if (!productName) return;
     currentDeliverySearchQuery = productName;
     currentDeliveryCategoryId = 'marketplaces';
+    currentDeliveryCartItems = isCart ? cartItems : null;
 
     const chipIcon = document.getElementById('delivery-search-chip-icon');
     const chipPrefix = document.getElementById('delivery-search-chip-prefix');
@@ -5123,7 +5125,7 @@ function openDeliverySearch(productName, isCart = false, itemsCount = 0) {
         if (chipIcon) chipIcon.className = 'fas fa-cart-shopping';
         if (chipPrefix) chipPrefix.textContent = 'Вся корзина:';
         if (nameEl) nameEl.textContent = `${itemsCount} ${pluralizeItems(itemsCount)}`;
-        if (hintEl) hintEl.textContent = 'Откроется поиск сразу по всем товарам списка на выбранной площадке';
+        if (hintEl) hintEl.textContent = 'Откроется отдельная вкладка поиска по каждому товару — добавьте их в корзину на сайте и оформите один заказ. Если браузер заблокирует часть вкладок, разрешите всплывающие окна для Axio';
     } else {
         if (chipIcon) chipIcon.className = 'fas fa-magnifying-glass';
         if (chipPrefix) chipPrefix.textContent = 'Ищем:';
@@ -5153,8 +5155,8 @@ function orderAllShopping() {
         return;
     }
 
-    const query = activeItems.map(s => s.name).join(', ');
-    openDeliverySearch(query, true, activeItems.length);
+    const names = activeItems.map(s => s.name);
+    openDeliverySearch(names.join(', '), true, names.length, names);
 }
 
 function renderDeliveryTabs() {
@@ -5200,7 +5202,32 @@ function renderDeliveryGrid() {
 function goToDeliveryOption(catId, itemId) {
     const cat = DELIVERY_CATEGORIES.find(c => c.id === catId);
     const item = cat && cat.items.find(i => i.id === itemId);
-    if (!item || !currentDeliverySearchQuery) return;
+    if (!item) return;
+
+    // Режим "вся корзина": открываем отдельную вкладку поиска по каждому товару,
+    // так как ни один из сервисов не позволяет добавить чужой список товаров
+    // в корзину пользователя по одной ссылке — это требует официального
+    // партнёрского доступа и авторизации на стороне площадки.
+    if (currentDeliveryCartItems && currentDeliveryCartItems.length) {
+        const names = currentDeliveryCartItems;
+
+        if (isTelegramEnv() && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+            // В Telegram Mini App одновременно можно открыть только одну ссылку —
+            // открываем первый товар и предупреждаем про остальные.
+            window.Telegram.WebApp.openLink(item.buildUrl(names[0]));
+            if (names.length > 1) {
+                showToast(`Открыт поиск по первому товару. В Telegram нельзя открыть сразу ${names.length} вкладок — откройте Axio в браузере, чтобы открыть все товары разом.`, 'warning');
+            }
+        } else {
+            names.forEach(name => window.open(item.buildUrl(name), '_blank'));
+            showToast(`Открыто вкладок: ${names.length}. Добавьте товары в корзину на сайте и оформите один заказ.`, 'success');
+        }
+
+        hideModal('delivery-search-modal');
+        return;
+    }
+
+    if (!currentDeliverySearchQuery) return;
 
     const url = item.buildUrl(currentDeliverySearchQuery);
 
@@ -6018,8 +6045,7 @@ async function submitNewRecipe(isPublic = false) {
 }
 
 // адрес Worker'а
-const RECIPE_IMPORT_ENDPOINT = 'axio-parser-resept.ast-maksima.workers.dev
-';
+const RECIPE_IMPORT_ENDPOINT = 'https://axio-parser-resept.ast-maksima.workers.dev';
 
 const IMPORT_ERROR_MESSAGES = {
     missing_url: 'Не передана ссылка.',
