@@ -329,7 +329,7 @@
 
             <div class="main-content">
                 
-                <section id="inventory-section" class="section active">
+                <section id="inventory-section" class="section active section-has-fab">
                     <div class="section-title-row">
                         <h3><i class="fas fa-utensils"></i> <span data-translate="InventoryHeader">Мои продукты</span></h3>
                         <button class="small-action-btn" onclick="prepareShare('inventory')">
@@ -495,7 +495,7 @@
     </div>
 </section>
 
-                <section id="shopping-section" class="section">
+                <section id="shopping-section" class="section section-has-fab">
     <h3><i class="fas fa-shopping-cart"></i> <span data-translate="ShoppingHeader">Список покупок</span></h3>
 
     <div class="budget-display"></div>
@@ -936,7 +936,7 @@
                 <div class="import-step import-step-error">
                     <div class="import-error-icon"><i class="fas fa-face-frown"></i></div>
                     <h5>Не получилось распознать</h5>
-                    <p class="import-hint">На этой странице не нашлось продуктов. Попробуйте другую ссылку или добавьте товары вручную.</p>
+                    <p class="import-hint" id="sl-error-hint">На этой странице не нашлось продуктов. Попробуйте другую ссылку или добавьте товары вручную.</p>
                     <button type="button" class="btn btn-secondary" style="width:100%; margin-top:10px;" onclick="setShopLinkState('idle')">
                         <i class="fas fa-rotate-left"></i> Попробовать снова
                     </button>
@@ -5981,139 +5981,67 @@ async function submitNewRecipe(isPublic = false) {
 
 // ============================================================
 //   ИМПОРТ ПО ССЫЛКЕ (рецепты + список покупок)
-//   Парсинг реального сайта — заглушка (мок), но состояния,
-//   переходы и результат работают "по-настоящему" поверх
-//   существующих данных приложения.
+//   Реальный парсинг: страница скачивается и разбирается на
+//   Cloudflare Worker (schema.org/Recipe JSON-LD + микроразметка),
+//   Worker отдаёт готовый JSON, который мы кладём в состояния/UI.
 // ============================================================
 
-// --- Небольшой пул демо-рецептов, которые "распознаёт" мок-парсер ---
-const IMPORT_RECIPE_TEMPLATES = [
-    {
-        keywords: ['pasta', 'carbonara', 'паста', 'карбонара', 'spaghetti'],
-        name: 'Паста Карбонара',
-        category: 'pasta',
-        time: 25,
-        difficulty: 'Medium',
-        image: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=600&q=60',
-        ingredients: [
-            { name: 'Спагетти', amount: 200, unit: 'г' },
-            { name: 'Бекон', amount: 100, unit: 'г' },
-            { name: 'Яйца', amount: 2, unit: 'шт' },
-            { name: 'Пармезан', amount: 50, unit: 'г' },
-            { name: 'Чёрный перец', amount: 1, unit: 'г' }
-        ],
-        steps: [
-            'Отварите спагетти в подсоленной воде до состояния аль денте.',
-            'Обжарьте бекон на среднем огне до хрустящей корочки.',
-            'Взбейте яйца с тёртым пармезаном и щедрой порцией чёрного перца.',
-            'Смешайте горячую пасту с беконом, снимите с огня и вмешайте яичную смесь.',
-            'Подавайте сразу, посыпав дополнительным пармезаном.'
-        ]
-    },
-    {
-        keywords: ['salad', 'greek', 'салат', 'греческий'],
-        name: 'Греческий салат',
-        category: 'salad',
-        time: 15,
-        difficulty: 'Easy',
-        image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=60',
-        ingredients: [
-            { name: 'Огурцы', amount: 2, unit: 'шт' },
-            { name: 'Помидоры', amount: 3, unit: 'шт' },
-            { name: 'Фета', amount: 150, unit: 'г' },
-            { name: 'Красный лук', amount: 1, unit: 'шт' },
-            { name: 'Оливки', amount: 50, unit: 'г' },
-            { name: 'Оливковое масло', amount: 30, unit: 'мл' }
-        ],
-        steps: [
-            'Нарежьте огурцы, помидоры и лук крупными кусочками.',
-            'Добавьте оливки и крупно нарезанную фету.',
-            'Заправьте оливковым маслом, посолите по вкусу.',
-            'Аккуратно перемешайте и подавайте.'
-        ]
-    },
-    {
-        keywords: ['soup', 'pumpkin', 'суп', 'тыкв'],
-        name: 'Тыквенный крем-суп',
-        category: 'soup',
-        time: 40,
-        difficulty: 'Easy',
-        image: 'https://images.unsplash.com/photo-1476718406336-bb5a9690ee2a?w=600&q=60',
-        ingredients: [
-            { name: 'Тыква', amount: 600, unit: 'г' },
-            { name: 'Лук', amount: 1, unit: 'шт' },
-            { name: 'Морковь', amount: 1, unit: 'шт' },
-            { name: 'Сливки', amount: 100, unit: 'мл' },
-            { name: 'Овощной бульон', amount: 500, unit: 'мл' }
-        ],
-        steps: [
-            'Обжарьте лук и морковь на масле до мягкости.',
-            'Добавьте нарезанную тыкву и бульон, варите 20 минут.',
-            'Пробейте блендером до однородности.',
-            'Влейте сливки, прогрейте и приправьте по вкусу.'
-        ]
-    },
-    {
-        keywords: ['dessert', 'brownie', 'десерт', 'брауни', 'шоколад'],
-        name: 'Шоколадный брауни',
-        category: 'dessert',
-        time: 45,
-        difficulty: 'Medium',
-        image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=600&q=60',
-        ingredients: [
-            { name: 'Тёмный шоколад', amount: 200, unit: 'г' },
-            { name: 'Сливочное масло', amount: 150, unit: 'г' },
-            { name: 'Сахар', amount: 180, unit: 'г' },
-            { name: 'Яйца', amount: 3, unit: 'шт' },
-            { name: 'Мука', amount: 100, unit: 'г' }
-        ],
-        steps: [
-            'Растопите шоколад со сливочным маслом на водябане.',
-            'Взбейте яйца с сахаром до пышной массы.',
-            'Соедините обе смеси, аккуратно вмешайте муку.',
-            'Выпекайте при 180°C около 25 минут.'
-        ]
-    },
-    {
-        keywords: ['pilaf', 'chicken', 'плов', 'курица'],
-        name: 'Плов с курицей',
-        category: 'main',
-        time: 60,
-        difficulty: 'Medium',
-        image: 'https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=60',
-        ingredients: [
-            { name: 'Рис', amount: 300, unit: 'г' },
-            { name: 'Курица', amount: 500, unit: 'г' },
-            { name: 'Морковь', amount: 2, unit: 'шт' },
-            { name: 'Лук', amount: 1, unit: 'шт' },
-            { name: 'Чеснок', amount: 1, unit: 'шт' }
-        ],
-        steps: [
-            'Обжарьте курицу до золотистой корочки.',
-            'Добавьте лук и морковь, тушите 10 минут.',
-            'Всыпьте промытый рис, залейте водой.',
-            'Положите головку чеснока сверху и томите под крышкой до готовности риса.'
-        ]
+// Замените на адрес вашего задеплоенного Worker'а, например:
+// 'https://axio-recipe-import.your-subdomain.workers.dev'
+const RECIPE_IMPORT_ENDPOINT = 'https://axio-recipe-import.YOUR-SUBDOMAIN.workers.dev';
+
+// Человеко-читаемые сообщения об ошибках парсинга по коду, который
+// возвращает Worker (см. recipe-import-worker.js -> error).
+const IMPORT_ERROR_MESSAGES = {
+    missing_url: 'Не передана ссылка.',
+    invalid_url: 'Похоже, это не ссылка. Проверьте формат.',
+    invalid_protocol: 'Поддерживаются только http/https ссылки.',
+    blocked_host: 'Этот адрес запрещён для импорта.',
+    timeout: 'Сайт слишком долго отвечает. Попробуйте ещё раз.',
+    page_not_found: 'Страница не найдена (404).',
+    bad_status: 'Сайт вернул ошибку при загрузке страницы.',
+    not_html: 'По этой ссылке не найдена веб-страница.',
+    recipe_not_found: 'Не нашли рецепт на этой странице. Попробуйте другую ссылку.',
+    fetch_failed: 'Не удалось открыть страницу. Проверьте ссылку и попробуйте снова.',
+};
+
+function importErrorMessage(code) {
+    return IMPORT_ERROR_MESSAGES[code] || IMPORT_ERROR_MESSAGES.fetch_failed;
+}
+
+// Запрашивает у Worker'а разбор страницы по ссылке.
+// Возвращает объект рецепта в формате фронтенда либо кидает Error с полем .code.
+async function parseRecipeFromUrl(url) {
+    let response;
+    try {
+        response = await fetch(`${RECIPE_IMPORT_ENDPOINT}?url=${encodeURIComponent(url)}`);
+    } catch (e) {
+        const err = new Error('network_error');
+        err.code = 'fetch_failed';
+        throw err;
     }
-];
+
+    let payload;
+    try {
+        payload = await response.json();
+    } catch (e) {
+        const err = new Error('bad_response');
+        err.code = 'fetch_failed';
+        throw err;
+    }
+
+    if (!response.ok || !payload.ok) {
+        const err = new Error(payload.error || 'fetch_failed');
+        err.code = payload.error || 'fetch_failed';
+        throw err;
+    }
+
+    return payload.recipe;
+}
 
 const IMPORT_DIFFICULTY_RU = { Easy: 'Легко', Medium: 'Средне', Hard: 'Сложно' };
 
 let importedRecipeDraft = null; // хранит текущий "распознанный" рецепт между стейтами
-
-// Подбирает шаблон под ссылку: ищем совпадение по ключевым словам,
-// если не нашли — берём случайный, чтобы демо не выглядело одинаково.
-function mockParseFromUrl(url) {
-    const lower = (url || '').toLowerCase();
-    const matched = IMPORT_RECIPE_TEMPLATES.find(t => t.keywords.some(k => lower.includes(k)));
-    const template = matched || IMPORT_RECIPE_TEMPLATES[Math.floor(Math.random() * IMPORT_RECIPE_TEMPLATES.length)];
-
-    let hostname = 'сайт-рецептов.com';
-    try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
-
-    // Возвращаем копию, чтобы не портить шаблон между импортами
-    return { ...JSON.parse(JSON.stringify(template)), sourceUrl: url, sourceHost: hostname };
-}
 
 function pasteImportUrl(target) {
     const inputId = target === 'shopping' ? 'sl-url' : 'import-recipe-url';
@@ -6154,7 +6082,7 @@ function cycleLoaderText(elId, phrases) {
     }, 650);
 }
 
-function startRecipeImport() {
+async function startRecipeImport() {
     const url = document.getElementById('import-recipe-url').value.trim();
     if (!url) return showToast('Вставьте ссылку на рецепт', 'warning');
 
@@ -6166,17 +6094,16 @@ function startRecipeImport() {
         'Считаем шаги приготовления...'
     ]);
 
-    setTimeout(() => {
-        // Мок "падения" распознавания для реалистичности демо — очень редко
-        if (Math.random() < 0.06) {
-            setImportState('error');
-            return;
-        }
-        const data = mockParseFromUrl(url);
+    try {
+        const data = await parseRecipeFromUrl(url);
         importedRecipeDraft = data;
         renderRecipeImportPreview(data);
         setImportState('preview');
-    }, 1700 + Math.random() * 900);
+    } catch (err) {
+        const hint = document.getElementById('import-error-hint');
+        if (hint) hint.textContent = importErrorMessage(err.code);
+        setImportState('error');
+    }
 }
 
 function renderRecipeImportPreview(data) {
@@ -6266,7 +6193,7 @@ function setShopLinkState(state) {
     }
 }
 
-function startShoppingLinkImport() {
+async function startShoppingLinkImport() {
     const url = document.getElementById('sl-url').value.trim();
     if (!url) return showToast('Вставьте ссылку', 'warning');
 
@@ -6277,16 +6204,16 @@ function startShoppingLinkImport() {
         'Сортируем по категориям...'
     ]);
 
-    setTimeout(() => {
-        if (Math.random() < 0.06) {
-            setShopLinkState('error');
-            return;
-        }
-        const data = mockParseFromUrl(url);
+    try {
+        const data = await parseRecipeFromUrl(url);
         shoppingLinkDraft = data;
         renderShoppingLinkPreview(data);
         setShopLinkState('preview');
-    }, 1500 + Math.random() * 800);
+    } catch (err) {
+        const hint = document.getElementById('sl-error-hint');
+        if (hint) hint.textContent = importErrorMessage(err.code);
+        setShopLinkState('error');
+    }
 }
 
 function renderShoppingLinkPreview(data) {
@@ -14912,7 +14839,7 @@ function fallbackCopy(text) {
             <div class="import-step import-step-error">
                 <div class="import-error-icon"><i class="fas fa-face-frown"></i></div>
                 <h5>Не получилось распознать рецепт</h5>
-                <p class="import-hint">Похоже, на этой странице нет рецепта, или сайт закрыт от анализа. Попробуйте другую ссылку — или создайте рецепт вручную.</p>
+                <p class="import-hint" id="import-error-hint">Похоже, на этой странице нет рецепта, или сайт закрыт от анализа. Попробуйте другую ссылку — или создайте рецепт вручную.</p>
                 <div style="display:flex; gap:10px; margin-top:14px;">
                     <button type="button" class="btn btn-secondary" style="flex:1" onclick="setImportState('idle')">
                         <i class="fas fa-rotate-left"></i> Попробовать снова
@@ -16136,6 +16063,25 @@ function fallbackCopy(text) {
     document.addEventListener('DOMContentLoaded', function () {
         requestAnimationFrame(adjustFridgeHeight);
     });
+})();
+</script>
+
+<script>
+// --- Плавающая кнопка "+": прячется, пока пользователь активно скроллит список,
+// и мягко возвращается, как только скролл остановился — чтобы не перекрывать контент. ---
+(function () {
+    var mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    var hideTimeout = null;
+
+    mainContent.addEventListener('scroll', function () {
+        mainContent.classList.add('is-scrolling');
+        clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(function () {
+            mainContent.classList.remove('is-scrolling');
+        }, 500);
+    }, { passive: true });
 })();
 </script>
 
