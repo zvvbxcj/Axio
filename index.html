@@ -1133,14 +1133,12 @@
             <span class="modal-close" onclick="hideModal('settings-modal')"><i class="fas fa-times"></i></span>
         </div>
         
-        <div class="settings-section settings-section-premium">
-
-            <!-- Push-уведомления -->
-            <div class="settings-row-premium" id="push-notif-row">
+        <div class="settings-section">
+            <div class="settings-row" id="push-notif-row">
                 <div class="settings-row-left">
                     <div class="settings-row-icon"><i class="fas fa-bell"></i></div>
                     <div class="settings-row-text">
-                        <div class="settings-row-title" data-translate="PushNotifLabel">Push-уведомления</div>
+                        <div class="settings-row-title">Push-уведомления</div>
                         <div class="push-notif-status" id="push-notif-status"><i class="fas fa-circle-notch fa-spin"></i> Проверка статуса…</div>
                     </div>
                 </div>
@@ -1150,43 +1148,42 @@
                 </label>
             </div>
 
-            <!-- Тема оформления -->
-            <div class="settings-row-premium">
+            <div class="settings-row">
                 <div class="settings-row-left">
                     <div class="settings-row-icon"><i class="fas fa-circle-half-stroke"></i></div>
                     <div class="settings-row-text">
                         <div class="settings-row-title" data-translate="ThemeLabel">Тема оформления</div>
                     </div>
                 </div>
-                <div class="settings-row-control">
-                    <input type="checkbox" id="theme-switch" class="theme-toggle-input" />
-                    <label for="theme-switch" class="theme-toggle-wrapper theme-toggle-wrapper-compact">
-                        <div class="theme-icon moon"><i class="fas fa-moon"></i></div>
-                        <div class="theme-icon sun"><i class="fas fa-sun"></i></div>
-                        <div class="theme-toggle-circle"></div>
-                    </label>
-                </div>
+                <input type="checkbox" id="theme-switch" class="theme-toggle-input" />
+                <label for="theme-switch" class="theme-toggle-wrapper">
+                    <div class="theme-icon moon"><i class="fas fa-moon"></i></div>
+                    <div class="theme-icon sun"><i class="fas fa-sun"></i></div>
+                    <div class="theme-toggle-circle"></div>
+                </label>
             </div>
 
-            <!-- Язык интерфейса (базовый эталон формата) -->
-            <div class="settings-row-premium">
-                <div class="settings-row-left settings-row-clickable" onclick="toggleLangPicker()">
-                    <div class="settings-row-icon lang-row-icon">
-                        <div class="lang-seal lang-seal-compact">
-                            <div class="lang-seal-ring"></div>
-                            <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
-                        </div>
-                    </div>
+            <div class="settings-row" id="language-row">
+                <div class="settings-row-left">
+                    <div class="settings-row-icon"><i class="fas fa-language"></i></div>
                     <div class="settings-row-text">
                         <div class="settings-row-title" data-translate="LanguageLabel">Язык интерфейса</div>
                     </div>
                 </div>
 
-                <!-- Языковой "паспорт" -->
+                <!-- Языковой "паспорт" — теперь компактная плашка справа в строке -->
                 <div class="lang-picker-luxury" id="lang-picker">
-                    <button type="button" class="settings-row-value-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
-                        <span class="settings-row-value-text" id="lang-picker-name">Русский</span>
-                        <i class="fas fa-chevron-down settings-row-chevron lang-arrow-icon"></i>
+                    <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
+                        <div class="lang-seal">
+                            <div class="lang-seal-ring"></div>
+                            <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
+                        </div>
+                        <div class="lang-info">
+                            <span class="lang-picker-name" id="lang-picker-name">Русский</span>
+                        </div>
+                        <div class="lang-arrow-icon">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
                     </button>
 
                     <!-- Компактная панель: 3 быстрых языка + переход в полный список -->
@@ -1211,26 +1208,27 @@
                 <select id="language-select" class="lang-native-fallback" aria-hidden="true">
                 </select>
             </div>
+        </div>
 
-            <!-- Пищевые ограничения -->
-            <div class="settings-row-premium settings-row-premium-tall is-clickable" onclick="openAllergiesModal()">
+        <div class="settings-section">
+            <div class="settings-row settings-row--action" onclick="openAllergiesModal()">
                 <div class="settings-row-left">
                     <div class="settings-row-icon"><i class="fas fa-shield-virus"></i></div>
                     <div class="settings-row-text">
                         <div class="settings-row-title">Пищевые ограничения</div>
-                        <div class="settings-row-desc allergens-tags-row" id="active-allergens-display">
-                            <span class="allergens-empty-hint">Нет ограничений</span>
-                        </div>
                     </div>
                 </div>
-                <div class="settings-row-control">
+                <div class="settings-row-value">
                     <i class="fas fa-chevron-right settings-row-chevron"></i>
                 </div>
             </div>
 
-        </div>
+            <div id="active-allergens-display" class="settings-allergens-wrap">
+                <span class="settings-allergens-empty">Нет ограничений</span>
+            </div>
 
-        <div id="blacklist-tags" style="display:none;"></div>
+            <div id="blacklist-tags" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        </div>
     </div>
 </div>
 
