@@ -329,7 +329,7 @@
 
             <div class="main-content">
                 
-                <section id="inventory-section" class="section active section-has-fab">
+                <section id="inventory-section" class="section active">
                     <div class="section-title-row">
                         <h3><i class="fas fa-utensils"></i> <span data-translate="InventoryHeader">Мои продукты</span></h3>
                         <button class="small-action-btn" onclick="prepareShare('inventory')">
@@ -495,7 +495,7 @@
     </div>
 </section>
 
-                <section id="shopping-section" class="section section-has-fab">
+                <section id="shopping-section" class="section">
     <h3><i class="fas fa-shopping-cart"></i> <span data-translate="ShoppingHeader">Список покупок</span></h3>
 
     <div class="budget-display"></div>
@@ -5979,19 +5979,10 @@ async function submitNewRecipe(isPublic = false) {
     }
 }
 
-// ============================================================
-//   ИМПОРТ ПО ССЫЛКЕ (рецепты + список покупок)
-//   Реальный парсинг: страница скачивается и разбирается на
-//   Cloudflare Worker (schema.org/Recipe JSON-LD + микроразметка),
-//   Worker отдаёт готовый JSON, который мы кладём в состояния/UI.
-// ============================================================
+// адрес Worker'а
+const RECIPE_IMPORT_ENDPOINT = 'axio-parser-resept.ast-maksima.workers.dev
+';
 
-// Замените на адрес вашего задеплоенного Worker'а, например:
-// 'https://axio-recipe-import.your-subdomain.workers.dev'
-const RECIPE_IMPORT_ENDPOINT = 'https://axio-recipe-import.YOUR-SUBDOMAIN.workers.dev';
-
-// Человеко-читаемые сообщения об ошибках парсинга по коду, который
-// возвращает Worker (см. recipe-import-worker.js -> error).
 const IMPORT_ERROR_MESSAGES = {
     missing_url: 'Не передана ссылка.',
     invalid_url: 'Похоже, это не ссылка. Проверьте формат.',
@@ -16063,25 +16054,6 @@ function fallbackCopy(text) {
     document.addEventListener('DOMContentLoaded', function () {
         requestAnimationFrame(adjustFridgeHeight);
     });
-})();
-</script>
-
-<script>
-// --- Плавающая кнопка "+": прячется, пока пользователь активно скроллит список,
-// и мягко возвращается, как только скролл остановился — чтобы не перекрывать контент. ---
-(function () {
-    var mainContent = document.querySelector('.main-content');
-    if (!mainContent) return;
-
-    var hideTimeout = null;
-
-    mainContent.addEventListener('scroll', function () {
-        mainContent.classList.add('is-scrolling');
-        clearTimeout(hideTimeout);
-        hideTimeout = setTimeout(function () {
-            mainContent.classList.remove('is-scrolling');
-        }, 500);
-    }, { passive: true });
 })();
 </script>
 
