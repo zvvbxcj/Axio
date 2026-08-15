@@ -2440,28 +2440,34 @@ adsgram-task {
     aspect-ratio: 9 / 16;
     border-radius: 28px;
     overflow: hidden;
-    padding: 24px 20px;
+    padding: 22px 20px 18px;
     display: flex;
     flex-direction: column;
     background:
-        radial-gradient(circle at 15% 10%, rgba(52, 211, 153, 0.35), transparent 45%),
-        radial-gradient(circle at 90% 15%, rgba(139, 92, 246, 0.35), transparent 45%),
-        linear-gradient(160deg, #0B1220 0%, #111C33 45%, #0B1220 100%);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+        radial-gradient(circle at 12% 8%, rgba(52, 211, 153, 0.45), transparent 42%),
+        radial-gradient(circle at 92% 12%, rgba(139, 92, 246, 0.42), transparent 42%),
+        radial-gradient(circle at 20% 95%, rgba(245, 158, 11, 0.28), transparent 45%),
+        linear-gradient(160deg, #0B1220 0%, #131B33 45%, #0B1220 100%);
+    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
     color: #F8FAFC;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    animation: shareCardPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes shareCardPop {
+    from { transform: scale(0.94) rotate(-0.6deg); opacity: 0; }
+    to { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
 .share-card-glow {
     position: absolute;
     border-radius: 50%;
     filter: blur(50px);
-    opacity: 0.55;
+    opacity: 0.6;
     pointer-events: none;
 }
-.share-card-glow.g1 { width: 180px; height: 180px; background: var(--primary, #10B981); top: -60px; left: -50px; }
-.share-card-glow.g2 { width: 200px; height: 200px; background: var(--accent, #8B5CF6); bottom: -70px; right: -60px; }
-.share-card-glow.g3 { width: 140px; height: 140px; background: var(--secondary, #F59E0B); top: 40%; right: -50px; opacity: 0.28; }
+.share-card-glow.g1 { width: 190px; height: 190px; background: var(--primary, #10B981); top: -60px; left: -50px; }
+.share-card-glow.g2 { width: 210px; height: 210px; background: var(--accent, #8B5CF6); bottom: -70px; right: -60px; }
+.share-card-glow.g3 { width: 150px; height: 150px; background: var(--secondary, #F59E0B); top: 38%; right: -55px; opacity: 0.3; }
 
 .share-card-noise {
     position: absolute;
@@ -2470,6 +2476,22 @@ adsgram-task {
     background-size: 3px 3px;
     pointer-events: none;
 }
+
+/* --- Летающие эмодзи-стикеры: добавляют живости и "мемности" карточке --- */
+.share-card-sticker {
+    position: absolute;
+    z-index: 1;
+    font-size: 34px;
+    opacity: 0.22;
+    filter: saturate(1.1);
+    pointer-events: none;
+    user-select: none;
+}
+.share-card-sticker.st1 { top: 8%; left: 4%; font-size: 30px; transform: rotate(-18deg); }
+.share-card-sticker.st2 { top: 22%; right: 6%; font-size: 26px; transform: rotate(14deg); opacity: 0.18; }
+.share-card-sticker.st3 { bottom: 30%; left: 2%; font-size: 32px; transform: rotate(10deg); opacity: 0.2; }
+.share-card-sticker.st4 { top: 3%; right: 22%; font-size: 20px; transform: rotate(-8deg); opacity: 0.35; }
+.share-card-sticker.st5 { bottom: 8%; right: 8%; font-size: 28px; transform: rotate(-12deg); opacity: 0.16; }
 
 .share-card-top {
     position: relative;
@@ -2497,6 +2519,33 @@ adsgram-task {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: #E2E8F0;
+}
+
+/* --- Смешной динамический вердикт: главный крючок карточки --- */
+.share-card-verdict {
+    position: relative;
+    z-index: 2;
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(139, 92, 246, 0.16));
+    border: 1px dashed rgba(255, 255, 255, 0.28);
+    transform: rotate(-1.2deg);
+}
+.share-card-verdict-title {
+    font-size: 1.28em;
+    font-weight: 900;
+    line-height: 1.15;
+    background: linear-gradient(90deg, #ffffff, #D1FAE5);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.share-card-verdict-sub {
+    font-size: 0.74em;
+    color: #CBD5E1;
+    margin-top: 3px;
+    font-weight: 500;
 }
 
 .share-card-user {
@@ -2544,6 +2593,15 @@ adsgram-task {
 .share-card-eco-val { font-size: 2.1em; font-weight: 900; color: var(--eco-color, #10B981); line-height: 1; }
 .share-card-eco-label { font-size: 0.62em; text-transform: uppercase; letter-spacing: 0.8px; color: #94A3B8; }
 
+.share-card-eco-badge {
+    position: absolute;
+    top: -6px;
+    right: calc(50% - 78px);
+    font-size: 1.7em;
+    transform: rotate(18deg);
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+}
+
 .share-card-metrics {
     position: relative;
     z-index: 2;
@@ -2571,10 +2629,42 @@ adsgram-task {
 .share-card-footer {
     position: relative;
     z-index: 2;
-    text-align: center;
     margin-top: 14px;
-    font-size: 0.68em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.share-card-stamp {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px dashed rgba(239, 68, 68, 0.75);
+    color: rgba(239, 68, 68, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-14deg);
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.05;
+}
+.share-card-stamp-line1 { font-size: 0.5em; letter-spacing: 0.4px; }
+.share-card-stamp-line2 { font-size: 0.72em; letter-spacing: 0.5px; }
+
+.share-card-footer-text {
+    flex: 1;
+    font-size: 0.66em;
     color: #94A3B8;
+    line-height: 1.35;
+}
+.share-card-cta-line {
+    display: block;
+    font-size: 1.12em;
+    font-weight: 800;
+    color: #F8FAFC;
+    margin-bottom: 2px;
 }
 .share-card-footer b { color: var(--primary, #10B981); }
 

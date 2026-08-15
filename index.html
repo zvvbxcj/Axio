@@ -3721,7 +3721,74 @@ function openStatsShareCard() {
     document.getElementById('sc-co2').textContent = formatCO2(co2Saved);
     document.getElementById('sc-co2-fact').textContent = (co2Km > 0 ? co2Km : 0) + ' км';
 
+    // --- Смешной вердикт вместо скучного заголовка: подбираем шутку под результат ---
+    const verdict = getShareCardVerdict(ecoScore, total > 0 ? wastedItems.length / total : null, cookedItems.length);
+    const vTitleEl = document.getElementById('sc-verdict-title');
+    const vSubEl = document.getElementById('sc-verdict-sub');
+    const badgeEl = document.getElementById('sc-eco-badge');
+    if (vTitleEl) vTitleEl.textContent = verdict.title;
+    if (vSubEl) vSubEl.textContent = verdict.sub;
+    if (badgeEl) badgeEl.textContent = verdict.badge;
+
     showModal('stats-share-modal');
+
+    // Маленький праздник на экране (не попадает на экспортируемую картинку, просто вайб при открытии)
+    if (typeof confetti === 'function') {
+        setTimeout(() => {
+            confetti({
+                particleCount: 60,
+                spread: 65,
+                startVelocity: 32,
+                gravity: 0.9,
+                origin: { y: 0.35 },
+                colors: ['#10B981', '#34D399', '#F59E0B', '#8B5CF6']
+            });
+        }, 150);
+    }
+}
+
+// Подбирает шутливый заголовок/подзаголовок/эмодзи-бейдж под результат пользователя,
+// чтобы карточка была смешной и её хотелось показать друзьям, а не банальным отчётом.
+function getShareCardVerdict(ecoScore, wasteRatio, cookedCount) {
+    const pools = {
+        top: {
+            titles: ['Эко-легенда 🔥', 'Босс кухни 👑', 'Гринпис нервно курит'],
+            subs: ['твой холодильник аплодирует стоя', 'ты официально страшнее просрочки', 'даже плесень сдалась и уехала'],
+            badge: '👑'
+        },
+        good: {
+            titles: ['Почти святой уровень ✨', 'Кухонный ниндзя 🥷', 'Спаситель ужинов'],
+            subs: ['ещё чуть-чуть — и статуя на кухне', 'соседи уже завидуют молча', 'мусорка сегодня без работы'],
+            badge: '✨'
+        },
+        mid: {
+            titles: ['Есть куда расти, шеф 🌱', 'Уровень: подающий надежды'],
+            subs: ['холодильник ещё не решил, гордиться или нет', 'один шаг до легенды остался'],
+            badge: '🌱'
+        },
+        bad: {
+            titles: ['Мусорка сегодня в плюсе 🗑️', 'Драма в холодильнике 😬'],
+            subs: ['твой бак для мусора теперь миллионер', 'но ты только начал — дальше только вверх'],
+            badge: '😅'
+        },
+        empty: {
+            titles: ['Чистый лист, новый старт 🌿'],
+            subs: ['первый рецепт — и понеслась статистика'],
+            badge: '🌿'
+        }
+    };
+
+    let key = 'mid';
+    if (wasteRatio === null) key = 'empty';
+    else if (wasteRatio <= 0.1 && cookedCount >= 3) key = 'top';
+    else if (wasteRatio <= 0.3) key = 'good';
+    else if (wasteRatio <= 0.5) key = 'mid';
+    else key = 'bad';
+
+    const pool = pools[key];
+    const title = pool.titles[Math.floor(Math.random() * pool.titles.length)];
+    const sub = pool.subs[Math.floor(Math.random() * pool.subs.length)];
+    return { title, sub, badge: pool.badge };
 }
 
 // Рендерим карточку в canvas через html2canvas
@@ -13724,12 +13791,25 @@ async function runTest(type) {
                 <div class="share-card-glow g3"></div>
                 <div class="share-card-noise"></div>
 
+                <!-- Летающие стикеры-эмодзи для вайба, не мешают контенту -->
+                <span class="share-card-sticker st1">🥦</span>
+                <span class="share-card-sticker st2">🍅</span>
+                <span class="share-card-sticker st3">🌶️</span>
+                <span class="share-card-sticker st4">✨</span>
+                <span class="share-card-sticker st5">🧄</span>
+
                 <div class="share-card-top">
                     <div class="share-card-brand">
                         <span class="share-card-brand-icon"><i class="fas fa-leaf"></i></span>
                         <span class="share-card-brand-name">Axio</span>
                     </div>
                     <div class="share-card-period" id="sc-period">Неделя</div>
+                </div>
+
+                <!-- Смешной динамический вердикт вместо скучного заголовка -->
+                <div class="share-card-verdict">
+                    <div class="share-card-verdict-title" id="sc-verdict-title">Эко-легенда 🔥</div>
+                    <div class="share-card-verdict-sub" id="sc-verdict-sub">твой холодильник аплодирует стоя</div>
                 </div>
 
                 <div class="share-card-user">
@@ -13747,33 +13827,41 @@ async function runTest(type) {
                             <span class="share-card-eco-label" data-translate="EcoRatingLabel">эко-рейтинг</span>
                         </div>
                     </div>
+                    <span class="share-card-eco-badge" id="sc-eco-badge">👑</span>
                 </div>
 
                 <div class="share-card-metrics">
                     <div class="share-card-metric">
                         <i class="fas fa-utensils"></i>
                         <span class="share-card-metric-val" id="sc-cooked">0</span>
-                        <span class="share-card-metric-label" data-translate="StatCooked">приготовлено</span>
+                        <span class="share-card-metric-label" data-translate="StatCooked">блюд спасено</span>
                     </div>
                     <div class="share-card-metric">
                         <i class="fas fa-trash-alt"></i>
                         <span class="share-card-metric-val" id="sc-wasted">0</span>
-                        <span class="share-card-metric-label" data-translate="StatWasted">выброшено</span>
+                        <span class="share-card-metric-label" data-translate="StatWasted">улетело в мусорку</span>
                     </div>
                     <div class="share-card-metric metric-co2">
                         <i class="fas fa-earth-europe"></i>
                         <span class="share-card-metric-val" id="sc-co2">0 кг</span>
-                        <span class="share-card-metric-label" data-translate="StatCO2Short">CO₂ спасено</span>
+                        <span class="share-card-metric-label" data-translate="StatCO2Short">CO₂ не улетело</span>
                     </div>
                     <div class="share-card-metric">
                         <i class="fas fa-car-side"></i>
                         <span class="share-card-metric-val" id="sc-co2-fact">0 км</span>
-                        <span class="share-card-metric-label" data-translate="StatCO2Compare">эквивалент авто</span>
+                        <span class="share-card-metric-label" data-translate="StatCO2Compare">не проехал бензин</span>
                     </div>
                 </div>
 
                 <div class="share-card-footer">
-                    <span data-translate="ShareCardFooter">Сокращаю пищевые отходы вместе с</span> <b>Axio</b>
+                    <div class="share-card-stamp" id="sc-stamp">
+                        <span class="share-card-stamp-line1">Проверено</span>
+                        <span class="share-card-stamp-line2">Axio</span>
+                    </div>
+                    <div class="share-card-footer-text">
+                        <span class="share-card-cta-line" data-translate="ShareCardCTA">Хочешь такую же карточку?</span>
+                        <span data-translate="ShareCardFooter">Сокращаю пищевые отходы вместе с</span> <b>Axio</b>
+                    </div>
                 </div>
             </div>
         </div>
