@@ -3573,7 +3573,7 @@ adsgram-task {
         }
 
         /* Строка 1: холодильник + уровень в одну строку */
-        .fridge-level-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+        .fridge-level-row { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
         .fridge-level-row .fridge-selector-btn { margin: 0; flex-shrink: 0; }
 
         /* Строка 2: компактная статистика на всю ширину */
@@ -3600,15 +3600,15 @@ adsgram-task {
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
         .level-stat { flex: 1; min-width: 0; width: auto; margin-top: 0; }
-        .level-info { display: flex; justify-content: space-between; font-size: 0.7em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; }
-        .level-progress-bar-container { height: 5px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
+        .level-info { display: flex; justify-content: space-between; font-size: 0.65em; margin-bottom: 2px; color: var(--text-primary); font-weight: 600; }
+        .level-progress-bar-container { height: 4px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
         @media (max-width: 360px) {
             /* На очень узких экранах название холодильника не должно выталкивать уровень за пределы строки */
             .fridge-level-row { flex-wrap: wrap; }
             .fridge-level-row .fridge-selector-btn { max-width: 100%; }
-            .level-stat { flex-basis: 100%; }
+            .level-stat { flex-basis: 100%; margin-top: 6px; }
         }
 
         /* --- Main Content --- */
