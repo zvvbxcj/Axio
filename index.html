@@ -337,39 +337,40 @@
                         </button>
                     </div>
 
-                    <div class="inventory-controls">
-        <div class="category-slider" id="inventory-filters">
-            <button class="cat-btn active" data-filter="all" onclick="setInventoryFilter('all', this)">
-                <i class="fas fa-th-large"></i> Все
-            </button>
-            <button class="cat-btn" data-filter="safe" onclick="setInventoryFilter('safe', this)" style="color: var(--success); border-color: rgba(16, 185, 129, 0.3);">
-                <i class="fas fa-leaf"></i> Свежие
-            </button>
-            <button class="cat-btn" data-filter="warning" onclick="setInventoryFilter('warning', this)" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
-                <i class="fas fa-exclamation-circle"></i> Скоро портятся
-            </button>
-            <button class="cat-btn" data-filter="critical" onclick="setInventoryFilter('critical', this)" style="color: var(--error); border-color: rgba(239, 68, 68, 0.3);">
-                <i class="fas fa-skull"></i> Просрочено
-            </button>
-            <button class="cat-btn" onclick="openExpiryFilterModal()" style="color: var(--text-primary); border-color: var(--border-color);"></i> ⏳ Срок
-            </button>
-        </div>
-
-                        <select id="inventory-sort" class="styled-select" onchange="updateInventoryList()">
-                            <option value="expiry_asc" data-translate="SortExpiryAsc">Срок: Сначала самые скорые</option>
-                            <option value="expiry_desc" data-translate="SortExpiryDesc">Срок: Сначала самые долгие</option>
-                            <option value="name_asc" data-translate="SortNameAsc">Имя: А-Я</option>
-                            <option value="name_desc" data-translate="SortNameDesc">Имя: Я-А</option>
-                            <option value="qty_asc" data-translate="SortQtyAsc">Кол-во: ↑</option>
-                            <option value="qty_desc" data-translate="SortQtyDesc">Кол-во: ↓</option>
-                            <option value="date_added_new" data-translate="SortDateAddedNew">Дата добавления: Новые</option>
-                        </select>
-                    </div>
-
                     <div class="fridge-wrap" id="fridge-wrap-el">
                         <div class="fridge-unit">
                             <div class="fridge-interior">
                                 <div class="fridge-close-btn" onclick="toggleFridgeDoor()"><i class="fas fa-times"></i></div>
+
+                                <div class="fridge-controls-bar" id="fridge-controls-bar">
+                                    <div class="category-slider" id="inventory-filters">
+                                        <button class="cat-btn active" data-filter="all" onclick="setInventoryFilter('all', this)">
+                                            <i class="fas fa-th-large"></i> Все
+                                        </button>
+                                        <button class="cat-btn" data-filter="safe" onclick="setInventoryFilter('safe', this)" style="color: var(--success); border-color: rgba(16, 185, 129, 0.3);">
+                                            <i class="fas fa-leaf"></i> Свежие
+                                        </button>
+                                        <button class="cat-btn" data-filter="warning" onclick="setInventoryFilter('warning', this)" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
+                                            <i class="fas fa-exclamation-circle"></i> Скоро портятся
+                                        </button>
+                                        <button class="cat-btn" data-filter="critical" onclick="setInventoryFilter('critical', this)" style="color: var(--error); border-color: rgba(239, 68, 68, 0.3);">
+                                            <i class="fas fa-skull"></i> Просрочено
+                                        </button>
+                                        <button class="cat-btn" onclick="openExpiryFilterModal()"></i> ⏳ Срок
+                                        </button>
+                                    </div>
+
+                                    <select id="inventory-sort" class="styled-select" onchange="updateInventoryList()">
+                                        <option value="expiry_asc" data-translate="SortExpiryAsc">Срок: Сначала самые скорые</option>
+                                        <option value="expiry_desc" data-translate="SortExpiryDesc">Срок: Сначала самые долгие</option>
+                                        <option value="name_asc" data-translate="SortNameAsc">Имя: А-Я</option>
+                                        <option value="name_desc" data-translate="SortNameDesc">Имя: Я-А</option>
+                                        <option value="qty_asc" data-translate="SortQtyAsc">Кол-во: ↑</option>
+                                        <option value="qty_desc" data-translate="SortQtyDesc">Кол-во: ↓</option>
+                                        <option value="date_added_new" data-translate="SortDateAddedNew">Дата добавления: Новые</option>
+                                    </select>
+                                </div>
+
                                 <div class="fridge-interior-scroll" id="inventory-list"></div>
                             </div>
                             <div class="fridge-door" id="fridge-door" onclick="toggleFridgeDoor()">
@@ -391,6 +392,12 @@
                         <i class="fas fa-box-open" style="font-size: 3em; color: var(--text-secondary); opacity: 0.5; margin-bottom: 10px;"></i>
                         <p data-translate="InventoryEmptyText">Ваш холодильник пуст. Самое время сходить в магазин!</p>
                         <button class="btn btn-primary" onclick="showModal('add-choice-modal')" style="width: auto; margin: 20px auto 0;" data-translate="AddFirstProductButton">Добавить продукт</button>
+                    </div>
+
+                    <div class="section-fab-wrap">
+                        <button class="section-fab" onclick="showModal('add-choice-modal')" title="Добавить продукт">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
 
                 </section>
@@ -422,7 +429,7 @@
     <h3><i class="fas fa-book"></i> <span data-translate="RecipesHeader">Рецепты</span></h3>
     
     <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-        <button class="btn btn-primary" onclick="openCreateRecipe()" style="width: 50%; margin-bottom: 0; background: linear-gradient(45deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <button class="btn btn-primary" onclick="openCreateRecipeChoice()" style="width: 50%; margin-bottom: 0; background: linear-gradient(45deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; gap: 8px;">
             <i class="fas fa-magic"></i> <span data-translate="CreateRecipeBtn">Создать свой рецепт</span>
         </button>
         <button class="magic-btn" onclick="showModal('ai-chef-modal')" style="width: 50%; margin-bottom: 0; display: flex; align-items: center; justify-content: center; gap: 10px;">
@@ -436,10 +443,6 @@
 
     <button class="btn btn-secondary" onclick="openMealPlanner()" style="width:100%; margin-bottom:15px; background:var(--surface-light);">
         <i class="fas fa-calendar-alt"></i> <span data-translate="MealPlannerBtn">Планировщик меню</span>
-    </button>
-
-    <button class="btn btn-secondary" onclick="openRecipeLinkImport()" style="width:100%; margin-bottom:15px; background:var(--surface-light); display:flex; align-items:center; justify-content:center; gap:8px;">
-        <i class="fas fa-link"></i> <span data-translate="ImportRecipeLinkBtn">Импорт рецепта по ссылке</span>
     </button>
 
     <div class="recipes-controls">
@@ -542,6 +545,12 @@
                         <i class="fas fa-receipt" style="font-size: 3em; color: var(--text-secondary); opacity: 0.5; margin-bottom: 10px;"></i>
                         <p data-translate="ShoppingEmptyText">Список покупок пуст.</p>
                         <button class="btn btn-primary" onclick="showModal('add-shopping-modal')" style="width: auto; margin: 20px auto 0;" data-translate="AddFirstShoppingButton">Добавить покупку</button>
+                    </div>
+
+                    <div class="section-fab-wrap">
+                        <button class="section-fab" onclick="showModal('add-shopping-modal')" title="Добавить покупку">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
 
                 </section>
@@ -5771,6 +5780,10 @@ function cookRecipe(id) {
 }
 
 // --- 3. СОЗДАНИЕ РЕЦЕПТОВ ---
+function openCreateRecipeChoice() {
+    showModal('create-recipe-choice-modal');
+}
+
 function openCreateRecipe() {
     // Очистка формы
     document.getElementById('create-recipe-form').reset();
@@ -14760,6 +14773,24 @@ function fallbackCopy(text) {
             <button class="tutorial-skip-btn" onclick="skipTutorial()" id="tutorial-skip-btn" data-translate="TutorialSkipButton">Пропустить</button>
             <span class="tutorial-step-counter" id="tutorial-step-counter">1 / 6</span>
             <button class="btn btn-primary tutorial-next-btn" onclick="nextTutorialStep()" id="tutorial-next-btn"><span data-translate="TutorialNextButton">Далее</span> <i class="fas fa-arrow-right"></i></button>
+        </div>
+    </div>
+</div>
+
+<div id="create-recipe-choice-modal" class="modal" onclick="if(event.target.id === 'create-recipe-choice-modal') hideModal('create-recipe-choice-modal')">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-magic"></i> Новый рецепт</h4>
+            <span class="modal-close" onclick="hideModal('create-recipe-choice-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <p class="import-hint" style="margin-bottom: 18px;">Как добавим рецепт?</p>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+            <button type="button" class="btn btn-primary" style="display:flex; align-items:center; justify-content:center; gap:10px;" onclick="hideModal('create-recipe-choice-modal'); openCreateRecipe();">
+                <i class="fas fa-pen"></i> Написать самому
+            </button>
+            <button type="button" class="btn btn-secondary" style="background:var(--surface-light); display:flex; align-items:center; justify-content:center; gap:10px;" onclick="hideModal('create-recipe-choice-modal'); openRecipeLinkImport();">
+                <i class="fas fa-link"></i> Импорт по ссылке
+            </button>
         </div>
     </div>
 </div>
