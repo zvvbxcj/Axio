@@ -534,6 +534,10 @@
         </select>
     </div>
 
+    <button class="btn btn-primary" onclick="orderAllShopping()" style="width: 100%; margin-bottom: 10px; background-color: var(--secondary);">
+    <i class="fas fa-cart-shopping"></i> Заказать всю корзину
+</button>
+
     <button class="btn btn-primary" onclick="finishShopping()" style="width: 100%; margin-bottom: 10px; background-color: var(--success);">
     <i class="fas fa-box-open"></i> Перенести купленное в холодильник
 </button>
@@ -5105,18 +5109,52 @@ const DELIVERY_CATEGORIES = [
 let currentDeliverySearchQuery = '';
 let currentDeliveryCategoryId = 'marketplaces';
 
-function openDeliverySearch(productName) {
+function openDeliverySearch(productName, isCart = false, itemsCount = 0) {
     if (!productName) return;
     currentDeliverySearchQuery = productName;
     currentDeliveryCategoryId = 'marketplaces';
 
+    const chipIcon = document.getElementById('delivery-search-chip-icon');
+    const chipPrefix = document.getElementById('delivery-search-chip-prefix');
     const nameEl = document.getElementById('delivery-search-product-name');
-    if (nameEl) nameEl.textContent = productName;
+    const hintEl = document.getElementById('delivery-hint-text');
+
+    if (isCart) {
+        if (chipIcon) chipIcon.className = 'fas fa-cart-shopping';
+        if (chipPrefix) chipPrefix.textContent = 'Вся корзина:';
+        if (nameEl) nameEl.textContent = `${itemsCount} ${pluralizeItems(itemsCount)}`;
+        if (hintEl) hintEl.textContent = 'Откроется поиск сразу по всем товарам списка на выбранной площадке';
+    } else {
+        if (chipIcon) chipIcon.className = 'fas fa-magnifying-glass';
+        if (chipPrefix) chipPrefix.textContent = 'Ищем:';
+        if (nameEl) nameEl.textContent = productName;
+        if (hintEl) hintEl.textContent = 'Откроется поиск по этому товару на выбранной площадке';
+    }
 
     renderDeliveryTabs();
     renderDeliveryGrid();
 
     showModal('delivery-search-modal');
+}
+
+function pluralizeItems(n) {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return 'товаров';
+    if (mod10 === 1) return 'товар';
+    if (mod10 >= 2 && mod10 <= 4) return 'товара';
+    return 'товаров';
+}
+
+function orderAllShopping() {
+    const activeItems = userShopping.filter(s => !s.completed);
+    if (activeItems.length === 0) {
+        showToast('Список покупок пуст!', 'warning');
+        return;
+    }
+
+    const query = activeItems.map(s => s.name).join(', ');
+    openDeliverySearch(query, true, activeItems.length);
 }
 
 function renderDeliveryTabs() {
@@ -15891,8 +15929,8 @@ function fallbackCopy(text) {
 
         <div class="delivery-product-chip-wrap">
             <div class="delivery-product-chip">
-                <i class="fas fa-magnifying-glass"></i>
-                <span>Ищем: <b id="delivery-search-product-name">—</b></span>
+                <i class="fas fa-magnifying-glass" id="delivery-search-chip-icon"></i>
+                <span><span id="delivery-search-chip-prefix">Ищем:</span> <b id="delivery-search-product-name">—</b></span>
             </div>
         </div>
 
@@ -15901,7 +15939,7 @@ function fallbackCopy(text) {
         <div class="market-grid" id="delivery-search-grid"></div>
 
         <p class="delivery-hint-text">
-            <i class="fas fa-circle-info"></i> Откроется поиск по этому товару на выбранной площадке
+            <i class="fas fa-circle-info"></i> <span id="delivery-hint-text">Откроется поиск по этому товару на выбранной площадке</span>
         </p>
     </div>
 </div>
