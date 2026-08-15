@@ -7063,3 +7063,259 @@ adsgram-task {
     .ai-chef-stats-row { grid-template-columns: 1fr 1fr; }
     .heatmap-hour-lbl { font-size: 0.55em; }
 }
+/* ============================================================
+   ИМПОРТ ПО ССЫЛКЕ (рецепты + список покупок)
+   Общие классы .import-* используются и в модалке рецепта,
+   и во вкладке "Ссылка" внутри модалки списка покупок.
+   ============================================================ */
+
+.import-recipe-modal-content { max-width: 480px; }
+
+.import-flow-content .import-step { display: none; }
+.import-flow-content[data-state="idle"] .import-step-idle,
+.import-flow-content[data-state="loading"] .import-step-loading,
+.import-flow-content[data-state="error"] .import-step-error,
+.import-flow-content[data-state="preview"] .import-step-preview {
+    display: block;
+    animation: importStepIn 0.28s ease;
+}
+@keyframes importStepIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.import-hint {
+    color: var(--text-secondary);
+    font-size: 0.88em;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    text-align: center;
+}
+
+.import-url-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface-light);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 4px 6px 4px 14px;
+}
+.import-url-row i.fa-globe { color: var(--text-secondary); font-size: 0.9em; flex-shrink: 0; }
+.import-url-row input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 4px;
+    font-size: 0.95em;
+    color: var(--text-primary);
+    outline: none;
+    min-width: 0;
+}
+.import-paste-btn {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: none;
+    background: var(--surface);
+    color: var(--primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.15s;
+}
+.import-paste-btn:active { transform: scale(0.92); }
+
+.import-source-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 14px;
+}
+.import-source-chip {
+    font-size: 0.72em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--surface-light);
+    border-radius: 20px;
+    padding: 5px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.import-source-chip i { color: var(--primary); font-size: 0.85em; }
+
+/* --- Состояние загрузки --- */
+.import-step-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 10px 20px;
+    text-align: center;
+}
+.import-loader {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+}
+.import-loader-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 4px solid var(--surface-light);
+    border-top-color: var(--primary);
+    animation: importRingSpin 0.9s linear infinite;
+}
+@keyframes importRingSpin { to { transform: rotate(360deg); } }
+.import-loader-icon {
+    font-size: 1.7em;
+    color: var(--primary);
+    animation: importIconPulse 1.2s ease-in-out infinite;
+}
+@keyframes importIconPulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+.import-loader-text {
+    font-weight: 700;
+    font-size: 1em;
+    color: var(--text-primary);
+    min-height: 1.3em;
+}
+.import-loader-sub {
+    font-size: 0.78em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* --- Состояние ошибки --- */
+.import-step-error { text-align: center; padding: 10px 4px; }
+.import-error-icon {
+    font-size: 2.4em;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    margin-bottom: 8px;
+}
+.import-step-error h5 { margin: 4px 0 8px; font-size: 1.05em; }
+
+/* --- Состояние предпросмотра (рецепт) --- */
+.import-preview-card {
+    position: relative;
+    width: 100%;
+    height: 150px;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    background: var(--surface-light);
+}
+.import-preview-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.import-preview-source {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    background: rgba(11, 18, 32, 0.75);
+    backdrop-filter: blur(4px);
+    color: #F8FAFC;
+    font-size: 0.72em;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.import-preview-title-input {
+    font-weight: 800;
+    font-size: 1.1em;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.import-preview-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.import-meta-chip {
+    font-size: 0.76em;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--surface-light);
+    border-radius: 10px;
+    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.import-meta-chip i { color: var(--primary); }
+
+.import-check-list { display: flex; flex-direction: column; gap: 6px; }
+.import-check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: var(--surface-light);
+    transition: 0.15s;
+}
+.import-check-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.import-check-row .import-check-name {
+    flex: 1;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.import-check-row .import-check-amount {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.import-check-row.is-unchecked { opacity: 0.45; }
+.import-check-row.is-unchecked .import-check-name { text-decoration: line-through; }
+
+.import-steps-list { display: flex; flex-direction: column; gap: 8px; }
+.import-step-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: var(--surface-light);
+}
+.import-step-row .import-step-num {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.72em;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.import-step-row .import-step-text {
+    font-size: 0.86em;
+    color: var(--text-primary);
+    line-height: 1.4;
+    padding-top: 2px;
+}
