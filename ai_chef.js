@@ -1,4 +1,4 @@
-const AXIO_AI_CHEF_ENDPOINT = 'https://ai-gemini.ast-maksima.workers.dev';
+const AXIO_AI_CHEF_ENDPOINT = 'https://ai-gemini.axioaxio.workers.dev';
 
 let aiChefShownTitles = [];
 let aiChefLastInventorySignature = '';
