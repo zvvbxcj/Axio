@@ -1754,11 +1754,6 @@ function addXp(amount) {
         }
 
         async function registerUser() {
-            const serverStatus = getServerStatus();
-            if (serverStatus === 'registered_only' || serverStatus === 'maintenance') {
-                return showToast('Регистрация новых аккаунтов сейчас недоступна.', 'warning');
-            }
-
             if (!captchaVerified['register']) {
                 return showToast(translations[currentLang].CaptchaError, 'warning');
             }
@@ -2864,7 +2859,7 @@ firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
 // Глобальные настройки конфига
 let appConfig = { maintenanceMode: false, message: "" };
 
-// Возвращает текущее состояние сервера: 'online' | 'registered_only' | 'premium_only' | 'maintenance'
+// Возвращает текущее состояние сервера: 'online' | 'premium_only' | 'maintenance'
 function getServerStatus() {
     return appConfig.serverStatus || (appConfig.maintenanceMode ? 'maintenance' : 'online');
 }
@@ -2895,30 +2890,14 @@ function checkAuthState() {
             };
             initPushNotifications();
 
-            if (!isDeveloper) {
-                // 2. ПРОВЕРКА: Тех. работы — доступ закрыт всем, кроме админа
-                if (serverStatus === 'maintenance') {
-                    loader.style.display = 'none';
-                    showMaintenanceScreen(appConfig.message);
-                    return; // СТОП ЗАГРУЗКА
-                }
-
-                // 3. ПРОВЕРКА: режим "только для зарегистрированных" — блокируем
-                // аккаунты, созданные только что (первый вход == дата регистрации),
-                // но пускаем всех, кто уже был зарегистрирован раньше.
-                if (serverStatus === 'registered_only') {
-                    const isBrandNewAccount = user.metadata &&
-                        user.metadata.creationTime === user.metadata.lastSignInTime;
-                    if (isBrandNewAccount) {
-                        loader.style.display = 'none';
-                        showMaintenanceScreen("Регистрация новых аккаунтов сейчас временно закрыта.\nЕсли у вас уже есть аккаунт — просто войдите в него.");
-                        auth.signOut();
-                        return; // СТОП ЗАГРУЗКА
-                    }
-                }
+            // 2. ПРОВЕРКА: Тех. работы — доступ закрыт всем, кроме админа
+            if (!isDeveloper && serverStatus === 'maintenance') {
+                loader.style.display = 'none';
+                showMaintenanceScreen(appConfig.message);
+                return; // СТОП ЗАГРУЗКА
             }
 
-            // 4. Загружаем профиль юзера — нужен для проверки БАНа и Premium-статуса
+            // 3. Загружаем профиль юзера — нужен для проверки БАНа и Premium-статуса
             const userDoc = await db.collection(USER_COLLECTION).doc(user.uid).get();
             const userData = userDoc.exists ? userDoc.data() : {};
 
@@ -2929,14 +2908,20 @@ function checkAuthState() {
                 return; // СТОП ЗАГРУЗКА
             }
 
-            // 5. ПРОВЕРКА: режим "только для Premium"
+            // 4. ПРОВЕРКА: режим "только для Premium"
             if (!isDeveloper && serverStatus === 'premium_only' && !userData.isPremium) {
                 loader.style.display = 'none';
                 showMaintenanceScreen('premium');
                 return; // СТОП ЗАГРУЗКА
             }
 
-            // 6. Если все ок — грузим приложение
+            // 5. Если все ок — грузим приложение.
+            // Явно прячем экраны блокировки: пока конфиг грузился асинхронно, могло
+            // успеть отрисоваться "Кухня закрыта" (см. ветку user === null ниже) — без
+            // этой строки оверлей оставался поверх интерфейса даже у админа.
+            document.getElementById('maintenance-screen').style.display = 'none';
+            document.getElementById('banned-overlay').style.display = 'none';
+
             await loadData(); 
             
             const lastSection = localStorage.getItem('axio_last_section') || 'inventory';
@@ -2955,47 +2940,15 @@ function checkAuthState() {
             }
 
             // Обычный вход
+            document.getElementById('maintenance-screen').style.display = 'none';
             loader.style.display = 'none';
             document.getElementById('app-content').style.display = 'none';
             document.getElementById('auth-screen').style.display = 'flex';
             document.getElementById('login-form').style.display = 'block';
             document.getElementById('social-auth-section').style.display = 'block';
-            applyRegistrationLock(serverStatus === 'registered_only');
             setTimeout(() => { initCaptcha('login'); initCaptcha('register'); }, 50);
         }
     });
-}
-
-// Скрывает/показывает возможность регистрации нового аккаунта на экране входа
-// (используется в состоянии сервера "только для зарегистрированных")
-function applyRegistrationLock(isLocked) {
-    const registerLink = document.getElementById('show-register-link');
-    const registerSwitch = registerLink ? registerLink.closest('.auth-switch') : null;
-    let notice = document.getElementById('registration-closed-notice');
-
-    if (isLocked) {
-        if (registerSwitch) registerSwitch.style.display = 'none';
-
-        // Если пользователь уже открыл форму регистрации — переключаем на вход
-        const registerForm = document.getElementById('register-form');
-        if (registerForm && registerForm.style.display !== 'none') {
-            registerForm.style.display = 'none';
-            document.getElementById('login-form').style.display = 'block';
-        }
-
-        if (!notice) {
-            notice = document.createElement('p');
-            notice.id = 'registration-closed-notice';
-            notice.style.cssText = 'color: var(--text-secondary); font-size: 0.85em; text-align: center; margin-top: 14px; line-height: 1.5;';
-            notice.innerText = 'Регистрация новых аккаунтов сейчас закрыта. Если у вас уже есть аккаунт — войдите.';
-            const container = document.getElementById('email-auth-section');
-            if (container) container.appendChild(notice);
-        }
-        notice.style.display = 'block';
-    } else if (notice) {
-        if (registerSwitch) registerSwitch.style.display = '';
-        notice.style.display = 'none';
-    }
 }
 
 // Функции показа экранов
@@ -7155,7 +7108,6 @@ async function updateServerStatus(status) {
         
         const labels = {
             'online': 'Штатный режим',
-            'registered_only': 'Только для зарегистрированных',
             'premium_only': 'Только для Premium',
             'maintenance': 'Тех. Работы',
         };
@@ -15262,15 +15214,6 @@ function fallbackCopy(text) {
                         <div class="state-info">
                             <strong>Штатный режим</strong>
                             <span>Все системы активны</span>
-                        </div>
-                        <i class="fas fa-check-circle state-check"></i>
-                    </label>
-
-                    <label class="server-state-btn" id="state-btn-registered_only" onclick="updateServerStatus('registered_only')">
-                        <div class="state-dot" style="background:#3B82F6; box-shadow: 0 0 8px #3B82F6;"></div>
-                        <div class="state-info">
-                            <strong>Только зарегистрированные</strong>
-                            <span>Новая регистрация закрыта</span>
                         </div>
                         <i class="fas fa-check-circle state-check"></i>
                     </label>
