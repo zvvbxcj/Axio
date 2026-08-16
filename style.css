@@ -3663,8 +3663,8 @@ adsgram-task {
         }
 
         /* Строка 1: холодильник + уровень в одну строку */
-        .fridge-level-row { display: flex; align-items: center; gap: 26px; margin-top: 8px; }
-        .fridge-level-row .fridge-selector-btn { margin: 0; flex-shrink: 0; }
+        .fridge-level-row { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+        .fridge-level-row .fridge-selector-btn { margin: 0; flex: 1 1 55%; min-width: 0; max-width: 55%; }
 
         /* Строка 2: компактная статистика на всю ширину */
         .header-stats-row { width: 100%; margin-top: 8px; }
@@ -3689,15 +3689,15 @@ adsgram-task {
         .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
-        .level-stat { flex: 0 1 auto; min-width: 0; width: auto; max-width: 120px; margin-top: 0; margin-left: auto; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.5em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-stat { flex: 1 1 45%; min-width: 0; max-width: 45%; margin-top: 0; margin-left: 0; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.42em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
         @media (max-width: 360px) {
             /* На очень узких экранах название холодильника не должно выталкивать уровень за пределы строки */
             .fridge-level-row { flex-wrap: wrap; }
-            .fridge-level-row .fridge-selector-btn { max-width: 100%; }
+            .fridge-level-row .fridge-selector-btn { flex-basis: 100%; max-width: 100%; }
             .level-stat { flex-basis: 100%; max-width: none; margin-left: 0; margin-top: 6px; }
         }
 
@@ -4067,36 +4067,39 @@ adsgram-task {
             position: absolute;
             right: 20px;
             bottom: calc(85px + env(safe-area-inset-bottom, 0px));
-            width: 50px;
-            height: 50px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
             border: none;
             background: linear-gradient(135deg, var(--primary), var(--accent));
             color: #fff;
-            font-size: 1.15em;
+            font-size: 0.95em;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 6px 16px -2px rgba(16, 185, 129, 0.45), 0 2px 6px rgba(0,0,0,0.15);
-            box-shadow: 0 6px 16px -2px color-mix(in srgb, var(--primary) 55%, transparent),
-                        0 2px 6px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.4), 0 2px 5px rgba(0,0,0,0.12);
+            box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--primary) 50%, transparent),
+                        0 2px 5px rgba(0,0,0,0.12);
             cursor: pointer;
             pointer-events: auto;
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
                         box-shadow 0.25s ease;
-            animation: fabPopIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            animation: fabPopIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+                       fabBreathe 3.2s ease-in-out 0.5s infinite;
         }
         .section-fab i {
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         .section-fab:hover {
-            transform: translateY(-2px) scale(1.04);
-            box-shadow: 0 10px 20px -2px rgba(16, 185, 129, 0.5), 0 3px 8px rgba(0,0,0,0.18);
-            box-shadow: 0 10px 20px -2px color-mix(in srgb, var(--primary) 60%, transparent),
+            animation-play-state: paused;
+            transform: translateY(-2px) scale(1.06);
+            box-shadow: 0 8px 18px -2px rgba(16, 185, 129, 0.5), 0 3px 8px rgba(0,0,0,0.18);
+            box-shadow: 0 8px 18px -2px color-mix(in srgb, var(--primary) 60%, transparent),
                         0 3px 8px rgba(0,0,0,0.18);
         }
         .section-fab:active {
-            transform: scale(0.9);
+            animation-play-state: paused;
+            transform: scale(0.88);
             box-shadow: 0 3px 10px -2px rgba(16, 185, 129, 0.45);
             box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--primary) 55%, transparent);
         }
@@ -4106,6 +4109,12 @@ adsgram-task {
             0% { opacity: 0; transform: scale(0.3) translateY(10px); }
             60% { opacity: 1; transform: scale(1.08) translateY(-2px); }
             100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* Едва заметное «дыхание», чтобы кнопка не выглядела статичной иконкой */
+        @keyframes fabBreathe {
+            0%, 100% { transform: scale(1); box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--primary) 50%, transparent), 0 2px 5px rgba(0,0,0,0.12); }
+            50% { transform: scale(1.045); box-shadow: 0 6px 16px -2px color-mix(in srgb, var(--primary) 65%, transparent), 0 3px 8px rgba(0,0,0,0.16); }
         }
 
         @media (prefers-reduced-motion: reduce) {
