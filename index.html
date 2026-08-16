@@ -1212,10 +1212,9 @@
         
         <div class="settings-section">
             <div class="settings-row notif-settings-row" id="push-notif-row">
-                <div class="settings-premium-left">
-                    <div class="settings-premium-icon"><i class="fas fa-bell"></i></div>
-                    <div class="settings-premium-text">
-                        <div class="settings-premium-title">Push-уведомления</div>
+                <div class="notif-row-left">
+                    <div class="notif-row-text">
+                        <div class="notif-row-title">Push-уведомления</div>
                         <div class="push-notif-status" id="push-notif-status" style="display:none;"></div>
                     </div>
                 </div>
@@ -1225,14 +1224,8 @@
                 </label>
             </div>
 
-            <div class="settings-row" id="theme-settings-row">
-                <div class="settings-premium-left">
-                    <div class="settings-premium-icon" id="theme-row-icon"><i class="fas fa-moon"></i></div>
-                    <div class="settings-premium-text">
-                        <div class="settings-premium-title" data-translate="ThemeLabel">Тема оформления</div>
-                        <div class="settings-premium-sub" id="theme-status-text">Тёмная</div>
-                    </div>
-                </div>
+            <div class="settings-row">
+                <div class="sticker-label" data-translate="ThemeLabel">Тема оформления</div>
                 <input type="checkbox" id="theme-switch" class="theme-toggle-input" />
                 <label for="theme-switch" class="theme-toggle-wrapper">
                     <div class="theme-icon moon"><i class="fas fa-moon"></i></div>
@@ -1242,19 +1235,17 @@
             </div>
             
             <div class="settings-row luxury-lang-row">
+    <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
 
     <!-- Языковой "паспорт" -->
     <div class="lang-picker-luxury" id="lang-picker">
         <button type="button" class="lang-picker-trigger" id="lang-picker-trigger" onclick="toggleLangPicker()">
-            <div class="settings-premium-left">
-                <div class="lang-seal">
-                    <div class="lang-seal-ring"></div>
-                    <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
-                </div>
-                <div class="settings-premium-text">
-                    <div class="settings-premium-title" data-translate="LanguageLabel">Язык интерфейса</div>
-                    <div class="settings-premium-sub" id="lang-picker-name">Русский</div>
-                </div>
+            <div class="lang-seal">
+                <div class="lang-seal-ring"></div>
+                <img src="https://flagcdn.com/w80/ru.png" alt="RU" id="lang-picker-flag" class="lang-flag-img" loading="eager" referrerpolicy="no-referrer" onload="handleFlagLoad(this)" onerror="handleFlagError(this,'ru')">
+            </div>
+            <div class="lang-info">
+                <span class="lang-picker-name" id="lang-picker-name">Русский</span>
             </div>
             <div class="lang-arrow-icon">
                 <i class="fas fa-chevron-down"></i>
@@ -1284,23 +1275,20 @@
     </select>
 </div>
 
-            <div class="settings-row" id="allergies-settings-row">
-                <div class="settings-premium-left">
-                    <div class="settings-premium-icon"><i class="fas fa-triangle-exclamation"></i></div>
-                    <div class="settings-premium-text">
-                        <div class="settings-premium-title">Пищевые ограничения</div>
-                        <div class="settings-premium-sub" id="allergies-summary-text">Нет ограничений</div>
-                    </div>
-                </div>
-                <button type="button" class="settings-premium-edit-btn" onclick="openAllergiesModal()">
+        <div class="settings-section">
+            <div class="settings-block-title" style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
+                <span>⚠️ Пищевые ограничения</span>
+                <button class="small-action-btn" onclick="openAllergiesModal()" style="font-size: 0.8em; padding: 4px 10px;">
                     <i class="fas fa-pen"></i> Изменить
                 </button>
             </div>
-
-            <div id="active-allergens-display" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 0; margin-top: 10px;">
+            
+            <div id="active-allergens-display" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 20px; margin-top: 10px;">
+                <span style="font-size: 0.85em; color: var(--text-secondary); font-style: italic;">Нет ограничений</span>
             </div>
-
-            <div id="blacklist-tags" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        </div>        
+    
+    <div id="blacklist-tags" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
     </div>
 </div>
@@ -9271,12 +9259,6 @@ function renderActiveAllergensInSettings() {
     if (!hasAny) {
         container.innerHTML = '<span style="font-size: 0.9em; color: var(--text-secondary); opacity:0.7;">Нет ограничений</span>';
     }
-
-    const summaryEl = document.getElementById('allergies-summary-text');
-    if (summaryEl) {
-        const activeCount = Object.values(settings.allergies || {}).filter(Boolean).length + (window.userBlacklist ? window.userBlacklist.length : 0);
-        summaryEl.textContent = activeCount > 0 ? `Активно: ${activeCount}` : 'Нет ограничений';
-    }
 }
 
 function showModal(id) { document.getElementById(id).style.display = 'flex'; }
@@ -9292,15 +9274,7 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             }
         }
 
-        function applyTheme(theme) {
-            document.body.className = theme === 'light' ? 'light-theme' : '';
-            const themeSwitch = document.getElementById('theme-switch');
-            if (themeSwitch) themeSwitch.checked = theme === 'light';
-            const statusText = document.getElementById('theme-status-text');
-            if (statusText) statusText.textContent = theme === 'light' ? 'Светлая' : 'Тёмная';
-            const rowIcon = document.getElementById('theme-row-icon');
-            if (rowIcon) rowIcon.innerHTML = theme === 'light' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-        }
+        function applyTheme(theme) { document.body.className = theme === 'light' ? 'light-theme' : ''; const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
 
         // --- Резервные флаги-эмодзи: подстраховка на случай, если картинка с flagcdn.com не подтянулась
         // (медленная/нестабильная сеть, блокировка домена во внутреннем браузере и т.п.) ---

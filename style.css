@@ -537,11 +537,17 @@
 
 /* --- UI FIX: Settings Spacing --- */
 .settings-section {
-    padding: 14px 0;
-    border-bottom: none;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-color);
 }
 .settings-section:last-child {
-    padding-bottom: 0;
+    border-bottom: none;
+}
+.settings-row {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 15px;
 }
 .settings-block-title {
     font-size: 1em; 
@@ -549,180 +555,6 @@
     color: var(--text-primary); 
     margin-bottom: 10px;
     display: block;
-}
-
-/* ============================================================
-   PREMIUM SETTINGS ROWS — единый строчный формат
-   Визуальная база — блок «Язык» (.lang-picker-trigger):
-   стеклянная карточка с блюром, золотой акцент, шиммер при hover.
-   Используется для всех строк управления в окне «Настройки».
-   ============================================================ */
-
-.settings-row {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    width: 100%;
-    padding: 12px 16px;
-    margin-bottom: 12px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
-    cursor: default;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.settings-row:last-child { margin-bottom: 0; }
-
-.settings-row:hover {
-    border-color: rgba(255, 215, 0, 0.5);
-    box-shadow: 0 6px 25px rgba(255, 215, 0, 0.15);
-    transform: translateY(-1px);
-}
-
-.light-theme .settings-row {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.05), rgba(15, 23, 42, 0.015));
-    border-color: rgba(15, 23, 42, 0.12);
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-}
-.light-theme .settings-row:hover {
-    border-color: rgba(217, 119, 6, 0.5);
-    box-shadow: 0 6px 20px rgba(217, 119, 6, 0.15);
-}
-
-/* Лёгкий блеск, пробегающий по строке при наведении — как у языкового триггера */
-.settings-row::after {
-    content: "";
-    position: absolute;
-    top: 0; left: -150%;
-    width: 55%; height: 100%;
-    background: linear-gradient(120deg, transparent, rgba(255, 215, 0, 0.16), transparent);
-    transform: skewX(-20deg);
-    transition: left 0.6s ease;
-    pointer-events: none;
-}
-.settings-row:hover::after { left: 150%; }
-
-/* Языковая строка: карточкой уже является внутренний .lang-picker-trigger,
-   поэтому у обёртки убираем повторное оформление, чтобы не было "коробки в коробке" */
-.settings-row.luxury-lang-row {
-    background: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    margin-bottom: 12px;
-    overflow: visible;
-}
-.settings-row.luxury-lang-row:hover {
-    border: none;
-    box-shadow: none;
-    transform: none;
-}
-.settings-row.luxury-lang-row::after { content: none; }
-
-/* Левая часть строки: иконка + текст (заголовок/подзаголовок) */
-.settings-premium-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-    flex: 1;
-}
-
-.settings-premium-icon {
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.95em;
-    color: #ffd700;
-    background: rgba(255, 215, 0, 0.12);
-    border: 1px solid rgba(255, 215, 0, 0.25);
-    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.12);
-    transition: all 0.3s ease;
-}
-.light-theme .settings-premium-icon {
-    color: #B8860B;
-    background: rgba(217, 119, 6, 0.1);
-    border-color: rgba(217, 119, 6, 0.25);
-}
-
-.settings-premium-text {
-    min-width: 0;
-}
-
-.settings-premium-title {
-    font-weight: 600;
-    font-size: 0.95em;
-    color: #fff;
-    line-height: 1.25;
-}
-.light-theme .settings-premium-title { color: var(--text-primary); }
-
-.settings-premium-sub {
-    font-size: 0.76em;
-    color: rgba(255, 255, 255, 0.45);
-    margin-top: 2px;
-    line-height: 1.3;
-}
-.light-theme .settings-premium-sub { color: var(--text-secondary); }
-
-.settings-premium-control {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* Индикатор активного состояния (используется, например, для push-уведомлений) */
-.settings-row.is-on .settings-premium-icon {
-    color: var(--primary);
-    background: rgba(16, 185, 129, 0.12);
-    border-color: rgba(16, 185, 129, 0.3);
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
-}
-
-/* Кнопка-редактирование внутри премиум-строки (например, «Пищевые ограничения») */
-.settings-premium-edit-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 14px;
-    border-radius: 20px;
-    background: rgba(255, 215, 0, 0.1);
-    color: #ffd700;
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    font-size: 0.78em;
-    font-weight: 700;
-    cursor: pointer;
-    transition: 0.2s;
-}
-.settings-premium-edit-btn:hover {
-    background: #ffd700;
-    color: #1a1400;
-    border-color: #ffd700;
-    transform: translateY(-1px);
-}
-.light-theme .settings-premium-edit-btn {
-    color: #B8860B;
-    background: rgba(217, 119, 6, 0.08);
-    border-color: rgba(217, 119, 6, 0.3);
-}
-.light-theme .settings-premium-edit-btn:hover {
-    background: #D97706;
-    color: #fff;
-    border-color: #D97706;
 }
 
 /* --- LOGOUT BUTTON (top of profile card) --- */
@@ -756,21 +588,75 @@
 .logout-btn-top i { font-size: 0.95em; }
 
 /* --- NOTIFICATION SETTINGS ROW (единый стиль со строками темы/языка) --- */
-/* Строка полностью наследует премиальную карточку от .settings-row —
-   здесь остаются только специфичные для уведомлений детали (статус). */
+.notif-settings-row {
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+.notif-settings-row.is-on {
+    border: none;
+    box-shadow: none;
+}
+
+.notif-row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.notif-icon-badge {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    transition: color 0.3s;
+}
+
+.notif-settings-row.is-on .notif-icon-badge {
+    background: none;
+    color: var(--primary);
+    border: none;
+    box-shadow: none;
+}
+
+.notif-row-text { min-width: 0; }
+
+.notif-row-title {
+    font-weight: 600;
+    font-size: 1.1em;
+    color: var(--text-primary);
+}
+
+.notif-row-desc {
+    font-size: 0.78em;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    line-height: 1.35;
+}
 
 .push-notif-status {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.76em;
+    font-size: 0.78em;
     font-weight: 500;
-    margin-top: 2px;
+    margin-top: 3px;
     padding: 0;
     border-radius: 0;
-    color: rgba(255, 255, 255, 0.45);
 }
-.light-theme .push-notif-status { color: var(--text-secondary); }
 
 .push-notif-status.on {
     color: var(--primary);
@@ -4560,23 +4446,21 @@ adsgram-task {
         .sticker-label { font-size: 1.1em; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
         
         .theme-toggle-wrapper {
-            position: relative; width: 56px; height: 32px; background: var(--surface-light);
-            border-radius: 32px; cursor: pointer; padding: 3px; transition: 0.4s;
+            position: relative; width: 80px; height: 40px; background: var(--surface-light);
+            border-radius: 40px; cursor: pointer; padding: 4px; transition: 0.4s;
             box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
             display: flex; align-items: center; justify-content: space-between;
-            flex-shrink: 0;
         }
         .theme-toggle-input { display: none; }
-        .theme-icon { z-index: 1; width: 22px; text-align: center; font-size: 0.85em; transition: 0.4s; }
+        .theme-icon { z-index: 1; width: 32px; text-align: center; font-size: 1.2em; transition: 0.4s; }
         .theme-icon.moon { color: #fff; opacity: 1; }
         .theme-icon.sun { color: var(--text-secondary); opacity: 0.3; }
-        .light-theme .theme-icon.moon { color: var(--text-secondary); }
         .theme-toggle-circle {
-            position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+            position: absolute; top: 4px; left: 4px; width: 32px; height: 32px;
             background: var(--surface); border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
             transition: 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
         }
-        .theme-toggle-input:checked + .theme-toggle-wrapper .theme-toggle-circle { transform: translateX(24px); background: #FFD700; }
+        .theme-toggle-input:checked + .theme-toggle-wrapper .theme-toggle-circle { transform: translateX(40px); background: #FFD700; }
         .theme-toggle-input:checked + .theme-toggle-wrapper .theme-icon.moon { color: var(--text-secondary); opacity: 0.3; }
         .theme-toggle-input:checked + .theme-toggle-wrapper .theme-icon.sun { color: #FFA500; opacity: 1; }
 
@@ -5386,6 +5270,7 @@ adsgram-task {
 .lang-picker-luxury {
     position: relative;
     width: 100%;
+    max-width: 320px;
 }
 
 .lang-picker-trigger {
@@ -5393,7 +5278,7 @@ adsgram-task {
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 12px 16px;
+    padding: 10px 16px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
