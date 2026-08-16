@@ -534,11 +534,11 @@
         </select>
     </div>
 
-    <button class="btn btn-primary" onclick="orderAllShopping()" style="width: 100%; margin-bottom: 10px; background-color: var(--secondary);">
+    <button id="order-all-shopping-btn" class="btn btn-primary" onclick="orderAllShopping()" style="width: 100%; margin-bottom: 10px; background-color: var(--secondary);">
     <i class="fas fa-cart-shopping"></i> Заказать всю корзину
 </button>
 
-    <button class="btn btn-primary" onclick="finishShopping()" style="width: 100%; margin-bottom: 10px; background-color: var(--success);">
+    <button id="finish-shopping-btn" class="btn btn-primary" onclick="openFridgeTransferModal()" style="width: 100%; margin-bottom: 10px; background-color: var(--success); display:none;">
     <i class="fas fa-box-open"></i> Перенести купленное в холодильник
 </button>
 
@@ -3016,57 +3016,131 @@ function showBannedScreen(uid) {
     checkAchievements('count'); 
 }
 
-function finishShopping() {
-    // 1. Находим все отмеченные товары
-    const boughtItems = userShopping.filter(s => s.completed);
-    
-    if (boughtItems.length === 0) {
-        showToast("Сначала отметьте купленные товары галочкой", "warning");
+let fridgeTransferItems = [];
+let fridgeTransferChecked = {};
+
+// Шаг 3 сценария: показываем сверку купленных товаров с предпроставленными
+// галочками, прежде чем реально перенести их в холодильник — курьер мог
+// не довезти часть позиций, и лучше дать это поправить за 3 секунды, чем
+// автоматически считать, что приехало абсолютно всё.
+function openFridgeTransferModal() {
+    fridgeTransferItems = userShopping.filter(s => s.completed);
+
+    if (fridgeTransferItems.length === 0) {
+        showToast("Сначала закажите или отметьте купленные товары", "warning");
         return;
     }
 
-    // 2. Переносим их в инвентарь
+    fridgeTransferChecked = {};
+    fridgeTransferItems.forEach(item => { fridgeTransferChecked[item.id] = true; });
+
+    renderFridgeTransferList();
+    showModal('fridge-transfer-modal');
+}
+
+function renderFridgeTransferList() {
+    const container = document.getElementById('fridge-transfer-list');
+    if (!container) return;
+
+    container.innerHTML = fridgeTransferItems.map(item => {
+        const checked = !!fridgeTransferChecked[item.id];
+        const qtyText = (item.qty && item.qty > 0) ? ` <span class="fridge-transfer-qty">${item.qty} ${item.unit || ''}</span>` : '';
+        return `<div class="fridge-transfer-item ${checked ? 'checked' : ''}" onclick="toggleFridgeTransferItem(${item.id})">
+            <div class="fridge-transfer-check">${checked ? '<i class="fas fa-check"></i>' : ''}</div>
+            <div class="fridge-transfer-name">${item.name}${qtyText}</div>
+        </div>`;
+    }).join('');
+
+    updateFridgeTransferConfirmBtn();
+}
+
+function toggleFridgeTransferItem(id) {
+    fridgeTransferChecked[id] = !fridgeTransferChecked[id];
+    renderFridgeTransferList();
+}
+
+function setFridgeTransferAll(state) {
+    fridgeTransferItems.forEach(item => { fridgeTransferChecked[item.id] = state; });
+    renderFridgeTransferList();
+}
+
+function updateFridgeTransferConfirmBtn() {
+    const btn = document.getElementById('fridge-transfer-confirm-btn');
+    if (!btn) return;
+
+    const total = fridgeTransferItems.length;
+    const checkedCount = fridgeTransferItems.filter(i => fridgeTransferChecked[i.id]).length;
+
+    if (checkedCount === total) {
+        btn.innerHTML = '<i class="fas fa-check"></i> Все привезли, добавить!';
+    } else if (checkedCount === 0) {
+        btn.innerHTML = '<i class="fas fa-check"></i> Добавить';
+    } else {
+        btn.innerHTML = `<i class="fas fa-check"></i> Добавить ${checkedCount} из ${total}`;
+    }
+
+    btn.disabled = checkedCount === 0;
+    btn.classList.toggle('disabled', checkedCount === 0);
+}
+
+function confirmFridgeTransfer() {
+    const toAdd = fridgeTransferItems.filter(item => fridgeTransferChecked[item.id]);
+    const toReturn = fridgeTransferItems.filter(item => !fridgeTransferChecked[item.id]);
+
+    if (toAdd.length === 0) {
+        showToast("Отметьте хотя бы один товар", "warning");
+        return;
+    }
+
     let count = 0;
     const today = new Date();
     // Ставим срок годности по умолчанию +7 дней (так как мы не спрашиваем пользователя для каждого товара)
     const defaultExpiry = new Date(today.setDate(today.getDate() + 7)).toISOString().split('T')[0];
 
-    boughtItems.forEach(item => {
+    toAdd.forEach(item => {
         // Проверяем, есть ли уже такой продукт в инвентаре, чтобы не плодить дубли
         const existingInvItem = userInventory.find(p => p.name.toLowerCase() === item.name.toLowerCase());
-        
+
         if (existingInvItem) {
-            // Если есть - просто добавляем количество
             existingInvItem.qty += (item.qty || 1);
         } else {
-            // Если нет - создаем новый
             userInventory.push({
-                id: Date.now() + count, // +count чтобы ID были уникальными
+                id: Date.now() + count,
                 name: item.name,
                 qty: item.qty || 1,
                 unit: item.unit || 'шт',
                 category: item.category || 'Other',
-                expiryDate: defaultExpiry, // Внимание: ставится авто-срок
+                expiryDate: defaultExpiry,
                 addedDate: new Date().toISOString().split('T')[0]
             });
         }
         count++;
     });
 
-    // 3. Удаляем купленные из списка покупок
-    userShopping = userShopping.filter(s => !s.completed);
+    // Перенесённые товары убираем из списка покупок полностью.
+    // То, чего курьер не довёз, возвращаем в "Активные" — чтобы можно было
+    // заказать/докупить ещё раз, вместо того чтобы молча считать купленным.
+    const addedIds = new Set(toAdd.map(i => i.id));
+    userShopping = userShopping.filter(s => !addedIds.has(s.id));
+    toReturn.forEach(item => {
+        const stillThere = userShopping.find(s => s.id === item.id);
+        if (stillThere) stillThere.completed = false;
+    });
 
-    // 4. Обновляем UI и сохраняем
+    hideModal('fridge-transfer-modal');
     updateShoppingList();
     updateInventoryList();
     updateHeader();
     saveData(false);
-    
-    // Проверяем достижения
-    checkAchievements('add'); 
+
+    checkAchievements('add');
     checkAchievements('count');
 
-    showToast(`Перенесено ${count} продуктов в инвентарь!`, "success");
+    if (toReturn.length > 0) {
+        showToast(`Добавлено ${count} продукт(ов). ${toReturn.length} не довезли — остались в активных`, "success");
+    } else {
+        showToast(`Перенесено ${count} продуктов в холодильник!`, "success");
+    }
     checkInterstitialAd();
 }
 
@@ -4966,6 +5040,11 @@ function selectSuggestion(select) {
     const filter = activeBtn ? (activeBtn.getAttribute('data-filter') || 'pending') : 'pending';
     const sortMode = document.getElementById('shopping-sort') ? document.getElementById('shopping-sort').value : 'category';
 
+    const orderAllBtn = document.getElementById('order-all-shopping-btn');
+    const finishBtn = document.getElementById('finish-shopping-btn');
+    if (orderAllBtn) orderAllBtn.style.display = filter === 'pending' ? '' : 'none';
+    if (finishBtn) finishBtn.style.display = filter === 'completed' ? '' : 'none';
+
     list.innerHTML = ''; 
     let items = userShopping.filter(s => filter === 'pending' ? !s.completed : s.completed);
 
@@ -5115,27 +5194,93 @@ function openDeliverySearch(productName, isCart = false, itemsCount = 0, cartIte
     currentDeliveryCategoryId = 'marketplaces';
     currentDeliveryCartItems = isCart ? cartItems : null;
 
+    const chipEl = document.getElementById('delivery-product-chip');
     const chipIcon = document.getElementById('delivery-search-chip-icon');
     const chipPrefix = document.getElementById('delivery-search-chip-prefix');
     const nameEl = document.getElementById('delivery-search-product-name');
     const hintEl = document.getElementById('delivery-hint-text');
+    const arrowEl = document.getElementById('delivery-cart-chip-arrow');
+    const editorEl = document.getElementById('delivery-cart-editor');
+
+    // Сбрасываем редактор списка при каждом новом открытии модалки
+    deliveryCartEditorOpen = false;
+    if (editorEl) editorEl.style.display = 'none';
+    if (arrowEl) arrowEl.classList.remove('open');
 
     if (isCart) {
         if (chipIcon) chipIcon.className = 'fas fa-cart-shopping';
         if (chipPrefix) chipPrefix.textContent = 'Вся корзина:';
         if (nameEl) nameEl.textContent = `${itemsCount} ${pluralizeItems(itemsCount)}`;
         if (hintEl) hintEl.textContent = 'Откроется отдельная вкладка поиска по каждому товару — добавьте их в корзину на сайте и оформите один заказ. Если браузер заблокирует часть вкладок, разрешите всплывающие окна для Axio';
+        if (chipEl) chipEl.classList.add('clickable');
+        if (arrowEl) arrowEl.style.display = '';
     } else {
         if (chipIcon) chipIcon.className = 'fas fa-magnifying-glass';
         if (chipPrefix) chipPrefix.textContent = 'Ищем:';
         if (nameEl) nameEl.textContent = productName;
         if (hintEl) hintEl.textContent = 'Откроется поиск по этому товару на выбранной площадке';
+        if (chipEl) chipEl.classList.remove('clickable');
+        if (arrowEl) arrowEl.style.display = 'none';
     }
 
     renderDeliveryTabs();
     renderDeliveryGrid();
 
     showModal('delivery-search-modal');
+}
+
+let deliveryCartEditorOpen = false;
+
+function toggleDeliveryCartEditor() {
+    if (!currentDeliveryCartItems) return; // редактируемый список доступен только в режиме "вся корзина"
+    deliveryCartEditorOpen = !deliveryCartEditorOpen;
+    const editor = document.getElementById('delivery-cart-editor');
+    const arrow = document.getElementById('delivery-cart-chip-arrow');
+    if (arrow) arrow.classList.toggle('open', deliveryCartEditorOpen);
+    if (editor) editor.style.display = deliveryCartEditorOpen ? 'block' : 'none';
+    if (deliveryCartEditorOpen) renderDeliveryCartChips();
+}
+
+function renderDeliveryCartChips() {
+    const container = document.getElementById('delivery-cart-chips');
+    if (!container) return;
+    if (!currentDeliveryCartItems || !currentDeliveryCartItems.length) {
+        container.innerHTML = '<span class="delivery-cart-empty">Список пуст</span>';
+        return;
+    }
+    container.innerHTML = currentDeliveryCartItems.map((name, i) => `
+        <div class="delivery-cart-chip">
+            <span>${escapeHtml(name)}</span>
+            <i class="fas fa-times" onclick="removeDeliveryCartItem(${i})"></i>
+        </div>
+    `).join('');
+}
+
+function removeDeliveryCartItem(index) {
+    if (!currentDeliveryCartItems) return;
+    currentDeliveryCartItems.splice(index, 1);
+    renderDeliveryCartChips();
+    updateDeliveryCartCountUI();
+}
+
+function addDeliveryCartItem() {
+    const input = document.getElementById('delivery-cart-add-input');
+    if (!input) return;
+    const val = input.value.trim();
+    if (!val) return;
+    if (!currentDeliveryCartItems) currentDeliveryCartItems = [];
+    currentDeliveryCartItems.push(val);
+    input.value = '';
+    input.focus();
+    renderDeliveryCartChips();
+    updateDeliveryCartCountUI();
+}
+
+function updateDeliveryCartCountUI() {
+    const nameEl = document.getElementById('delivery-search-product-name');
+    if (!nameEl) return;
+    const n = currentDeliveryCartItems ? currentDeliveryCartItems.length : 0;
+    nameEl.textContent = `${n} ${pluralizeItems(n)}`;
 }
 
 function pluralizeItems(n) {
@@ -5155,6 +5300,14 @@ function orderAllShopping() {
     }
 
     const names = activeItems.map(s => s.name);
+
+    // Шаг 1 сценария "Сверка перед холодильником": заказ оформлен — товары
+    // переходят в промежуточный статус "Заказано" (вкладка "Купленные").
+    // В холодильник они попадут только после сверки, когда курьер их привезёт.
+    activeItems.forEach(item => { item.completed = true; });
+    saveData(false);
+    updateShoppingList();
+
     openDeliverySearch(names.join(', '), true, names.length, names);
 }
 
@@ -5207,7 +5360,11 @@ function goToDeliveryOption(catId, itemId) {
     // так как ни один из сервисов не позволяет добавить чужой список товаров
     // в корзину пользователя по одной ссылке — это требует официального
     // партнёрского доступа и авторизации на стороне площадки.
-    if (currentDeliveryCartItems && currentDeliveryCartItems.length) {
+    if (currentDeliveryCartItems) {
+        if (!currentDeliveryCartItems.length) {
+            showToast('Список пуст — добавьте хотя бы один товар', 'warning');
+            return;
+        }
         const names = currentDeliveryCartItems;
 
         if (isTelegramEnv() && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
@@ -15954,9 +16111,18 @@ function fallbackCopy(text) {
         </div>
 
         <div class="delivery-product-chip-wrap">
-            <div class="delivery-product-chip">
+            <div class="delivery-product-chip" id="delivery-product-chip" onclick="toggleDeliveryCartEditor()">
                 <i class="fas fa-magnifying-glass" id="delivery-search-chip-icon"></i>
                 <span><span id="delivery-search-chip-prefix">Ищем:</span> <b id="delivery-search-product-name">—</b></span>
+                <i class="fas fa-chevron-down delivery-cart-chip-arrow" id="delivery-cart-chip-arrow" style="display:none;"></i>
+            </div>
+        </div>
+
+        <div class="delivery-cart-editor" id="delivery-cart-editor" style="display:none;">
+            <div class="delivery-cart-chips" id="delivery-cart-chips"></div>
+            <div class="delivery-cart-add-row">
+                <input type="text" id="delivery-cart-add-input" class="styled-input" placeholder="Добавить товар" onkeydown="if(event.key==='Enter'){event.preventDefault(); addDeliveryCartItem();}">
+                <button type="button" class="delivery-cart-add-btn" onclick="addDeliveryCartItem()"><i class="fas fa-plus"></i></button>
             </div>
         </div>
 
@@ -15967,6 +16133,28 @@ function fallbackCopy(text) {
         <p class="delivery-hint-text">
             <i class="fas fa-circle-info"></i> <span id="delivery-hint-text">Откроется поиск по этому товару на выбранной площадке</span>
         </p>
+    </div>
+</div>
+
+<div id="fridge-transfer-modal" class="modal" onclick="if(event.target.id === 'fridge-transfer-modal') hideModal('fridge-transfer-modal')">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h4><i class="fas fa-box-open"></i> Сверка перед холодильником</h4>
+            <span class="modal-close" onclick="hideModal('fridge-transfer-modal')"><i class="fas fa-times"></i></span>
+        </div>
+
+        <p class="fridge-transfer-hint">Отметьте, что курьер действительно привёз. Всё найденное — сразу в холодильник, недостающее снимите галочкой.</p>
+
+        <div class="fridge-transfer-toggle-all">
+            <button type="button" class="fridge-transfer-toggle-btn" onclick="setFridgeTransferAll(true)"><i class="fas fa-check-double"></i> Отметить всё</button>
+            <button type="button" class="fridge-transfer-toggle-btn" onclick="setFridgeTransferAll(false)"><i class="fas fa-eraser"></i> Снять всё</button>
+        </div>
+
+        <div id="fridge-transfer-list" class="fridge-transfer-list"></div>
+
+        <button class="btn btn-primary fridge-transfer-confirm-btn" onclick="confirmFridgeTransfer()" id="fridge-transfer-confirm-btn">
+            <i class="fas fa-check"></i> Все привезли, добавить!
+        </button>
     </div>
 </div>
 

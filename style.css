@@ -3688,8 +3688,8 @@ adsgram-task {
         .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
-        .level-stat { flex: 1 1 45%; min-width: 0; margin-top: 0; margin-left: 0; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.3em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-stat { flex: 1 1 auto; min-width: 0; margin-top: 0; margin-left: 0; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.36em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
@@ -3898,6 +3898,101 @@ adsgram-task {
             transition: transform 0.15s;
         }
         .delivery-cart-add-btn:active { transform: scale(0.92); }
+
+        /* --- Сверка перед холодильником --- */
+        .fridge-transfer-hint {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+            line-height: 1.4;
+        }
+        .fridge-transfer-toggle-all {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .fridge-transfer-toggle-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: var(--surface-light);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 8px;
+            border-radius: 10px;
+            font-size: 0.82em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .fridge-transfer-toggle-btn:hover { background: var(--surface-lighter); color: var(--text-primary); }
+        .fridge-transfer-list {
+            max-height: 42vh;
+            overflow-y: auto;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .fridge-transfer-item {
+            display: flex;
+            align-items: center;
+            padding: 11px 12px;
+            border-radius: 12px;
+            background: var(--surface-light);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .fridge-transfer-check {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            border: 2px solid var(--text-secondary);
+            border-radius: 8px;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .fridge-transfer-item.checked {
+            border-color: rgba(16,185,129,0.35);
+            background: rgba(16,185,129,0.08);
+        }
+        .fridge-transfer-item.checked .fridge-transfer-check {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+        .fridge-transfer-name {
+            font-weight: 700;
+            font-size: 1em;
+            color: var(--text-primary);
+            transition: 0.2s;
+        }
+        .fridge-transfer-item:not(.checked) .fridge-transfer-name {
+            opacity: 0.55;
+            text-decoration: line-through;
+        }
+        .fridge-transfer-qty {
+            font-weight: 500;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            text-decoration: none !important;
+        }
+        .fridge-transfer-confirm-btn {
+            width: 100%;
+            font-size: 1.05em;
+            padding: 14px;
+        }
+        .fridge-transfer-confirm-btn:disabled,
+        .fridge-transfer-confirm-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .delivery-tabs {
             display: grid;

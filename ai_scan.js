@@ -1,14 +1,9 @@
-// ai_scan.js
-// Распознавание продуктов на фото (один товар, содержимое пакета или чек) через Gemini Vision.
-// Использует тот же бесплатный GEMINI_API_KEY, что и ai_chef.js (файл должен подключаться раньше).
-
 const AI_SCAN_VALID_CATEGORIES = ['Dairy', 'Meat', 'Vegetables', 'Fruits', 'Bakery', 'Other'];
 const AI_SCAN_VALID_UNITS = ['шт', 'г', 'кг', 'мл', 'л'];
 
 let aiScanRecognizedItems = [];
 
 function openAiScanCamera() {
-    // Сбрасываем состояние предыдущего скана
     aiScanRecognizedItems = [];
     openCameraInterface('ai-scan');
 }
@@ -24,7 +19,6 @@ async function handleAiScanCapture(dataUrl) {
     const listEl = document.getElementById('ai-scan-list');
     const confirmBtn = document.getElementById('ai-scan-confirm-btn');
 
-    // Показываем модалку в состоянии загрузки
     modal.style.display = 'flex';
     loadingEl.style.display = 'block';
     errorEl.style.display = 'none';
@@ -84,7 +78,6 @@ async function handleAiScanCapture(dataUrl) {
         let items = JSON.parse(jsonString);
         if (!Array.isArray(items)) items = [];
 
-        // Валидация и нормализация полей на случай, если модель что-то напутает
         items = items.map(item => ({
             name: (item.name || 'Продукт').toString().slice(0, 60),
             category: AI_SCAN_VALID_CATEGORIES.includes(item.category) ? item.category : 'Other',

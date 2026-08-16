@@ -1,7 +1,5 @@
 const GEMINI_API_KEY = "AIzaSyCTvAM3RX_P2TiIEtXQmi0GGNWbXStHwXc";
 
-// Память о том, что AI уже предлагал для текущего состава инвентаря —
-// чтобы не повторять один и тот же рецепт при "Другой вариант".
 let aiChefShownTitles = [];
 let aiChefLastInventorySignature = '';
 
@@ -19,8 +17,6 @@ async function generateAIRecipe(count) {
         return;
     }
 
-    // Сколько вариантов просить: явный аргумент (кнопка "другой вариант" его не передаёт,
-    // так что берём то же значение, что выбрано в селекторе) -> селектор -> 1
     const countSelect = document.getElementById('ai-chef-count');
     if (typeof count !== 'number') {
         count = countSelect ? parseInt(countSelect.value, 10) : 1;
@@ -28,7 +24,6 @@ async function generateAIRecipe(count) {
     if (!count || count < 1) count = 1;
     if (count > 5) count = 5;
 
-    // Если инвентарь поменялся с прошлой генерации — начинаем список "уже показанного" заново
     const currentSignature = getInventorySignature();
     if (currentSignature !== aiChefLastInventorySignature) {
         aiChefShownTitles = [];
@@ -95,7 +90,7 @@ async function generateAIRecipe(count) {
         if (!jsonString) {
             throw new Error('Пустой ответ от модели (возможно, сработал фильтр безопасности)');
         }
-        // На случай если модель всё же обернёт ответ в ```json ... ```
+
         jsonString = jsonString.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
         let recipes = JSON.parse(jsonString);
         if (!Array.isArray(recipes)) recipes = [recipes];
@@ -103,7 +98,6 @@ async function generateAIRecipe(count) {
         recipes.forEach(r => {
             if (r && r.title) aiChefShownTitles.push(r.title);
         });
-        // не даём списку расти бесконечно
         if (aiChefShownTitles.length > 25) {
             aiChefShownTitles = aiChefShownTitles.slice(-25);
         }
