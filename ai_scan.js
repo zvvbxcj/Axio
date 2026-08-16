@@ -28,54 +28,39 @@ async function handleAiScanCapture(dataUrl) {
 
     try {
         const base64Data = dataUrl.split(',')[1]; // убираем префикс data:image/jpeg;base64,
+        const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
-        const promptText = `
-            Ты — ассистент по распознаванию продуктов питания на фото для приложения-органайзера холодильника.
-            На фото может быть: один продукт крупным планом, несколько продуктов на столе/в пакете, или чек из магазина.
-            Определи ВСЕ продукты питания, которые видишь (или строки покупок, если это чек).
-            Для каждого продукта укажи:
-            - name: короткое понятное название на русском (например "Молоко 3.2%", "Яблоки")
-            - category: строго одно из значений ["Dairy","Meat","Vegetables","Fruits","Bakery","Other"]
-            - qty: примерное количество (число)
-            - unit: строго одно из значений ["шт","г","кг","мл","л"]
-            - shelf_life_days: сколько дней этот продукт обычно хранится в холодильнике/дома (целое число, разумная оценка)
+        if (!AXIO_AI_CHEF_ENDPOINT || AXIO_AI_CHEF_ENDPOINT.startsWith('ВСТАВЬ')) {
+            throw new Error('Серверная функция AI не настроена (см. AXIO_AI_CHEF_ENDPOINT в ai_chef.js)');
+        }
+        if (typeof auth === 'undefined' || !auth.currentUser) {
+            throw new Error('Нужно войти в аккаунт, чтобы пользоваться сканером');
+        }
 
-            Ответь СТРОГО в формате JSON-массива без markdown-разметки, например:
-            [{"name":"Молоко 3.2%","category":"Dairy","qty":1,"unit":"л","shelf_life_days":7}]
+        // Тот же Firebase ID-токен, что и у AI-шефа — воркер проверяет его одинаково для обоих действий
+        const idToken = await auth.currentUser.getIdToken();
 
-            Если на фото нет ни одного продукта питания, верни пустой массив: []
-        `;
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
             body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: promptText },
-                        { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-                    ]
-                }],
-                generationConfig: {
-                    temperature: 0.4,
-                    responseMimeType: "application/json"
-                }
+                action: 'scan',
+                imageBase64: base64Data,
+                mimeType
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Ошибка ${response.status}: ${errorData.error?.message || 'Неизвестная ошибка'}`);
-        }
-
         const data = await response.json();
-        let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!jsonString) {
-            throw new Error('Пустой ответ от модели (возможно, сработал фильтр безопасности)');
-        }
-        jsonString = jsonString.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
 
-        let items = JSON.parse(jsonString);
+        if (!response.ok) {
+            throw new Error(data.error || `Ошибка ${response.status}`);
+        }
+
+        let items = data.items;
         if (!Array.isArray(items)) items = [];
 
         items = items.map(item => ({
