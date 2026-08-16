@@ -4646,6 +4646,10 @@ adsgram-task {
 }
 #maintenance-screen.banned-mode #maint-title { color: var(--error); }
 
+/* Золотой стиль для экрана "доступно только Premium" */
+#maintenance-screen.premium-mode #maint-title { color: #F59E0B; }
+#maintenance-screen.premium-mode .maint-icon-container i { color: #F59E0B; }
+
 /* Сетка статистики */
 .stats-grid-mega {
     display: grid;
@@ -6610,6 +6614,10 @@ adsgram-task {
 #state-btn-maintenance.active .state-check { color: #EF4444; }
 #state-btn-dev.active { border-color: #8B5CF6; background: rgba(139, 92, 246, 0.1); }
 #state-btn-dev.active .state-check { color: #8B5CF6; }
+#state-btn-registered_only.active { border-color: #3B82F6; background: rgba(59, 130, 246, 0.1); }
+#state-btn-registered_only.active .state-check { color: #3B82F6; }
+#state-btn-premium_only.active { border-color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
+#state-btn-premium_only.active .state-check { color: #F59E0B; }
 
 .admin-maint-message { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-color); }
 .admin-maint-message label { font-size: 0.85em; color: var(--text-secondary); margin-bottom: 8px; display: block; }

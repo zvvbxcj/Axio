@@ -1754,6 +1754,11 @@ function addXp(amount) {
         }
 
         async function registerUser() {
+            const serverStatus = getServerStatus();
+            if (serverStatus === 'registered_only' || serverStatus === 'maintenance') {
+                return showToast('Регистрация новых аккаунтов сейчас недоступна.', 'warning');
+            }
+
             if (!captchaVerified['register']) {
                 return showToast(translations[currentLang].CaptchaError, 'warning');
             }
@@ -2859,17 +2864,27 @@ firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
 // Глобальные настройки конфига
 let appConfig = { maintenanceMode: false, message: "" };
 
+// Возвращает текущее состояние сервера: 'online' | 'registered_only' | 'premium_only' | 'maintenance'
+function getServerStatus() {
+    return appConfig.serverStatus || (appConfig.maintenanceMode ? 'maintenance' : 'online');
+}
+
 function checkAuthState() {
     auth.onAuthStateChanged(async (user) => {
         const loader = document.getElementById('global-loader');
         
-        // 1. Сначала загружаем глобальный конфиг (Тех. работы)
+        // 1. Сначала загружаем глобальный конфиг (Тех. работы / ограничения доступа)
         try {
             const configDoc = await db.collection('global_settings').doc('config').get();
             if (configDoc.exists) {
                 appConfig = configDoc.data();
             }
         } catch (e) { console.error("Config load error", e); }
+
+        const serverStatus = getServerStatus();
+        // Разработчик (главный админ) должен иметь доступ к сайту всегда,
+        // независимо от текущего состояния сервера.
+        const isDeveloper = !!user && user.uid === ADMIN_UID;
 
         if (user) {
             currentUser = { 
@@ -2880,23 +2895,48 @@ function checkAuthState() {
             };
             initPushNotifications();
 
-            // 2. ПРОВЕРКА: Если Тех. работы И юзер НЕ админ
-            if (appConfig.maintenanceMode && user.uid !== ADMIN_UID) {
-                loader.style.display = 'none';
-                showMaintenanceScreen(appConfig.message);
-                return; // СТОП ЗАГРУЗКА
+            if (!isDeveloper) {
+                // 2. ПРОВЕРКА: Тех. работы — доступ закрыт всем, кроме админа
+                if (serverStatus === 'maintenance') {
+                    loader.style.display = 'none';
+                    showMaintenanceScreen(appConfig.message);
+                    return; // СТОП ЗАГРУЗКА
+                }
+
+                // 3. ПРОВЕРКА: режим "только для зарегистрированных" — блокируем
+                // аккаунты, созданные только что (первый вход == дата регистрации),
+                // но пускаем всех, кто уже был зарегистрирован раньше.
+                if (serverStatus === 'registered_only') {
+                    const isBrandNewAccount = user.metadata &&
+                        user.metadata.creationTime === user.metadata.lastSignInTime;
+                    if (isBrandNewAccount) {
+                        loader.style.display = 'none';
+                        showMaintenanceScreen("Регистрация новых аккаунтов сейчас временно закрыта.\nЕсли у вас уже есть аккаунт — просто войдите в него.");
+                        auth.signOut();
+                        return; // СТОП ЗАГРУЗКА
+                    }
+                }
             }
 
-            // 3. ПРОВЕРКА: Загружаем профиль юзера, чтобы проверить БАН
+            // 4. Загружаем профиль юзера — нужен для проверки БАНа и Premium-статуса
             const userDoc = await db.collection(USER_COLLECTION).doc(user.uid).get();
-            if (userDoc.exists && userDoc.data().isBanned) {
+            const userData = userDoc.exists ? userDoc.data() : {};
+
+            if (!isDeveloper && userData.isBanned) {
                 loader.style.display = 'none';
                 showBannedScreen(user.uid);
                 auth.signOut(); // Разлогиниваем сразу
                 return; // СТОП ЗАГРУЗКА
             }
 
-            // 4. Если все ок — грузим приложение
+            // 5. ПРОВЕРКА: режим "только для Premium"
+            if (!isDeveloper && serverStatus === 'premium_only' && !userData.isPremium) {
+                loader.style.display = 'none';
+                showMaintenanceScreen('premium');
+                return; // СТОП ЗАГРУЗКА
+            }
+
+            // 6. Если все ок — грузим приложение
             await loadData(); 
             
             const lastSection = localStorage.getItem('axio_last_section') || 'inventory';
@@ -2908,7 +2948,7 @@ function checkAuthState() {
             
         } else {
             // Если юзера нет, но включены тех. работы — все равно показываем экран работ
-            if (appConfig.maintenanceMode) {
+            if (serverStatus === 'maintenance') {
                 loader.style.display = 'none';
                 showMaintenanceScreen(appConfig.message);
                 return;
@@ -2920,9 +2960,42 @@ function checkAuthState() {
             document.getElementById('auth-screen').style.display = 'flex';
             document.getElementById('login-form').style.display = 'block';
             document.getElementById('social-auth-section').style.display = 'block';
+            applyRegistrationLock(serverStatus === 'registered_only');
             setTimeout(() => { initCaptcha('login'); initCaptcha('register'); }, 50);
         }
     });
+}
+
+// Скрывает/показывает возможность регистрации нового аккаунта на экране входа
+// (используется в состоянии сервера "только для зарегистрированных")
+function applyRegistrationLock(isLocked) {
+    const registerLink = document.getElementById('show-register-link');
+    const registerSwitch = registerLink ? registerLink.closest('.auth-switch') : null;
+    let notice = document.getElementById('registration-closed-notice');
+
+    if (isLocked) {
+        if (registerSwitch) registerSwitch.style.display = 'none';
+
+        // Если пользователь уже открыл форму регистрации — переключаем на вход
+        const registerForm = document.getElementById('register-form');
+        if (registerForm && registerForm.style.display !== 'none') {
+            registerForm.style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+        }
+
+        if (!notice) {
+            notice = document.createElement('p');
+            notice.id = 'registration-closed-notice';
+            notice.style.cssText = 'color: var(--text-secondary); font-size: 0.85em; text-align: center; margin-top: 14px; line-height: 1.5;';
+            notice.innerText = 'Регистрация новых аккаунтов сейчас закрыта. Если у вас уже есть аккаунт — войдите.';
+            const container = document.getElementById('email-auth-section');
+            if (container) container.appendChild(notice);
+        }
+        notice.style.display = 'block';
+    } else if (notice) {
+        if (registerSwitch) registerSwitch.style.display = '';
+        notice.style.display = 'none';
+    }
 }
 
 // Функции показа экранов
@@ -5543,8 +5616,10 @@ async function deletePublicRecipe(id) {
 async function checkMaintenanceOnly() {
     try {
         const doc = await db.collection('global_settings').doc('config').get();
-        if (doc.exists && doc.data().maintenanceMode) {
-            return true;
+        if (doc.exists) {
+            const conf = doc.data();
+            const status = conf.serverStatus || (conf.maintenanceMode ? 'maintenance' : 'online');
+            if (status === 'maintenance') return true;
         }
     } catch (e) { console.log("Config check error", e); }
     return false;
@@ -5552,30 +5627,35 @@ async function checkMaintenanceOnly() {
 
 // Полная проверка при входе
 async function checkSystemStatus(uid) {
+    // Разработчик (главный админ) — доступ всегда, независимо от состояния сервера
+    if (uid === ADMIN_UID) {
+        return true;
+    }
+
+    let status = 'online';
+    let userData = {};
+
     try {
         const configDoc = await db.collection('global_settings').doc('config').get();
         if (configDoc.exists) {
             const conf = configDoc.data();
-            const status = conf.serverStatus || (conf.maintenanceMode ? 'maintenance' : 'online');
+            status = conf.serverStatus || (conf.maintenanceMode ? 'maintenance' : 'online');
             const msg = conf.message || "Ведутся работы";
 
             // MAINTENANCE (Закрываем доступ всем, кроме админа)
             if (status === 'maintenance') {
-                if (uid === ADMIN_UID) {
-                    showToast("⚠️ Режим ТЕХ. РАБОТ (Вы Админ)", "warning");
-                    return true;
-                } else {
-                    showMaintenanceScreen(msg); 
-                    return false; 
-                }
+                showMaintenanceScreen(msg);
+                return false;
             }
         }
     } catch (e) { console.error("Status check failed", e); }
 
-    // 2. Проверка Бана
+    // 2. Проверка Бана и Premium-статуса
     try {
         const userDoc = await db.collection(USER_COLLECTION).doc(uid).get();
-        if (userDoc.exists && userDoc.data().isBanned) {
+        if (userDoc.exists) userData = userDoc.data();
+
+        if (userData.isBanned) {
             showMaintenanceScreen("ban");
             // Разлогиниваем, чтобы сессия не висела
             auth.signOut(); 
@@ -5583,11 +5663,18 @@ async function checkSystemStatus(uid) {
         }
     } catch (e) { console.error("Ban check failed", e); }
 
+    // 3. ПРОВЕРКА: режим "только для Premium"
+    if (status === 'premium_only' && !userData.isPremium) {
+        showMaintenanceScreen('premium');
+        return false;
+    }
+
     return true;
 }
 
 // Отображение экрана блокировки
-// type: "ban" — экран бана, либо текст сообщения тех. работ (или undefined/пусто — покажем текст по умолчанию)
+// type: "ban" — экран бана, "premium" — экран "доступ только для Premium",
+// либо текст сообщения тех. работ / закрытой регистрации (или undefined/пусто — текст по умолчанию)
 function showMaintenanceScreen(type) {
     const screen = document.getElementById('maintenance-screen');
     const title = document.getElementById('maint-title');
@@ -5599,17 +5686,24 @@ function showMaintenanceScreen(type) {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('global-loader').style.display = 'none';
 
+    // Сбрасываем модификаторы — экран мог до этого показывать другое состояние в этой же сессии
+    screen.classList.remove('banned-mode', 'premium-mode');
+    document.getElementById('maint-retry-btn').style.display = '';
+
     if (type === 'ban') {
         screen.classList.add('banned-mode');
         iconContainer.innerHTML = '<i class="fas fa-ban" style="font-size: 1em;"></i>';
         title.innerText = "Доступ ограничен";
         text.innerHTML = "Ваш аккаунт был заблокирован администратором<br>за нарушение правил сообщества.";
         document.getElementById('maint-retry-btn').style.display = 'none'; // Скрываем кнопку "Проверить" для забаненных
+    } else if (type === 'premium') {
+        screen.classList.add('premium-mode');
+        iconContainer.innerHTML = '<i class="fas fa-crown" style="font-size: 1em;"></i>';
+        title.innerText = "Доступно только Premium";
+        text.innerHTML = "Сейчас приложение доступно только пользователям с Premium.<br>Оформите Premium или зайдите позже.";
     } else {
-        screen.classList.remove('banned-mode');
-        // Восстанавливаем стандартную иконку и кнопку — экран мог до этого показывать бан другого юзера в этой же сессии
+        // Восстанавливаем стандартную иконку — экран мог до этого показывать бан/premium другого состояния в этой же сессии
         iconContainer.innerHTML = '<i class="fas fa-tools maint-tools"></i><i class="fas fa-utensils maint-utensils"></i>';
-        document.getElementById('maint-retry-btn').style.display = '';
         title.innerText = "Кухня закрыта";
 
         // Сообщение, заданное администратором в панели, подставляем сюда.
@@ -7061,10 +7155,12 @@ async function updateServerStatus(status) {
         
         const labels = {
             'online': 'Штатный режим',
+            'registered_only': 'Только для зарегистрированных',
+            'premium_only': 'Только для Premium',
             'maintenance': 'Тех. Работы',
         };
 
-        showToast(`Статус сервера: ${labels[status]}`, "success");
+        showToast(`Статус сервера: ${labels[status] || status}`, "success");
     } catch (e) {
         showToast("Ошибка сохранения: " + e.message, "error");
     }
@@ -15166,6 +15262,24 @@ function fallbackCopy(text) {
                         <div class="state-info">
                             <strong>Штатный режим</strong>
                             <span>Все системы активны</span>
+                        </div>
+                        <i class="fas fa-check-circle state-check"></i>
+                    </label>
+
+                    <label class="server-state-btn" id="state-btn-registered_only" onclick="updateServerStatus('registered_only')">
+                        <div class="state-dot" style="background:#3B82F6; box-shadow: 0 0 8px #3B82F6;"></div>
+                        <div class="state-info">
+                            <strong>Только зарегистрированные</strong>
+                            <span>Новая регистрация закрыта</span>
+                        </div>
+                        <i class="fas fa-check-circle state-check"></i>
+                    </label>
+
+                    <label class="server-state-btn" id="state-btn-premium_only" onclick="updateServerStatus('premium_only')">
+                        <div class="state-dot" style="background:#F59E0B; box-shadow: 0 0 8px #F59E0B;"></div>
+                        <div class="state-info">
+                            <strong>Только Premium</strong>
+                            <span>Доступ только у Premium</span>
                         </div>
                         <i class="fas fa-check-circle state-check"></i>
                     </label>
