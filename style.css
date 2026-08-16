@@ -3663,7 +3663,7 @@ adsgram-task {
 
         /* Строка 1: холодильник + уровень в одну строку */
         .fridge-level-row { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
-        .fridge-level-row .fridge-selector-btn { margin: 0; flex: 1 1 55%; min-width: 0; max-width: 55%; }
+        .fridge-level-row .fridge-selector-btn { margin: 0; flex: 0 1 auto; min-width: 0; max-width: 55%; }
 
         /* Строка 2: компактная статистика на всю ширину */
         .header-stats-row { width: 100%; margin-top: 8px; }
@@ -3688,16 +3688,16 @@ adsgram-task {
         .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
-        .level-stat { flex: 1 1 45%; min-width: 0; max-width: 45%; margin-top: 0; margin-left: 0; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.42em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-stat { flex: 1 1 auto; min-width: 0; margin-top: 0; margin-left: 0; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.36em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
         @media (max-width: 360px) {
             /* На очень узких экранах название холодильника не должно выталкивать уровень за пределы строки */
             .fridge-level-row { flex-wrap: wrap; }
-            .fridge-level-row .fridge-selector-btn { flex-basis: 100%; max-width: 100%; }
-            .level-stat { flex-basis: 100%; max-width: none; margin-left: 0; margin-top: 6px; }
+            .fridge-level-row .fridge-selector-btn { max-width: 100%; }
+            .level-stat { flex-basis: 100%; margin-left: 0; margin-top: 6px; }
         }
 
         /* --- Main Content --- */

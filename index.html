@@ -1213,10 +1213,9 @@
         <div class="settings-section">
             <div class="settings-row notif-settings-row" id="push-notif-row">
                 <div class="notif-row-left">
-                    <div class="notif-icon-badge"><i class="fas fa-bell"></i></div>
                     <div class="notif-row-text">
                         <div class="notif-row-title">Push-уведомления</div>
-                        <div class="push-notif-status" id="push-notif-status"><i class="fas fa-circle-notch fa-spin"></i> Проверка статуса…</div>
+                        <div class="push-notif-status" id="push-notif-status" style="display:none;"></div>
                     </div>
                 </div>
                 <label class="premium-switch">
@@ -10521,15 +10520,16 @@ function updateNotifStatusUI(perm, isOn) {
     if (perm === 'unsupported') {
         statusEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Не поддерживается браузером';
         statusEl.className = 'push-notif-status blocked';
+        statusEl.style.display = '';
     } else if (perm === 'denied') {
         statusEl.innerHTML = '<i class="fas fa-ban"></i> Заблокировано в браузере';
         statusEl.className = 'push-notif-status blocked';
-    } else if (isOn) {
-        statusEl.innerHTML = '<i class="fas fa-circle-check"></i> Включены';
-        statusEl.className = 'push-notif-status on';
+        statusEl.style.display = '';
     } else {
-        statusEl.innerHTML = '<i class="fas fa-bell-slash"></i> Выключены';
-        statusEl.className = 'push-notif-status off';
+        // Разрешения не блокировались — состояние переключателя и так видно, подпись не нужна
+        statusEl.innerHTML = '';
+        statusEl.className = 'push-notif-status';
+        statusEl.style.display = 'none';
     }
 
     if (row) row.classList.toggle('is-on', !!isOn);
