@@ -4855,53 +4855,44 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
         return;
     }
 
-    // Группируем отфильтрованные товары по полкам (категориям)
-    const grouped = {};
-    items.forEach(p => {
-        const cat = FRIDGE_SHELF_ORDER.includes(p.category) ? p.category : 'Other';
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(p);
-    });
-
+    // Каждая полка холодильника теперь содержит ровно один товар —
+    // отрисовываем полку под каждый элемент в текущем порядке сортировки/фильтра.
     let renderedShelves = 0;
-    FRIDGE_SHELF_ORDER.forEach(cat => {
-        const catItems = grouped[cat];
-        if (!catItems || catItems.length === 0) return;
-
-        const catIcon = getCategoryIcon(cat);
-        const catName = (translations[currentLang] && translations[currentLang]['Category' + cat + 'Full']) || cat;
-
-        let capsulesHtml = '';
-        catItems.forEach(p => {
-            const days = getDaysUntilExpiry(p.expiryDate);
-            const dynamicColor = getExpiryColor(days);
-            const decayStage = getDecayStage(days);
-            const visualHtml = p.image
-                ? `<img src="${p.image}" class="capsule-img">`
-                : `<div class="capsule-emoji">${catIcon.icon}</div>`;
-
-            capsulesHtml += `
-                <div class="fridge-capsule decay-${decayStage}" style="--ring-color: ${dynamicColor};" onclick="openProductDetail(${p.id})">
-                    <div class="capsule-visual">${visualHtml}</div>
-                    <div class="capsule-qty">${p.qty}${p.unit}</div>
-                    <div class="capsule-name">${p.name}</div>
-                </div>`;
-        });
+    items.forEach(p => {
+        const days = getDaysUntilExpiry(p.expiryDate);
+        const dynamicColor = getExpiryColor(days);
+        const statusText = getExpiryStatus(p.expiryDate);
+        const categoryIcon = getCategoryIcon(p.category);
+        const decayStage = getDecayStage(days);
+        const imgHtml = p.image
+            ? `<div class="decay-visual decay-${decayStage}"><img src="${p.image}" class="inventory-img"></div>`
+            : `<div class="decay-visual decay-${decayStage}"><div class="item-icon" style="color: ${categoryIcon.color};">${categoryIcon.icon}</div></div>`;
 
         list.innerHTML += `
-            <div class="fridge-shelf">
-                <div class="shelf-header">
-                    <span class="shelf-icon" style="color:${catIcon.color}">${catIcon.icon}</span>
-                    <span class="shelf-name">${catName}</span>
-                    <span class="shelf-count">${catItems.length}</span>
+            <div class="fridge-shelf fridge-shelf-single">
+                <div class="shelf-product-card" style="border-left: 5px solid ${dynamicColor};" onclick="openProductDetail(${p.id})">
+                    ${imgHtml}
+                    <div class="item-details">
+                        <div class="item-name">${p.name}</div>
+                        <div class="item-meta" onclick="event.stopPropagation(); openExpiryEdit(${p.id})" style="color: ${dynamicColor}; font-weight: 700; cursor: pointer;">
+                            <span>${statusText}</span> <i class="fas fa-pencil-alt"></i>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <div class="qty-controls">
+                            <button class="qty-btn" onclick="event.stopPropagation(); useProduct(${p.id}, 1)">-</button>
+                            <span class="qty-val">${p.qty} ${p.unit}</span>
+                            <button class="qty-btn" onclick="event.stopPropagation(); addShoppingItem('${p.name}', 1, '${p.unit}')"><i class="fas fa-cart-plus"></i></button>
+                        </div>
+                        <button class="trash" onclick="event.stopPropagation(); wasteProduct(${p.id})"><i class="fas fa-trash"></i></button>
+                    </div>
                 </div>
-                <div class="shelf-row">${capsulesHtml}</div>
             </div>`;
 
         // --- ЛОГИКА РЕКЛАМЫ ---
-        // Adsgram: только 1 раз, после первой отрисованной полки, и только в Telegram
-        if (renderedShelves === 0 && isTelegramEnv()) {
-            list.innerHTML += `<div class="fridge-ad-shelf">${getAdsgramRowHTML('inv', 'shelf')}</div>`;
+        // Adsgram: только 1 раз, после второй отрисованной полки, и только в Telegram
+        if (renderedShelves === 1 && isTelegramEnv()) {
+            list.innerHTML += `<div class="fridge-ad-shelf">${getAdsgramRowHTML('inv', p.id)}</div>`;
         }
         renderedShelves++;
     });
