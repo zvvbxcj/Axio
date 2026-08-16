@@ -3689,7 +3689,7 @@ adsgram-task {
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
         .level-stat { flex: 1 1 45%; min-width: 0; margin-top: 0; margin-left: 0; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.36em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.3em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
@@ -3836,6 +3836,68 @@ adsgram-task {
         .delivery-product-chip i { color: var(--primary); font-size: 0.9em; }
         .delivery-product-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .delivery-product-chip b { color: var(--text-primary); font-weight: 700; }
+        .delivery-product-chip.clickable { cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+        .delivery-product-chip.clickable:hover { border-color: rgba(16,185,129,0.5); }
+        .delivery-cart-chip-arrow { font-size: 0.75em; color: var(--primary); transition: transform 0.25s ease; margin-left: 2px; }
+        .delivery-cart-chip-arrow.open { transform: rotate(180deg); }
+
+        .delivery-cart-editor {
+            margin: -8px 0 16px;
+            padding: 12px;
+            border-radius: 14px;
+            background: var(--surface-light);
+            border: 1px solid var(--border-color);
+            animation: deliveryGridIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .delivery-cart-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .delivery-cart-empty {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        .delivery-cart-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.82em;
+        }
+        .delivery-cart-chip i {
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: color 0.2s;
+        }
+        .delivery-cart-chip i:hover { color: var(--error); }
+        .delivery-cart-add-row {
+            display: flex;
+            gap: 8px;
+        }
+        .delivery-cart-add-row .styled-input {
+            flex: 1;
+            margin: 0;
+        }
+        .delivery-cart-add-btn {
+            flex-shrink: 0;
+            width: 40px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: #fff;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .delivery-cart-add-btn:active { transform: scale(0.92); }
 
         .delivery-tabs {
             display: grid;
