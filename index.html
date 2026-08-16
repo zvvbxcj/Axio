@@ -137,8 +137,8 @@
         </div>
         <h2 id="maint-title">Кухня закрыта</h2>
         <p id="maint-text">Шеф-повар проводит инвентаризацию и обновление меню.<br>Axio скоро вернется!</p>
-        <div id="maint-admin-login" style="margin-top: 20px; display:none;">
-            <p style="font-size: 0.8em; color: var(--primary);">Вы Админ? Вход разрешен.</p>
+        <div id="maint-admin-login" style="margin-top: 20px;">
+            <p style="font-size: 0.8em; color: var(--primary); cursor:pointer; text-decoration: underline;" onclick="showAdminLoginFromMaintenance()">Вы Админ? Вход разрешен.</p>
         </div>
         <button id="maint-retry-btn" class="btn btn-primary" onclick="window.location.reload()" style="margin-top: 25px; width: auto; padding: 10px 30px;">
             <i class="fas fa-sync-alt"></i> Проверить
@@ -2952,6 +2952,20 @@ function checkAuthState() {
 }
 
 // Функции показа экранов
+
+// Позволяет открыть форму логина прямо с экрана "Тех. работы",
+// чтобы админ мог авторизоваться даже когда доступ для всех закрыт.
+// Обычный (не-админ) пользователь после входа всё равно будет
+// возвращён на этот же экран проверкой в checkAuthState/checkSystemStatus.
+function showAdminLoginFromMaintenance() {
+    document.getElementById('maintenance-screen').style.display = 'none';
+    document.getElementById('banned-overlay').style.display = 'none';
+    document.getElementById('app-content').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('social-auth-section').style.display = 'block';
+    setTimeout(() => { initCaptcha('login'); initCaptcha('register'); }, 50);
+}
 
 function showBannedScreen(uid) {
     document.getElementById('banned-overlay').style.display = 'flex';
