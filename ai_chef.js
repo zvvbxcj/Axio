@@ -1,4 +1,4 @@
-const GEMINI_API_KEY = "AIzaSyCTvAM3RX_P2TiIEtXQmi0GGNWbXStHwXc";
+const AXIO_AI_CHEF_ENDPOINT = 'https://ai-gemini.ast-maksima.workers.dev';
 
 let aiChefShownTitles = [];
 let aiChefLastInventorySignature = '';
@@ -43,56 +43,37 @@ async function generateAIRecipe(count) {
     }
 
     try {
-        const avoidBlock = aiChefShownTitles.length > 0
-            ? `Пользователь уже видел эти блюда, НЕ предлагай их снова и придумай другие: ${aiChefShownTitles.join(', ')}.`
-            : '';
+        if (!AXIO_AI_CHEF_ENDPOINT || AXIO_AI_CHEF_ENDPOINT.startsWith('ВСТАВЬ')) {
+            throw new Error('Серверная функция AI-шефа не настроена (см. AXIO_AI_CHEF_ENDPOINT в ai_chef.js)');
+        }
+        if (typeof auth === 'undefined' || !auth.currentUser) {
+            throw new Error('Нужно войти в аккаунт, чтобы пользоваться AI-шефом');
+        }
 
-        const promptText = `
-            Ты — профессиональный шеф-повар. Придумай ${count} ${count === 1 ? 'вкусный рецепт' : 'разных вкусных рецепта'}, используя эти ингредиенты: ${ingredients}.
-            Базовые вещи (соль, перец, вода, масло) можно использовать по умолчанию.
-            Если ингредиентов мало, придумай что-то простое.
-            ${count > 1 ? 'Рецепты должны существенно отличаться друг от друга — разные блюда, а не вариации одного и того же.' : ''}
-            ${avoidBlock}
-            Твой ответ должен быть СТРОГО в формате JSON-МАССИВА без markdown-разметки (даже если рецепт один — всё равно верни массив из одного элемента), по структуре:
-            [
-              {
-                "title": "Название блюда",
-                "time": "Время (например: 30 мин)",
-                "difficulty": "Сложность (Легко, Средне или Сложно)",
-                "ingredients": ["ингредиент 1", "ингредиент 2"],
-                "instructions": ["шаг 1", "шаг 2"]
-              }
-            ]
-        `;
+        // Подтверждаем серверу, что запрос идёт от реального залогиненного
+        // пользователя приложения — иначе функция отклонит запрос (401).
+        const idToken = await auth.currentUser.getIdToken();
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
             },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: {
-                    temperature: 0.9,
-                    responseMimeType: "application/json"
-                }
+                ingredients,
+                count,
+                avoidTitles: aiChefShownTitles
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Детали ошибки от API:", errorData);
-            throw new Error(`Ошибка ${response.status}: ${errorData.error?.message || 'Неизвестная ошибка'}`);
-        }
-
         const data = await response.json();
-        let jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!jsonString) {
-            throw new Error('Пустой ответ от модели (возможно, сработал фильтр безопасности)');
+
+        if (!response.ok) {
+            throw new Error(data.error || `Ошибка ${response.status}`);
         }
 
-        jsonString = jsonString.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
-        let recipes = JSON.parse(jsonString);
+        let recipes = data.recipes;
         if (!Array.isArray(recipes)) recipes = [recipes];
 
         recipes.forEach(r => {
