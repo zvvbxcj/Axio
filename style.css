@@ -6340,6 +6340,103 @@ adsgram-task {
     75% { transform: rotate(5deg); }
 }
 
+/* --- Полка с одним товаром (карточка в стиле списка) --- */
+.fridge-shelf-single {
+    padding: 10px 10px 14px;
+}
+
+.shelf-product-card {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+}
+.shelf-product-card:hover { background: rgba(255,255,255,0.07); }
+.shelf-product-card:active { transform: scale(0.98); }
+
+.shelf-product-card .decay-visual { margin-right: 12px; }
+.shelf-product-card .inventory-img,
+.shelf-product-card .item-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.06);
+    font-size: 1.3em;
+    margin-right: 0;
+}
+
+.shelf-product-card .item-details { flex-grow: 1; min-width: 0; }
+.shelf-product-card .item-name {
+    font-weight: 700;
+    font-size: 0.95em;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shelf-product-card .item-meta {
+    font-size: 0.78em;
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shelf-product-card .item-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.shelf-product-card .qty-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 3px 4px;
+}
+.shelf-product-card .qty-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: #f1f5f9;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    transition: 0.2s;
+}
+.shelf-product-card .qty-btn:hover { background: var(--primary); color: #fff; }
+.shelf-product-card .qty-val {
+    color: #f1f5f9;
+    font-size: 0.72em;
+    font-weight: 700;
+    padding: 0 2px;
+    white-space: nowrap;
+}
+.shelf-product-card .trash {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+    font-size: 1em;
+    padding: 4px;
+    transition: 0.2s;
+}
+.shelf-product-card .trash:hover { color: var(--error); transform: scale(1.1); }
+
 .fridge-ad-shelf { border-radius: 14px; overflow: hidden; flex-shrink: 0; }
 
 .fridge-shelf-empty {
@@ -6672,6 +6769,7 @@ adsgram-task {
     font-size: 0.85em;
 }
 .small-action-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(16, 185, 129, 0.08); }
+.small-action-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(16, 185, 129, 0.12); }
 .small-action-btn.danger-outline { color: var(--error); border-color: rgba(239, 68, 68, 0.35); margin-bottom: 12px; }
 .small-action-btn.danger-outline:hover { background: rgba(239, 68, 68, 0.1); border-color: var(--error); }
 
@@ -6757,6 +6855,57 @@ adsgram-task {
     font-weight: 700; transition: 0.2s;
 }
 .pending-card .btn-sm:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* --- SLA очереди модерации: возраст заявки / просрочка --- */
+.pending-card.is-overdue { border-color: var(--error); box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25); }
+.pending-age-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.72em; font-weight: 700; padding: 4px 9px; border-radius: 20px;
+    background: var(--surface-light, rgba(148,163,184,0.12)); color: var(--text-secondary);
+    white-space: nowrap;
+}
+.pending-age-badge.age-overdue { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+.pending-overdue-hint {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--error); border-radius: 10px; padding: 10px 14px;
+    font-size: 0.85em; font-weight: 600; margin-bottom: 12px;
+}
+.pending-overdue-hint i { font-size: 1.1em; }
+
+/* --- Инсайт-подсказка (например, доминирующая причина отклонения) --- */
+.admin-insight-hint {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: rgba(245, 158, 11, 0.08); border: 1px dashed var(--warning);
+    border-radius: 12px; padding: 12px 14px; margin-top: 12px;
+    font-size: 0.82em; color: var(--text-secondary); line-height: 1.5;
+}
+.admin-insight-hint i { color: var(--warning); margin-top: 2px; }
+
+/* --- Pre-фильтр заявок (AI/эвристика: спам, дубликат, мусор) --- */
+.pending-card.is-flagged { border-color: var(--warning); }
+.pending-card.is-flagged.is-overdue { border-color: var(--error); }
+.pending-flag-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.72em; font-weight: 700; padding: 4px 9px; border-radius: 20px;
+    background: rgba(245, 158, 11, 0.15); color: var(--warning);
+    white-space: nowrap;
+}
+.pending-flagged-hint {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35);
+    color: var(--warning); border-radius: 10px; padding: 10px 14px;
+    font-size: 0.85em; font-weight: 600; margin-bottom: 12px;
+}
+.pending-flagged-hint i { font-size: 1.1em; }
+.moderation-flag-banner {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+}
+.moderation-flag-banner i { color: var(--warning); font-size: 1.3em; margin-top: 2px; }
+.moderation-flag-banner strong { display: block; color: var(--warning); margin-bottom: 3px; font-size: 0.9em; }
+.moderation-flag-banner p { margin: 0; font-size: 0.85em; color: var(--text-secondary); line-height: 1.4; }
 
 .admin-empty-state {
     text-align: center; padding: 44px 20px;

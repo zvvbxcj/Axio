@@ -6091,7 +6091,9 @@ async function publishExistingRecipe(id) {
         try {
             // Копируем, чтобы разорвать связь ссылок
             const toSend = JSON.parse(JSON.stringify(recipe));
-            await db.collection('pending_recipes').add(toSend);
+            toSend.submittedAt = new Date().toISOString(); // для SLA-трекинга в очереди модерации
+            const submittedRef = await db.collection('pending_recipes').add(toSend);
+            runSpamPreFilter(submittedRef.id, toSend); // не блокируем UI — флаг подтянется в очередь по готовности
             showToast("Рецепт отправлен модераторам!", "success");
             hideModal('recipe-detail-modal');
         } catch(e) {
@@ -6207,13 +6209,15 @@ async function submitNewRecipe(isPublic = false) {
         ingredients: ingredients,
         steps: { ru: steps, en: steps },
         popularity: 0,
-        isCustom: true // Флаг, что это пользовательский рецепт
+        isCustom: true, // Флаг, что это пользовательский рецепт
+        submittedAt: new Date().toISOString() // для SLA-трекинга в очереди модерации
     };
 
     if (isPublic) {
         // ОТПРАВКА НА МОДЕРАЦИЮ
         try {
-            await db.collection('pending_recipes').add(newRecipe);
+            const newRef = await db.collection('pending_recipes').add(newRecipe);
+            runSpamPreFilter(newRef.id, newRecipe); // не блокируем UI — флаг подтянется в очередь по готовности
             showToast("Рецепт отправлен на модерацию!", "success");
             hideModal('create-recipe-modal');
         } catch(e) {
@@ -7052,6 +7056,9 @@ async function loadAdminStats() {
             document.getElementById('pending-count-badge').innerText = pendingCount;
             document.getElementById('pending-count-badge').style.display = pendingCount > 0 ? 'inline-block' : 'none';
         }
+
+        // --- СРЕДНЕЕ ВРЕМЯ ДО РЕШЕНИЯ (SLA) ---
+        loadAvgModerationTime();
 
         // --- ХОЛОДИЛЬНИКИ ---
         if (adminFridgesCache && adminFridgesCache.length > 0) {
@@ -7898,6 +7905,194 @@ async function deleteAdminFridge(fridgeId) {
     }
 }
 
+// ============================================================
+// ПОЛУАВТОМАТИЧЕСКИЙ PRE-ФИЛЬТР ЗАЯВОК (спам / дубликат / мусор)
+// ============================================================
+// Перед тем как заявка попадёт в очередь, прогоняем её текст через AI с
+// вопросом "похоже ли это на спам/дубликат/мусор?" и помечаем подозрительные
+// красным флагом. Модератор по-прежнему решает сам — это только подсказка,
+// НЕ автоматическое одобрение/отклонение.
+//
+// ВАЖНО: файл ai_chef.js (где живёт реальный вызов AI Chef) не был передан
+// вместе с index.html/style.css, поэтому здесь нет доступа к его эндпоинту,
+// ключу и модели. Единственное место, которое нужно донастроить — тело
+// callModerationAI() ниже: замените его на fetch к тому же провайдеру, что
+// использует AI Chef. Пока эндпоинт не подключён, автоматически работает
+// резервная эвристика (heuristicSpamCheck) — фича полностью рабочая и без AI,
+// просто менее точная.
+
+// Точка интеграции с реальным AI-эндпоинтом (тем же, что у AI Chef)
+async function callModerationAI(promptText) {
+    // TODO: заменить на реальный вызов, например:
+    //
+    // const res = await fetch(AI_CHEF_ENDPOINT, {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({ prompt: promptText, response_format: 'json' })
+    // });
+    // const data = await res.json();
+    // return JSON.parse(data.text); // ожидаем { suspicious: bool, reason: string|null }
+    //
+    // Пока не настроено — сообщаем вызывающему коду, что нужно использовать эвристику.
+    throw new Error('AI moderation endpoint is not configured yet');
+}
+
+// Резервная эвристика — без AI, ловит самые очевидные случаи спама/мусора/дублей
+function heuristicSpamCheck(recipe) {
+    const name = (recipe.name?.ru || recipe.name || '').toString().trim();
+    const desc = (recipe.description?.ru || '').toString().trim();
+    const ingredientsText = (recipe.ingredients || []).map(i => i.name || '').join(' ');
+    const instructionsText = (recipe.instructions?.ru || (recipe.steps?.ru || []).join(' ') || '').toString();
+    const fullText = `${name} ${desc} ${ingredientsText} ${instructionsText}`;
+
+    const reasons = [];
+
+    if (name.length < 3) reasons.push('слишком короткое название');
+    if (!recipe.ingredients || recipe.ingredients.length === 0) reasons.push('нет ингредиентов');
+    if (instructionsText.trim().length < 15) reasons.push('пустая или почти пустая инструкция');
+    if (/https?:\/\/|www\.|t\.me\/|@[a-z0-9_]{4,}/i.test(fullText)) reasons.push('содержит ссылку/упоминание — похоже на рекламу');
+    if (/(.)\1{5,}/.test(fullText)) reasons.push('повторяющиеся символы');
+
+    const words = fullText.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length > 5) {
+        const uniq = new Set(words);
+        if (uniq.size / words.length < 0.35) reasons.push('много повторяющихся слов');
+    }
+
+    if (/^(test|тест|asdf|qwerty|123)/i.test(name)) reasons.push('похоже на тестовую/мусорную запись');
+
+    // Простая проверка на дубликат по названию среди уже известных рецептов
+    const normName = name.toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+    if (normName) {
+        const existingNames = new Set([
+            ...(window.pendingRecipesCache ? Object.values(window.pendingRecipesCache).map(r => (r.name?.ru || r.name || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '')) : []),
+            ...((typeof globalRecipes !== 'undefined' && globalRecipes) ? globalRecipes.map(r => (r.name?.ru || r.name || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '')) : [])
+        ]);
+        if (existingNames.has(normName)) reasons.push('название совпадает с уже существующим рецептом — вероятный дубликат');
+    }
+
+    return {
+        suspicious: reasons.length > 0,
+        reason: reasons.join('; ') || null,
+        confidence: reasons.length >= 2 ? 'high' : (reasons.length === 1 ? 'medium' : 'low')
+    };
+}
+
+// Точка входа: пытаемся спросить AI, при ошибке/не настроенном эндпоинте — эвристика.
+// Вызывается сразу после сохранения заявки, без ожидания (fire-and-forget) —
+// не должна тормозить отправку рецепта пользователем.
+async function runSpamPreFilter(docId, recipe) {
+    let result;
+    try {
+        const name = recipe.name?.ru || recipe.name || '';
+        const desc = recipe.description?.ru || '';
+        const ingredientsText = (recipe.ingredients || []).map(i => `${i.name} (${i.amount || ''} ${i.unit || ''})`).join(', ');
+        const instructionsText = recipe.instructions?.ru || (recipe.steps?.ru || []).join(' ') || '';
+        const prompt = `Оцени заявку на публикацию рецепта в кулинарном приложении. Похоже ли это на спам, ` +
+            `рекламу, дубликат существующего рецепта или явный мусор (а не на настоящий рецепт)? ` +
+            `Ответь строго JSON без пояснений: {"suspicious": true|false, "reason": "краткое объяснение на русском или null"}.\n\n` +
+            `Название: ${name}\nОписание: ${desc}\nИнгредиенты: ${ingredientsText}\nИнструкция: ${instructionsText}`;
+
+        const aiRaw = await callModerationAI(prompt);
+        result = typeof aiRaw === 'string' ? JSON.parse(aiRaw) : aiRaw;
+        result.source = 'ai';
+    } catch (e) {
+        result = heuristicSpamCheck(recipe);
+        result.source = 'heuristic';
+    }
+
+    const moderationFlag = {
+        suspicious: !!result.suspicious,
+        reason: result.reason || null,
+        confidence: result.confidence || (result.suspicious ? 'medium' : 'low'),
+        source: result.source,
+        checkedAt: new Date().toISOString()
+    };
+
+    try {
+        await db.collection('pending_recipes').doc(docId).update({ moderationFlag });
+    } catch (e) {
+        console.warn('Pre-фильтр: не удалось сохранить флаг', e);
+        return;
+    }
+
+    // Если модератор уже открыл очередь, подсвечиваем карточку без полной перезагрузки
+    if (window.pendingRecipesCache && window.pendingRecipesCache[docId]) {
+        window.pendingRecipesCache[docId].moderationFlag = moderationFlag;
+    }
+    if (moderationFlag.suspicious) {
+        const card = document.querySelector(`.pending-card[data-pid="${docId}"]`);
+        if (card && !card.classList.contains('is-flagged')) {
+            card.classList.add('is-flagged');
+            const actions = card.querySelector('.pending-card-actions');
+            if (actions && !actions.querySelector('.pending-flag-badge')) {
+                const flagBadge = document.createElement('span');
+                flagBadge.className = 'pending-flag-badge';
+                flagBadge.title = moderationFlag.reason || 'Похоже на спам/дубликат/мусор';
+                flagBadge.innerHTML = '<i class="fas fa-flag"></i> Подозрительно';
+                actions.prepend(flagBadge);
+            }
+        }
+    }
+}
+
+// --- SLA очереди модерации: возраст заявки и просрочка (>48ч) ---
+const PENDING_OVERDUE_MS = 48 * 60 * 60 * 1000;
+
+// Возвращает { label, ms } — человекочитаемый возраст заявки.
+// ms === null значит, что submittedAt неизвестен (старая заявка до внедрения SLA-трекинга);
+// такие заявки считаем просроченными по умолчанию, чтобы не прятать их из виду.
+function formatPendingAge(submittedAt) {
+    if (!submittedAt) return { label: 'дата неизв.', ms: null };
+    const ms = Date.now() - new Date(submittedAt).getTime();
+    if (isNaN(ms) || ms < 0) return { label: 'дата неизв.', ms: null };
+    const hours = ms / 3600000;
+    if (hours < 1) return { label: `${Math.max(1, Math.round(ms / 60000))} мин`, ms };
+    if (hours < 48) return { label: `${Math.round(hours)} ч`, ms };
+    const days = Math.floor(hours / 24);
+    const remH = Math.round(hours % 24);
+    return { label: `${days} дн ${remH} ч`, ms };
+}
+
+// Среднее время до решения: усредняем moderationDurationMs по недавно одобренным
+// и отклонённым заявкам (поле пишется в approveRecipe / rejectRecipeWithReason)
+async function loadAvgModerationTime() {
+    const el = document.getElementById('dash-avg-mod-time');
+    if (!el) return;
+    try {
+        const [pubSnap, rejSnap] = await Promise.all([
+            db.collection('public_recipes').get(),
+            db.collection('rejected_recipes').get()
+        ]);
+
+        const durations = [];
+        pubSnap.forEach(doc => {
+            const d = doc.data();
+            if (typeof d.moderationDurationMs === 'number' && d.moderationDurationMs >= 0) durations.push(d.moderationDurationMs);
+        });
+        rejSnap.forEach(doc => {
+            const d = doc.data();
+            if (typeof d.moderationDurationMs === 'number' && d.moderationDurationMs >= 0) durations.push(d.moderationDurationMs);
+        });
+
+        if (durations.length === 0) {
+            el.textContent = '—';
+            el.title = 'Пока нет решённых заявок с зафиксированным временем';
+            return;
+        }
+
+        const avgMs = durations.reduce((a, b) => a + b, 0) / durations.length;
+        const avgHours = avgMs / 3600000;
+        el.textContent = avgHours < 1
+            ? `${Math.max(1, Math.round(avgMs / 60000))} мин`
+            : (avgHours < 48 ? `${avgHours.toFixed(1)} ч` : `${(avgHours / 24).toFixed(1)} дн`);
+        el.title = `На основе ${durations.length} решённых заявок`;
+    } catch (e) {
+        console.error('Avg moderation time error:', e);
+        el.textContent = '—';
+    }
+}
+
 // Загрузка списка заявок
 async function loadPendingRecipes() {
     const list = document.getElementById('admin-pending-list');
@@ -7921,6 +8116,8 @@ async function loadPendingRecipes() {
 
         if (snapshot.empty) {
             emptyMsg.style.display = 'block';
+            const hint = document.getElementById('pending-overdue-hint');
+            if (hint) hint.style.display = 'none';
             return;
         } else {
             emptyMsg.style.display = 'none';
@@ -7931,33 +8128,117 @@ async function loadPendingRecipes() {
         window.selectedPendingIds.clear();
         updatePendingBulkBar();
 
+        // Готовим массив с вычисленным возрастом, чтобы отсортировать по срочности
+        let rows = [];
         snapshot.forEach(doc => {
             const r = doc.data();
             window.pendingRecipesCache[doc.id] = r;
+            const age = formatPendingAge(r.submittedAt);
+            rows.push({ id: doc.id, r, age });
+        });
+
+        // Без даты (легаси-заявки) считаем самыми старыми — они должны быть видны в первую очередь
+        const oldestFirst = window.pendingSortOldestFirst !== false;
+        rows.sort((a, b) => {
+            const av = a.age.ms === null ? Infinity : a.age.ms;
+            const bv = b.age.ms === null ? Infinity : b.age.ms;
+            return oldestFirst ? (bv - av) : (av - bv);
+        });
+
+        let flaggedCount = 0;
+        rows.forEach(({ r }) => { if (r.moderationFlag?.suspicious) flaggedCount++; });
+
+        const showFlaggedOnly = window.pendingFilterFlaggedOnly === true;
+        const visibleRows = showFlaggedOnly ? rows.filter(({ r }) => r.moderationFlag?.suspicious) : rows;
+
+        if (showFlaggedOnly && visibleRows.length === 0) {
+            list.innerHTML = '<div class="admin-empty-state" style="padding:30px;"><i class="fas fa-flag"></i><p>Подозрительных заявок сейчас нет</p></div>';
+        }
+
+        visibleRows.forEach(({ id, r, age }) => {
+            const isOverdue = age.ms === null || age.ms > PENDING_OVERDUE_MS;
+            const isFlagged = !!r.moderationFlag?.suspicious;
             const card = document.createElement('div');
-            card.className = 'pending-card';
-            card.dataset.pid = doc.id;
+            card.className = 'pending-card' + (isOverdue ? ' is-overdue' : '') + (isFlagged ? ' is-flagged' : '');
+            card.dataset.pid = id;
+            const flagBadgeHtml = isFlagged
+                ? `<span class="pending-flag-badge" title="${escapeHtml(r.moderationFlag.reason || 'Похоже на спам/дубликат/мусор')}"><i class="fas fa-flag"></i> Подозрительно</span>`
+                : '';
             card.innerHTML = `
                 <div style="display:flex; align-items:center;">
-                    <input type="checkbox" class="pending-select-checkbox" onclick="event.stopPropagation(); toggleSelectPending('${doc.id}')">
+                    <input type="checkbox" class="pending-select-checkbox" onclick="event.stopPropagation(); toggleSelectPending('${id}')">
                     <img src="${r.image || 'https://via.placeholder.com/50'}">
                     <div>
                         <div style="font-weight:bold; color:var(--text-primary)">${r.name.ru || r.name}</div>
                         <div style="font-size:0.8em; color:var(--text-secondary);">от ${r.authorName || 'Аноним'} • ${r.category}</div>
                     </div>
                 </div>
-                <div>
-                    <button class="btn-sm" style="background:var(--primary); color:white; margin-right:5px;" onclick="previewPendingRecipe('${doc.id}')">
+                <div class="pending-card-actions" style="display:flex; align-items:center; gap:8px;">
+                    ${flagBadgeHtml}
+                    <span class="pending-age-badge ${isOverdue ? 'age-overdue' : ''}" title="${age.ms === null ? 'Дата подачи неизвестна — заявка создана до внедрения SLA-трекинга' : 'В очереди уже ' + age.label}">
+                        <i class="fas ${isOverdue ? 'fa-fire' : 'fa-clock'}"></i> ${age.label}
+                    </span>
+                    <button class="btn-sm" style="background:var(--primary); color:white;" onclick="previewPendingRecipe('${id}')">
                         <i class="fas fa-eye"></i> Обзор
                     </button>
                 </div>
             `;
             list.appendChild(card);
         });
+
+        // overdueCount считаем по всем заявкам (а не только видимым после фильтра),
+        // чтобы подсказка была верной независимо от активного фильтра
+        const overdueCount = rows.filter(({ age }) => age.ms === null || age.ms > PENDING_OVERDUE_MS).length;
+
+        const hint = document.getElementById('pending-overdue-hint');
+        if (hint) {
+            if (overdueCount > 0) {
+                hint.style.display = 'flex';
+                hint.querySelector('span').textContent =
+                    `${overdueCount} ${overdueCount === 1 ? 'заявка висит' : 'заявок висят'} в очереди больше 48 часов — проверьте их в первую очередь`;
+            } else {
+                hint.style.display = 'none';
+            }
+        }
+
+        const flagHint = document.getElementById('pending-flagged-hint');
+        if (flagHint) {
+            if (flaggedCount > 0) {
+                flagHint.style.display = 'flex';
+                flagHint.querySelector('span').textContent =
+                    `${flaggedCount} ${flaggedCount === 1 ? 'заявка помечена' : 'заявок помечены'} пре-фильтром как подозрительные (спам/дубликат/мусор) — можно проверить их первыми`;
+            } else {
+                flagHint.style.display = 'none';
+            }
+        }
+        const flagToggleBtn = document.getElementById('pending-flag-filter-btn');
+        if (flagToggleBtn) {
+            flagToggleBtn.style.display = flaggedCount > 0 || showFlaggedOnly ? 'inline-flex' : 'none';
+            flagToggleBtn.classList.toggle('active', showFlaggedOnly);
+            flagToggleBtn.innerHTML = `<i class="fas fa-flag"></i> ${showFlaggedOnly ? 'Показать все' : 'Только подозрительные'}`;
+        }
     } catch (e) {
         console.error(e);
         list.innerHTML = `<div style="color:var(--error); text-align:center;">Ошибка: ${e.message}</div>`;
     }
+}
+
+// Переключатель порядка сортировки очереди (по возрасту заявки)
+function togglePendingSortOrder() {
+    window.pendingSortOldestFirst = window.pendingSortOldestFirst === false ? true : !window.pendingSortOldestFirst;
+    const btn = document.getElementById('pending-sort-toggle-btn');
+    if (btn) {
+        btn.innerHTML = window.pendingSortOldestFirst
+            ? '<i class="fas fa-arrow-down-wide-short"></i> Сначала старые'
+            : '<i class="fas fa-arrow-up-wide-short"></i> Сначала новые';
+    }
+    loadPendingRecipes();
+}
+
+// Переключатель фильтра "только подозрительные" (флаг пре-фильтра)
+function togglePendingFlagFilter() {
+    window.pendingFilterFlaggedOnly = !window.pendingFilterFlaggedOnly;
+    loadPendingRecipes();
 }
 
 // Просмотр деталей заявки
@@ -7971,8 +8252,21 @@ async function previewPendingRecipe(docId) {
         
         const content = document.getElementById('admin-preview-content');
         
+        // Если пре-фильтр пометил заявку как подозрительную — показываем причину сразу,
+        // чтобы модератор не тратил время на вчитывание в очевидный спам
+        const flagBannerHtml = r.moderationFlag?.suspicious
+            ? `<div class="moderation-flag-banner">
+                   <i class="fas fa-triangle-exclamation"></i>
+                   <div>
+                       <strong>Пре-фильтр пометил как подозрительное</strong>
+                       <p>${escapeHtml(r.moderationFlag.reason || 'Похоже на спам/дубликат/мусор')}</p>
+                   </div>
+               </div>`
+            : '';
+
         // Формируем HTML для превью (похоже на showRecipeDetail, но проще)
         content.innerHTML = `
+            ${flagBannerHtml}
             <img src="${r.image}" style="width:100%; height:200px; object-fit:cover; border-radius:10px; margin-bottom:15px;">
             <h2>${r.name.ru || r.name}</h2>
             <p style="color:var(--text-secondary); margin-bottom:10px;">${r.description?.ru || "Нет описания"}</p>
@@ -8470,8 +8764,16 @@ async function updatePushTriggerText(id, text) {
 // Функция одобрения рецепта + Уведомление автору
 async function approveRecipe(docId, recipeData) {
     try {
+        const decisionTs = Date.now();
         const newRecipe = { ...recipeData, id: Date.now() }; 
         delete newRecipe.status; 
+
+        // Фиксируем время решения и то, сколько заявка провисела в очереди —
+        // используется в дашборде для метрики "среднее время до решения"
+        newRecipe.moderatedAt = new Date(decisionTs).toISOString();
+        if (recipeData.submittedAt) {
+            newRecipe.moderationDurationMs = decisionTs - new Date(recipeData.submittedAt).getTime();
+        }
 
         // 1. Сохраняем в общую базу
         await db.collection('public_recipes').add(newRecipe);
@@ -8521,13 +8823,19 @@ async function rejectRecipeWithReason(docId, reason) {
         const doc = await db.collection('pending_recipes').doc(docId).get();
         if (!doc.exists) return;
         const r = doc.data();
+        const decisionTs = Date.now();
 
         // 1. Переносим в коллекцию "rejected" (чтобы юзер видел в "Мои публикации")
-        await db.collection('rejected_recipes').add({
+        const rejectedPayload = {
             ...r,
             rejectionReason: reason,
-            rejectedDate: new Date().toISOString()
-        });
+            rejectedDate: new Date(decisionTs).toISOString()
+        };
+        // Фиксируем время до решения — используется в дашборде и в статистике причин отклонения
+        if (r.submittedAt) {
+            rejectedPayload.moderationDurationMs = decisionTs - new Date(r.submittedAt).getTime();
+        }
+        await db.collection('rejected_recipes').add(rejectedPayload);
 
         // 2. Удаляем из заявок
         await db.collection('pending_recipes').doc(docId).delete();
@@ -13434,6 +13742,7 @@ async function renderDetailedStats() {
         renderFridgeSharingMetrics();
         renderAIChefMetrics();
         renderDislikeReasonsChart();
+        renderRejectionReasonsChart();
         renderXPLevelDistribution();
 
     } catch (e) {
@@ -14058,6 +14367,77 @@ async function renderDislikeReasonsChart() {
         }).join('');
     } catch (e) {
         console.error('Dislike reasons chart error:', e);
+        container.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+    }
+}
+
+// --- 6b. Причины отклонения заявок (чипы из reject-reason-modal) ---
+// Показываем разбивку, а не только текущий выбор в модалке — чтобы модератор видел,
+// где системная проблема (например, форма создания рецепта), а не только наказывал юзеров.
+const REJECT_REASON_META = {
+    'Не соответствует правилам сообщества': { label: 'Не по правилам',   icon: 'fa-gavel',       color: '#EF4444' },
+    'Дублирует существующий рецепт':        { label: 'Дубликат',         icon: 'fa-copy',        color: '#F59E0B' },
+    'Низкое качество фото/описания':        { label: 'Низкое качество',  icon: 'fa-image',       color: '#3B82F6' },
+    'Похоже на спам или рекламу':           { label: 'Спам',             icon: 'fa-ban',         color: '#A855F7' },
+    'Некорректные ингредиенты/шаги':        { label: 'Ошибки в рецепте', icon: 'fa-carrot',      color: '#14B8A6' },
+    'Подозрение на плагиат':                { label: 'Плагиат',          icon: 'fa-user-secret', color: '#EC4899' }
+};
+const REJECT_REASON_OTHER = { label: 'Другое / своя причина', icon: 'fa-ellipsis', color: 'var(--text-secondary)' };
+
+async function renderRejectionReasonsChart() {
+    const container = document.getElementById('rejection-reasons-container');
+    const insightEl = document.getElementById('rejection-reasons-insight');
+    if (!container) return;
+
+    try {
+        const snap = await db.collection('rejected_recipes').get();
+        const counts = {};
+        let total = 0;
+        snap.forEach(doc => {
+            const reason = doc.data().rejectionReason;
+            const key = REJECT_REASON_META[reason] ? reason : '__other__';
+            counts[key] = (counts[key] || 0) + 1;
+            total++;
+        });
+
+        if (total === 0) {
+            container.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-check-circle"></i><p>Отклонений пока не было</p></div>';
+            if (insightEl) insightEl.style.display = 'none';
+            return;
+        }
+
+        const ordered = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+        container.innerHTML = ordered.map(([key, count]) => {
+            const m = key === '__other__' ? REJECT_REASON_OTHER : REJECT_REASON_META[key];
+            const pct = Math.round((count / total) * 100);
+            return `
+                <div class="reason-bar-item">
+                    <div class="reason-bar-head">
+                        <span class="reason-bar-name"><i class="fas ${m.icon}" style="color:${m.color};"></i> ${escapeHtml(m.label)}</span>
+                        <span class="reason-bar-count">${count} <span style="color:var(--text-secondary); font-weight:500;">(${pct}%)</span></span>
+                    </div>
+                    <div class="reason-bar-track">
+                        <div class="reason-bar-fill" style="width:${Math.max(pct, 2)}%; background:${m.color};"></div>
+                    </div>
+                </div>`;
+        }).join('');
+
+        // Если одна причина резко доминирует — вероятно, системная проблема,
+        // а не просто разные нарушения пользователей
+        const [topKey, topCount] = ordered[0];
+        const topPct = Math.round((topCount / total) * 100);
+        if (insightEl) {
+            if (topPct >= 40 && total >= 5) {
+                const m = topKey === '__other__' ? REJECT_REASON_OTHER : REJECT_REASON_META[topKey];
+                insightEl.style.display = 'flex';
+                insightEl.innerHTML = `<i class="fas fa-lightbulb"></i> <span>${topPct}% отклонений — «${escapeHtml(m.label)}». Возможно, стоит доработать форму создания рецепта, а не только отклонять заявки по этой причине.</span>`;
+            } else {
+                insightEl.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Rejection reasons chart error:', e);
         container.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
     }
 }
@@ -15195,6 +15575,10 @@ function fallbackCopy(text) {
                     <div class="stat-icon" style="background:rgba(20, 184, 166, 0.12); color:#14B8A6"><i class="fas fa-kitchen-set"></i></div>
                     <div><div class="stat-val" id="dash-total-fridges">0</div><div class="stat-lbl">Холодильников</div></div>
                 </div>
+                <div class="admin-stat-widget" title="Среднее время от подачи заявки до решения (одобрение/отклонение), по последним заявкам">
+                    <div class="stat-icon" style="background:rgba(239, 68, 68, 0.12); color:#EF4444"><i class="fas fa-stopwatch"></i></div>
+                    <div><div class="stat-val" id="dash-avg-mod-time">—</div><div class="stat-lbl">Ср. время до решения</div></div>
+                </div>
             </div>
 
             <div class="admin-panel-card admin-panel-card-spaced">
@@ -15310,9 +15694,21 @@ function fallbackCopy(text) {
             <div class="admin-toolbar">
                 <h5>Очередь рецептов</h5>
                 <div class="admin-toolbar-actions">
+                    <button class="small-action-btn" id="pending-flag-filter-btn" style="display:none;" onclick="togglePendingFlagFilter()"><i class="fas fa-flag"></i> Только подозрительные</button>
+                    <button class="small-action-btn" id="pending-sort-toggle-btn" onclick="togglePendingSortOrder()"><i class="fas fa-arrow-down-wide-short"></i> Сначала старые</button>
                     <button class="small-action-btn" id="pending-select-all-btn" onclick="toggleSelectAllPending()"><i class="fas fa-square-check"></i> Выбрать все</button>
                     <button class="small-action-btn" onclick="loadPendingRecipes()"><i class="fas fa-sync"></i> Обновить</button>
                 </div>
+            </div>
+
+            <div id="pending-flagged-hint" class="pending-flagged-hint" style="display:none;">
+                <i class="fas fa-flag"></i>
+                <span></span>
+            </div>
+
+            <div id="pending-overdue-hint" class="pending-overdue-hint" style="display:none;">
+                <i class="fas fa-fire"></i>
+                <span></span>
             </div>
 
             <div id="pending-bulk-bar" class="pending-bulk-bar" style="display:none;">
@@ -15782,6 +16178,14 @@ function fallbackCopy(text) {
                     <div id="dislike-reasons-container" class="reason-bar-list">
                         <div class="admin-table-loading">Загрузка...</div>
                     </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-ban"></i> Причины отклонения заявок</h5>
+                    <div id="rejection-reasons-container" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <div id="rejection-reasons-insight" class="admin-insight-hint" style="display:none;"></div>
                 </div>
 
                 <div class="admin-panel-card admin-panel-card-spaced">
