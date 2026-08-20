@@ -9,7 +9,7 @@ function getInventorySignature() {
 }
 
 async function generateAIRecipe(count) {
-    const btn = document.querySelector('#ai-chef-modal .btn-primary') || document.getElementById('btn-ai-chef');
+    const btn = document.querySelector('#ai-chef-modal .btn-primary');
     const content = document.getElementById('ai-recipe-content');
 
     if (typeof userInventory === 'undefined' || !userInventory || userInventory.length === 0) {
@@ -43,9 +43,6 @@ async function generateAIRecipe(count) {
     }
 
     try {
-        if (!AXIO_AI_CHEF_ENDPOINT || AXIO_AI_CHEF_ENDPOINT.startsWith('ВСТАВЬ')) {
-            throw new Error('Серверная функция AI-шефа не настроена (см. AXIO_AI_CHEF_ENDPOINT в ai_chef.js)');
-        }
         if (typeof auth === 'undefined' || !auth.currentUser) {
             throw new Error('Нужно войти в аккаунт, чтобы пользоваться AI-шефом');
         }

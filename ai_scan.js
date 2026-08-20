@@ -31,9 +31,6 @@ async function handleAiScanCapture(dataUrl) {
         const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
         const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
-        if (!AXIO_AI_CHEF_ENDPOINT || AXIO_AI_CHEF_ENDPOINT.startsWith('ВСТАВЬ')) {
-            throw new Error('Серверная функция AI не настроена (см. AXIO_AI_CHEF_ENDPOINT в ai_chef.js)');
-        }
         if (typeof auth === 'undefined' || !auth.currentUser) {
             throw new Error('Нужно войти в аккаунт, чтобы пользоваться сканером');
         }

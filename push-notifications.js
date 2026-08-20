@@ -1,50 +1,10 @@
-/* ==================================================================================
- *  AXIO — СИСТЕМА PUSH-УВЕДОМЛЕНИЙ (v2, безопасная)
- *  Режимы, определяемые через window.isTelegramEnv():
- *    1) Обычный браузер  -> Web Push (Service Worker + VAPID), приходит даже когда
- *       сайт закрыт — доставляет бэкенд (см. backend/notify.js).
- *    2) Telegram Mini App -> сообщение от бота, отправляет тоже бэкенд.
- *
- *  ГЛАВНОЕ ОТЛИЧИЕ ОТ ПЕРВОЙ ВЕРСИИ:
- *  Токен Telegram-бота здесь БОЛЬШЕ НЕ ХРАНИТСЯ и не используется во фронтенде.
- *  Раньше он лежал в открытом JS-файле — это значит, что ЛЮБОЙ человек мог открыть
- *  DevTools/просмотр исходного кода, забрать токен и получить полный доступ к вашему
- *  боту (писать от его имени всем, читать историю и т.д.). Реальную отправку теперь
- *  делает только бэкенд (у него токен хранится в секрете, не виден пользователю).
- *
- *  ЧТО ДЕЛАЕТ ЭТОТ ФАЙЛ:
- *  - В браузере: просит разрешение на уведомления, подписывает пользователя на
- *    Web Push через Service Worker и СОХРАНЯЕТ подписку в Firestore
- *    (users/{uid}.pushSubscription). Дальше бэкенд сам шлёт пуши по расписанию.
- *  - В Telegram: сохраняет telegram chat id пользователя в Firestore
- *    (users/{uid}.telegramChatId). Дальше бэкенд сам шлёт сообщения ботом.
- *  - Пока сайт/апп открыт — дополнительно показывает уведомления локально
- *    (мгновенно, без бэкенда), чтобы не ждать следующего запуска cron-задачи.
- *
- *  КАК ПОДКЛЮЧИТЬ:
- *  1. Файлы push-notifications.js и sw-push.js лежат рядом с index.html.
- *  2. В <head> подключение уже есть (после firebase-config.js) — ничего менять не надо.
- *  3. Впиши сюда PUSH_CONFIG.VAPID_PUBLIC_KEY — публичный VAPID-ключ
- *     (как получить — см. backend/README.md, шаг 2). Это НЕ секрет, его можно
- *     держать во фронтенде.
- *  4. После того как currentUser заполнен, вызови initPushNotifications()
- *     (уже добавлено в index.html сразу после установки currentUser).
- *  5. Дай пользователю кнопку:
- *         <button onclick="requestPushPermission()">Включить уведомления</button>
- *  6. После загрузки/обновления userInventory вызывай checkExpiringProductsPush()
- *     (уже добавлено в index.html сразу после checkDailyNotifications()).
- *
- *  ⚠️ Реальные фоновые уведомления (когда сайт/апп закрыт) начнут приходить только
- *  после того как ты настроишь и запустишь бэкенд из папки backend/ — см. её README.
- * ================================================================================== */
 
-// ---------------------------- НАСТРОЙКИ ----------------------------
 const PUSH_CONFIG = {
-    // Публичный VAPID-ключ (не секрет). Получить: см. backend/README.md, шаг 2.
-    VAPID_PUBLIC_KEY: 'ВСТАВЬ_СЮДА_ПУБЛИЧНЫЙ_VAPID_КЛЮЧ',
+    VAPID_PUBLIC_KEY: 'BLk-AP_PG79csvNrLIZhPa2opHraVKHutglgxn-bj3_7gX2jNrNw5jLN2AW6GjS1CoCnLhm0kW3VcM4xibqXAvA',
 
-    // За сколько дней до истечения срока предупреждать (используется только
-    // для мгновенных локальных уведомлений, пока сайт открыт; у бэкенда — своя копия)
+    FCM_VAPID_KEY: 'BDExyh390VrfJU5eJ5TtuJUe89erRD5xi-2wo90J8F6gOzOXSKoXQFro3e7fKAaxr0Djnh5mANgVzWNQL_3fZTE',
+
+    // За сколько дней до истечения срока предупреждать
     NOTIFY_DAYS_BEFORE: 3,
 
     ICON_URL: 'icon.png',
@@ -54,10 +14,7 @@ const PUSH_CONFIG = {
 // ---------------------------- СОСТОЯНИЕ ----------------------------
 let _swRegistration = null;
 
-// ==================================================================
 //  ИНИЦИАЛИЗАЦИЯ
-// ==================================================================
-
 async function initPushNotifications() {
     if (window.isTelegramEnv && window.isTelegramEnv()) {
         console.log('[push] Telegram Mini App окружение — уведомления шлёт бэкенд через бота');
@@ -75,6 +32,7 @@ async function initPushNotifications() {
 
         if (Notification.permission === 'granted') {
             await subscribeWebPush();
+            await subscribeFcm();
         }
     } catch (err) {
         console.error('[push] Не удалось зарегистрировать service worker:', err);
@@ -104,6 +62,7 @@ async function requestPushPermission() {
     if (permission !== 'granted') return false;
 
     const subscribed = await subscribeWebPush();
+    await subscribeFcm();
     if (subscribed) {
         showBrowserNotification('🔔 Уведомления включены', {
             body: 'Мы будем сообщать, когда продукты начнут портиться.',
@@ -112,10 +71,7 @@ async function requestPushPermission() {
     return subscribed;
 }
 
-// ==================================================================
 //  WEB PUSH: ПОДПИСКА + СОХРАНЕНИЕ В FIRESTORE
-// ==================================================================
-
 function _urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -156,6 +112,75 @@ async function _saveSubscriptionToFirestore(subscriptionJson) {
         return true;
     } catch (err) {
         console.error('[push] Не удалось сохранить подписку в Firestore:', err);
+        return false;
+    }
+}
+
+// ==================================================================
+//  FCM: ВТОРОЙ КАНАЛ ДОСТАВКИ (в дополнение к собственному Web Push)
+//  Использует ТОТ ЖЕ service worker (sw-push.js) — своего
+//  firebase-messaging-sw.js не нужно, чтобы не было конфликта
+//  двух SW на одном scope. sw-push.js уже обрабатывает generic
+//  'push'-событие, а FCM data-only сообщения приходят именно так.
+// ==================================================================
+
+let _fcmMessaging = null;
+
+function _getFcmMessaging() {
+    if (_fcmMessaging) return _fcmMessaging;
+    if (typeof firebase === 'undefined' || typeof firebase.messaging !== 'function') {
+        console.warn('[push] firebase-messaging-compat.js не подключён — FCM недоступен');
+        return null;
+    }
+    _fcmMessaging = firebase.messaging();
+    return _fcmMessaging;
+}
+
+async function subscribeFcm() {
+    if (window.isTelegramEnv && window.isTelegramEnv()) return false; // в Telegram — только бот
+    if (!_swRegistration) return false;
+    if (!PUSH_CONFIG.FCM_VAPID_KEY || PUSH_CONFIG.FCM_VAPID_KEY.startsWith('ВСТАВЬ')) {
+        console.warn('[push] FCM_VAPID_KEY не задан');
+        return false;
+    }
+
+    const messaging = _getFcmMessaging();
+    if (!messaging) return false;
+
+    try {
+        const token = await messaging.getToken({
+            vapidKey: PUSH_CONFIG.FCM_VAPID_KEY,
+            serviceWorkerRegistration: _swRegistration,
+        });
+        if (!token) {
+            console.warn('[push] Не удалось получить FCM-токен (нет разрешения?)');
+            return false;
+        }
+        await _saveFcmTokenToFirestore(token);
+
+        // Пока вкладка открыта — foreground-сообщения показываем сами
+        messaging.onMessage((payload) => {
+            const title = (payload.data && payload.data.title) || (payload.notification && payload.notification.title) || 'Axio';
+            const body = (payload.data && payload.data.body) || (payload.notification && payload.notification.body) || '';
+            showBrowserNotification(title, { body });
+        });
+
+        return true;
+    } catch (err) {
+        console.error('[push] Ошибка подписки на FCM:', err);
+        return false;
+    }
+}
+
+async function _saveFcmTokenToFirestore(token) {
+    if (typeof db === 'undefined' || typeof currentUser === 'undefined' || !currentUser) return false;
+    try {
+        await db.collection(typeof USER_COLLECTION !== 'undefined' ? USER_COLLECTION : 'users')
+            .doc(currentUser.uid)
+            .set({ fcmToken: token }, { merge: true });
+        return true;
+    } catch (err) {
+        console.error('[push] Не удалось сохранить FCM-токен в Firestore:', err);
         return false;
     }
 }
