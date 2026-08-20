@@ -1,24 +1,3 @@
-/* ==================================================================================
- *  AXIO — БЭКЕНД РАССЫЛКИ (v2, привязан к колокольчику уведомлений)
- *
- *  Что делает:
- *   1. Подключается к Firestore через Firebase Admin SDK (сервисный аккаунт).
- *   2. Проходит по коллекции `axioUsers`. У каждого пользователя смотрит поле
- *      `notifications` — это тот же массив, что рисуется в колокольчике в приложении.
- *   3. Сравнивает его с `pushSentIds` (список id, которые уже отправляли раньше —
- *      этот скрипт сам его создаёт и обновляет в документе пользователя).
- *   4. Всё, что новое — шлёт как Telegram-сообщение (если есть telegramChatId)
- *      и/или Web Push (если есть pushSubscription).
- *
- *  Запускается по расписанию через .github/workflows/notify.yml — раз в 5 минут.
- *  Это НЕ мгновенно (мгновенно = Cloud Functions, но там нужна карта на Firebase),
- *  но задержка максимум ~5 минут, и это полностью бесплатно и без привязки карты.
- *
- *  ⚠️ Названия полей (`axioUsers`, `notifications`, `id/type/message`,
- *  `telegramChatId`, `pushSubscription`) взяты из реального кода фронтенда.
- *  Если что-то в твоей базе называется иначе — поправь ниже.
- * ================================================================================== */
-
 const admin = require('firebase-admin');
 const webpush = require('web-push');
 const fetch = require('node-fetch');
@@ -67,10 +46,29 @@ async function sendWebPush(uid, subscription, title, body) {
         await webpush.sendNotification(subscription, JSON.stringify({ title, body }));
     } catch (err) {
         console.error(`[webpush] Ошибка отправки ${uid}:`, err.statusCode || err.message);
-        // 404/410 = подписка больше не действительна — чистим её, чтобы не пытаться зря каждые 5 минут
         if (err.statusCode === 404 || err.statusCode === 410) {
             await db.collection(USER_COLLECTION).doc(uid)
                 .update({ pushSubscription: admin.firestore.FieldValue.delete() })
+                .catch(() => {});
+        }
+    }
+}
+
+// data-only сообщение (без поля "notification"): приходит в sw-push.js как
+// обычное 'push'-событие с тем же JSON-форматом {title, body}, что и у
+// собственного Web Push выше — один и тот же service worker обрабатывает оба канала.
+async function sendFcm(uid, token, title, body) {
+    try {
+        await admin.messaging().send({
+            token,
+            data: { title, body },
+            webpush: { headers: { Urgency: 'high' } },
+        });
+    } catch (err) {
+        console.error(`[fcm] Ошибка отправки ${uid}:`, err.code || err.message);
+        if (err.code === 'messaging/registration-token-not-registered') {
+            await db.collection(USER_COLLECTION).doc(uid)
+                .update({ fcmToken: admin.firestore.FieldValue.delete() })
                 .catch(() => {});
         }
     }
@@ -90,7 +88,7 @@ async function run() {
 
         const notifications = Array.isArray(user.notifications) ? user.notifications : [];
         if (!notifications.length) continue;
-        if (!user.telegramChatId && !user.pushSubscription) continue; // некому слать — пропускаем
+        if (!user.telegramChatId && !user.pushSubscription && !user.fcmToken) continue;
 
         const alreadySent = new Set(user.pushSentIds || []);
         const fresh = notifications.filter(n => !alreadySent.has(n.id));
@@ -100,6 +98,7 @@ async function run() {
             const title = TYPE_TITLES[n.type] || '🔔 Axio';
             if (user.telegramChatId) await sendTelegram(user.telegramChatId, title, n.message);
             if (user.pushSubscription) await sendWebPush(uid, user.pushSubscription, title, n.message);
+            if (user.fcmToken) await sendFcm(uid, user.fcmToken, title, n.message);
             notificationsSent++;
         }
 
