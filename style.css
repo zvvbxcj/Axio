@@ -7726,3 +7726,205 @@ adsgram-task {
     line-height: 1.4;
     padding-top: 2px;
 }
+/* ============================================================
+   TRUST & SAFETY (админ-панель): подозрительная активность,
+   история банов и апелляции.
+   ============================================================ */
+.suspicious-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--surface-light);
+    border: 1px solid var(--border-color);
+    margin-bottom: 10px;
+}
+.suspicious-item:last-child { margin-bottom: 0; }
+.suspicious-item-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+}
+.suspicious-item-body { flex-grow: 1; min-width: 0; }
+.suspicious-item-title {
+    font-size: 0.92em;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.suspicious-item-detail {
+    font-size: 0.82em;
+    color: var(--text-secondary);
+    margin-top: 3px;
+    word-break: break-word;
+}
+.suspicious-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.recidivist-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--error);
+    border-radius: 10px;
+    padding: 2px 7px;
+    font-size: 0.72em;
+    font-weight: 700;
+    margin-left: 6px;
+}
+
+.appeal-card {
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 14px;
+    background: var(--surface-light);
+    margin-bottom: 12px;
+}
+.appeal-card:last-child { margin-bottom: 0; }
+.appeal-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.appeal-card-msg {
+    margin: 10px 0 0;
+    font-size: 0.9em;
+    color: var(--text-primary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+.appeal-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    justify-content: flex-end;
+}
+.appeal-card-actions .btn { width: auto; padding: 8px 16px; font-size: 0.85em; }
+
+#ban-appeal-form-box textarea.styled-input { min-height: 70px; }
+.ban-appeal-status-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    line-height: 1.5;
+    text-align: left;
+}
+.ban-appeal-status-note.is-pending { background: rgba(245, 158, 11, 0.12); color: #F59E0B; }
+.ban-appeal-status-note.is-approved { background: rgba(16, 185, 129, 0.12); color: #10B981; }
+.ban-appeal-status-note.is-rejected { background: rgba(239, 68, 68, 0.12); color: #EF4444; }
+
+/* --- П.10: Доп. защита входа в панель модератора (пароль + анти-брутфорс) --- */
+.audit-log-icon.audit-cat-security { color: #8B5CF6; background: rgba(139, 92, 246, 0.12); }
+.journal-filter-chip[data-filter="security"].active { background: #8B5CF6; border-color: #8B5CF6; }
+
+.admin-security-icon {
+    width: 56px; height: 56px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(139, 92, 246, 0.12);
+    color: #8B5CF6;
+    font-size: 1.6em;
+}
+.admin-security-title {
+    font-size: 1.2em;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    text-align: center;
+}
+.admin-security-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.88em;
+    margin-bottom: 16px;
+    text-align: center;
+    line-height: 1.4;
+}
+.admin-security-error {
+    color: var(--error);
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.85em;
+    display: none;
+    margin-bottom: 10px;
+    text-align: center;
+}
+.admin-security-modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+.admin-security-modal-actions .btn { flex: 1; }
+
+/* --- П.11: Явная причина отклонения рецепта во всплывающем окне --- */
+.rejected-popup-icon {
+    width: 56px; height: 56px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--error);
+    font-size: 1.6em;
+}
+.rejected-popup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+    max-height: 45vh;
+    overflow-y: auto;
+    margin-bottom: 4px;
+}
+.rejected-popup-item {
+    background: var(--surface-light);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--error);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+.rejected-popup-item-name {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.95em;
+    margin-bottom: 4px;
+}
+.rejected-popup-item-name i { color: var(--error); margin-right: 6px; }
+.rejected-popup-item-reason {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+.rejected-popup-item-reason i { margin-right: 5px; color: var(--error); opacity: 0.8; }
+
+/* --- Причина отклонения в "Мои публикации" — крупнее и заметнее --- */
+.submission-reason-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.08);
+    border-radius: 8px;
+    padding: 6px 8px;
+    margin-top: 6px;
+    font-size: 0.82em;
+    font-weight: 600;
+    color: var(--error);
+    line-height: 1.35;
+}
+.submission-reason-box i { margin-top: 2px; }

@@ -12,6 +12,37 @@
     <script src="recipes.js"></script>
     <script src="achievements.js"></script>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* --- Режим для слабовидящих: крупнее шрифт, выше контраст, крупнее
+           области нажатия. Включается классом .a11y-mode на <body>, поэтому
+           работает поверх текущей темы (тёмной/светлой). --- */
+        .a11y-mode {
+            --base-font-size: clamp(18px, 1.6vw, 23px);
+            --h3-font-size: clamp(1.4em, 2.6vw, 2.1em);
+            --text-secondary: #CBD5E1;
+            --border-color: #64748B;
+        }
+        .light-theme.a11y-mode {
+            --text-secondary: #1E293B;
+            --border-color: #64748B;
+        }
+        .a11y-mode body { line-height: 1.55; }
+        .a11y-mode .btn,
+        .a11y-mode button,
+        .a11y-mode .filter-btn,
+        .a11y-mode .nav-tab,
+        .a11y-mode input,
+        .a11y-mode select,
+        .a11y-mode .styled-input {
+            min-height: 48px;
+        }
+        .a11y-mode .nav-tab i { font-size: 1.6em; }
+        .a11y-mode .nav-tab span { font-size: 0.85em; }
+        .a11y-mode *:focus-visible {
+            outline: 3px solid var(--primary);
+            outline-offset: 2px;
+        }
+    </style>
 
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
@@ -23,6 +54,25 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-messaging-compat.js"></script>
 
 <script src="firebase-config.js"></script>
+<script>
+// --- Offline-режим: включаем локальный кэш Firestore (IndexedDB), чтобы
+// инвентарь и список покупок были доступны на чтение без сети, а изменения,
+// сделанные офлайн, сами дозаписались при восстановлении соединения.
+// Должно вызываться один раз, до первых обращений к db.collection(...). ---
+(function () {
+    if (typeof db === 'undefined' || !db || typeof db.enablePersistence !== 'function') return;
+    db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
+        if (err && err.code === 'failed-precondition') {
+            // Несколько открытых вкладок — офлайн-кэш уже включен в одной из них, это нормально.
+            console.warn('Axio offline: persistence already active in another tab');
+        } else if (err && err.code === 'unimplemented') {
+            console.warn('Axio offline: браузер не поддерживает офлайн-кэш Firestore');
+        } else {
+            console.warn('Axio offline: enablePersistence error', err);
+        }
+    });
+})();
+</script>
 <script src="push-notifications.js"></script>
 <script src="https://sad.adsgram.ai/js/adsgram-sdk.js"></script>
 
@@ -121,12 +171,59 @@
         <i class="fas fa-ban blocking-icon" style="color: #EF4444;"></i>
         <h2 style="color: #EF4444;">Доступ ограничен</h2>
         <p>Ваш аккаунт был заблокирован администратором за нарушение правил.</p>
+        <div id="banned-reason-box" style="margin-top: 10px; font-size: 0.85em; opacity: 0.85; display: none;"></div>
         <div style="margin-top: 20px; font-size: 0.9em; opacity: 0.7;">
             ID: <span id="banned-user-id">...</span>
         </div>
+
+        <div id="ban-appeal-section" style="margin-top: 22px; width: 100%; text-align: left;">
+            <div id="ban-appeal-form-box">
+                <p style="font-size: 0.85em; opacity: 0.8; margin-bottom: 8px; text-align:center;">
+                    Считаете, что это ошибка? Опишите ситуацию — модератор рассмотрит апелляцию.
+                </p>
+                <textarea id="ban-appeal-text" class="styled-input" rows="3" placeholder="Опишите, почему вы считаете блокировку ошибочной..." style="width: 100%; resize: vertical;"></textarea>
+                <button class="btn btn-primary" onclick="submitBanAppeal()" style="margin-top: 10px; width: 100%;">
+                    <i class="fas fa-paper-plane"></i> Отправить апелляцию
+                </button>
+            </div>
+            <div id="ban-appeal-status-box" style="display: none;"></div>
+        </div>
+
         <button class="btn btn-secondary" onclick="logout()" style="margin-top: 20px; width: auto;">Выйти</button>
     </div>
 </div>
+
+    <div id="offline-banner" class="offline-banner" style="display:none;">
+        <i class="fas fa-wifi-slash"></i>
+        <span id="offline-banner-text">Нет сети — изменения сохранятся локально и синхронизируются автоматически</span>
+    </div>
+
+    <style>
+        .offline-banner {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 9998;
+            background: #F59E0B;
+            color: #1F2937;
+            font-size: 0.82em;
+            font-weight: 600;
+            text-align: center;
+            padding: 7px 12px;
+            padding-top: calc(7px + env(safe-area-inset-top, 0px));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .offline-banner.syncing { background: #60A5FA; color: #1E3A8A; }
+        .offline-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #EF4444;
+        }
+        .offline-dot.online { background: #22C55E; }
+    </style>
 
     <div id="app-container">
 
@@ -285,7 +382,7 @@
                             <i class="fas fa-bell"></i>
                             <span id="notification-badge" style="display: none;"></span>
                         </button>
-                        <button id="settings-btn" onclick="showModal('settings-modal'); initNotificationToggle();">
+                        <button id="settings-btn" onclick="showModal('settings-modal'); initNotificationToggle(); populateLocationSettings();">
                             <i class="fas fa-cog"></i>
                         </button>
                     </div>
@@ -561,6 +658,9 @@
                 </section>
 
                 <section id="achievements-section" class="section">
+    <button type="button" onclick="navigateTo('profile')" style="display:flex; align-items:center; gap:6px; background:none; border:none; color:var(--text-secondary); font-size:0.9em; cursor:pointer; padding:0 0 12px; -webkit-tap-highlight-color:transparent;">
+        <i class="fas fa-arrow-left"></i> <span data-translate="BackToProfile">Профиль</span>
+    </button>
     <h3>
         <i class="fas fa-medal"></i> 
         <span data-translate="AchievementsHeader">Мои награды</span>
@@ -614,7 +714,7 @@
                         </button>
                         
                         <div style="display:flex; justify-content: space-around; margin-top: 20px;">
-                            <div style="font-size: 0.9em;">
+                            <div style="font-size: 0.9em; cursor:pointer; -webkit-tap-highlight-color:transparent;" onclick="navigateTo('achievements')" title="Награды">
                                 <div style="font-weight: 700; color: var(--primary); font-size: 1.2em;" id="profile-level">1</div>
                                 <div style="color:var(--text-secondary);" data-translate="LevelShort">Ур.</div>
                             </div>
@@ -622,7 +722,7 @@
                                 <div style="font-weight: 700; color: var(--primary); font-size: 1.2em;" id="profile-cooked-dishes">0</div>
                                 <div style="color:var(--text-secondary);" data-translate="CookedDishes">Блюд</div>
                             </div>
-                            <div style="font-size: 0.9em;">
+                            <div style="font-size: 0.9em; cursor:pointer; -webkit-tap-highlight-color:transparent;" onclick="navigateTo('achievements')" title="Награды">
                                 <div style="font-weight: 700; color: var(--primary); font-size: 1.2em;" id="profile-xp">0</div>
                                 <div style="color:var(--text-secondary);">XP</div>
                             </div>
@@ -688,10 +788,6 @@
                 <div class="nav-tab" data-section="shopping">
                     <i class="fas fa-shopping-cart"></i>
                     <span data-translate="NavShopping">Покупки</span>
-                </div>
-                <div class="nav-tab" data-section="achievements">
-                    <i class="fas fa-medal"></i>
-                    <span data-translate="NavAchievements">Награды</span>
                 </div>
                 <div class="nav-tab" data-section="profile">
                     <i class="fas fa-user"></i>
@@ -1234,6 +1330,19 @@
                     <div class="theme-toggle-circle"></div>
                 </label>
             </div>
+
+            <div class="settings-row notif-settings-row">
+                <div class="notif-row-left">
+                    <div class="notif-row-text">
+                        <div class="notif-row-title" data-translate="A11yModeLabel">Режим для слабовидящих</div>
+                        <div class="push-notif-status" style="display:block; opacity:0.75;" data-translate="A11yModeDesc">Крупный шрифт и высокий контраст</div>
+                    </div>
+                </div>
+                <label class="premium-switch">
+                    <input type="checkbox" id="a11y-switch">
+                    <span class="premium-switch-track"><span class="premium-switch-thumb"><i class="fas fa-eye"></i></span></span>
+                </label>
+            </div>
             
             <div class="settings-row luxury-lang-row">
     <div class="sticker-label" data-translate="LanguageLabel">Язык интерфейса</div>
@@ -1275,6 +1384,20 @@
     <select id="language-select" class="lang-native-fallback" aria-hidden="true">
     </select>
 </div>
+
+        <div class="settings-section">
+            <div class="settings-block-title" style="margin-top: 15px;">
+                <span>📍 Местоположение (для рейтинга)</span>
+            </div>
+            <p style="font-size: 0.8em; color: var(--text-secondary); margin: 6px 0 12px;">
+                Укажите, чтобы сравнивать себя с игроками из вашего города, региона или страны в рейтинге.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <input type="text" id="settings-country" class="styled-input" placeholder="Страна" autocomplete="off">
+                <input type="text" id="settings-region" class="styled-input" placeholder="Регион / область" autocomplete="off">
+                <input type="text" id="settings-city" class="styled-input" placeholder="Город" autocomplete="off">
+            </div>
+        </div>
 
         <div class="settings-section">
             <div class="settings-block-title" style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
@@ -1426,6 +1549,7 @@ async function handleFridgeAvatarFile(event) {
         let userLevel = 1;
         let userXp = 0; 
         let cookedDishes = 0;
+        let userCO2Total = 0; // накопленный CO2e (кг), сохранённый по методике LCA — для лидерборда
         let customExpiryDays = null;
         
         // --- NEW CAPTCHA KEYS & STATE ---
@@ -2017,6 +2141,84 @@ async function trackStat(type) {
             });
         }
 
+        // --- АПЕЛЛЯЦИИ НА БАН (пользовательская сторона) ---
+        // Пишем в отдельную коллекцию ban_appeals, пока пользователь ещё аутентифицирован
+        // (сессия намеренно не обрывается сразу при бане — см. showBannedScreen/checkAuthState).
+        async function checkExistingBanAppeal(uid) {
+            const formBox = document.getElementById('ban-appeal-form-box');
+            const statusBox = document.getElementById('ban-appeal-status-box');
+            if (!formBox || !statusBox) return;
+
+            formBox.style.display = 'block';
+            statusBox.style.display = 'none';
+
+            try {
+                const snap = await db.collection('ban_appeals')
+                    .where('uid', '==', uid)
+                    .get();
+
+                if (snap.empty) return; // апелляций ещё не было — показываем форму
+
+                let latest = null;
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (!latest || (d.createdAt && latest.createdAt && d.createdAt.toMillis() > latest.createdAt.toMillis())) {
+                        latest = d;
+                    }
+                });
+                if (!latest) return;
+
+                if (latest.status === 'pending') {
+                    formBox.style.display = 'none';
+                    statusBox.style.display = 'block';
+                    statusBox.innerHTML = `<div class="ban-appeal-status-note is-pending"><i class="fas fa-hourglass-half"></i> Ваша апелляция отправлена и ожидает рассмотрения модератором.</div>`;
+                } else if (latest.status === 'approved') {
+                    // Обычно к этому моменту isBanned уже снят и юзер сюда не попадёт,
+                    // но на случай задержки синхронизации — покажем понятный статус.
+                    statusBox.style.display = 'block';
+                    statusBox.innerHTML = `<div class="ban-appeal-status-note is-approved"><i class="fas fa-check-circle"></i> Апелляция одобрена. Если доступ ещё не восстановился, попробуйте перезайти чуть позже.</div>`;
+                } else if (latest.status === 'rejected') {
+                    statusBox.style.display = 'block';
+                    statusBox.innerHTML = `<div class="ban-appeal-status-note is-rejected"><i class="fas fa-xmark"></i> Предыдущая апелляция была отклонена. Вы можете отправить новую, если у вас есть дополнительные аргументы.</div>`;
+                }
+            } catch (e) {
+                console.warn('Ban appeal status check failed', e);
+            }
+        }
+
+        async function submitBanAppeal() {
+            const uid = bannedUserUid || (currentUser && currentUser.uid);
+            const textEl = document.getElementById('ban-appeal-text');
+            const message = textEl ? textEl.value.trim() : '';
+
+            if (!uid) return;
+            if (!message) {
+                showToast('Опишите ситуацию перед отправкой', 'warning');
+                return;
+            }
+
+            try {
+                await db.collection('ban_appeals').add({
+                    uid: uid,
+                    userName: (currentUser && (currentUser.name || currentUser.email)) || uid,
+                    message: message,
+                    status: 'pending',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                const formBox = document.getElementById('ban-appeal-form-box');
+                const statusBox = document.getElementById('ban-appeal-status-box');
+                if (formBox) formBox.style.display = 'none';
+                if (statusBox) {
+                    statusBox.style.display = 'block';
+                    statusBox.innerHTML = `<div class="ban-appeal-status-note is-pending"><i class="fas fa-hourglass-half"></i> Апелляция отправлена. Мы рассмотрим её как можно скорее.</div>`;
+                }
+                showToast('Апелляция отправлена', 'success');
+            } catch (e) {
+                showToast('Не удалось отправить апелляцию: ' + e.message, 'error');
+            }
+        }
+
         // --- DATA & STATE MANAGEMENT ---
         async function saveData(fullUpdate = false) {
     if (!currentUser) return;
@@ -2044,7 +2246,12 @@ async function trackStat(type) {
             email: currentUser.email,
             telegramUsername: currentUser.telegramUsername || null,
             xp: userXp, level: userLevel, cookedDishes: cookedDishes, 
+            co2Saved: Math.round(userCO2Total * 1000) / 1000,
+            country: currentUser.country || null,
+            region: currentUser.region || null,
+            city: currentUser.city || null,
             theme: currentUser.theme, lang: currentLang,
+            accessibilityMode: currentUser.accessibilityMode || false,
             lastNotificationDate: lastNotificationDate, 
             avatar: currentUser.avatar || avatarCollection[0]
         }, { merge: true });
@@ -2099,8 +2306,17 @@ async function trackStat(type) {
             adsWatchedCount = data.adsWatched || 0;
             userLevel = data.level || 1;
             cookedDishes = data.cookedDishes || 0;
+            // co2Saved — новое поле; если у аккаунта его ещё нет, но есть история готовки,
+            // считаем один раз по уже сохранённым данным (методика LCA), чтобы не обнулять прогресс.
+            userCO2Total = (typeof data.co2Saved === 'number')
+                ? data.co2Saved
+                : estimateCO2Saved(data.history || []);
+            currentUser.country = data.country || '';
+            currentUser.region = data.region || '';
+            currentUser.city = data.city || '';
             currentLang = data.lang || 'ru';
             currentUser.theme = data.theme || 'dark';
+            currentUser.accessibilityMode = data.accessibilityMode || false;
             currentUser.avatar = data.avatar || avatarCollection[0];
             
             userEditedRecipes = data.editedRecipes || {};
@@ -2148,7 +2364,11 @@ async function trackStat(type) {
                 xp: 0, level: 1, cookedDishes: 0, theme: 'dark', lang: currentLang,
                 editedRecipes: {},
                 achievements: JSON.parse(JSON.stringify(achievementsDB)),
-                name: currentUser.name, email: currentUser.email, telegramUsername: null, avatar: avatarCollection[0]
+                name: currentUser.name, email: currentUser.email, telegramUsername: null, avatar: avatarCollection[0],
+                // Для Trust & Safety: время регистрации (аномалии набора XP) и отпечаток
+                // устройства (эвристика мультирегистрации) — см. runSuspiciousActivityScan()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                deviceFingerprint: computeDeviceFingerprint()
             };
             await db.collection(USER_COLLECTION).doc(currentUser.uid).set(initialData);
             userAchievements = initialData.achievements;
@@ -2164,6 +2384,10 @@ async function trackStat(type) {
         checkDailyNotifications();
         checkExpiringProductsPush();
         updateUI();
+        // П.11: если пока пользователя не было в приложении, модератор отклонил
+        // его рецепт — показываем причину явно, не дожидаясь, пока он сам
+        // откроет колокольчик уведомлений.
+        checkRejectedRecipesPopup();
 
     } catch (error) {
         console.error("Load error", error);
@@ -2330,9 +2554,20 @@ async function initFridges(legacyInventory, legacyShopping) {
         renderFridgeSelector();
     } catch (error) {
         console.error("Fridges load error", error);
-        // Отказоустойчивость: не даем всему приложению упасть, если холодильники не загрузились
-        userInventory = legacyInventory || [];
-        userShopping = legacyShopping || [];
+        // Офлайн-отказоустойчивость: сначала пробуем восстановить последний
+        // холодильник из локального резервного кэша (см. offline-скрипт внизу
+        // файла), и только если кэша нет — откатываемся к legacy-состоянию.
+        var savedFridgeId = localStorage.getItem(lastFridgeStorageKey());
+        var cachedFridge = (savedFridgeId && window.axioGetCachedFridge) ? window.axioGetCachedFridge(savedFridgeId) : null;
+        if (cachedFridge) {
+            activeFridgeId = savedFridgeId;
+            userInventory = cachedFridge.items || [];
+            userShopping = cachedFridge.shopping || [];
+            if (typeof showToast === 'function') showToast('Вы офлайн: показаны последние сохранённые данные', 'info');
+        } else {
+            userInventory = legacyInventory || [];
+            userShopping = legacyShopping || [];
+        }
     }
 }
 
@@ -2904,8 +3139,10 @@ function checkAuthState() {
 
             if (!isDeveloper && userData.isBanned) {
                 loader.style.display = 'none';
-                showBannedScreen(user.uid);
-                auth.signOut(); // Разлогиниваем сразу
+                showBannedScreen(user.uid, userData);
+                // Сессию НЕ обрываем сразу (как и на экранах тех.работ/premium) —
+                // это нужно, чтобы забаненный пользователь мог отправить апелляцию
+                // от своего аккаунта. Полный выход — по кнопке "Выйти" (logout()).
                 return; // СТОП ЗАГРУЗКА
             }
 
@@ -2954,11 +3191,51 @@ function checkAuthState() {
 
 // Функции показа экранов
 
-function showBannedScreen(uid) {
+// Лёгкий client-side "отпечаток устройства" (не требует бэкенда/IP-логов):
+// хэш из UA, языка, разрешения экрана и часового пояса. Это не железобетонная
+// идентификация (два одинаковых телефона дадут одинаковый хэш), а лишь сигнал
+// для ручной проверки в Trust & Safety → "Подозрительная активность".
+function computeDeviceFingerprint() {
+    try {
+        const parts = [
+            navigator.userAgent || '',
+            navigator.language || '',
+            navigator.platform || '',
+            (screen.width || 0) + 'x' + (screen.height || 0),
+            (Intl.DateTimeFormat().resolvedOptions().timeZone) || '',
+            navigator.hardwareConcurrency || ''
+        ].join('|');
+        let hash = 0;
+        for (let i = 0; i < parts.length; i++) {
+            hash = ((hash << 5) - hash) + parts.charCodeAt(i);
+            hash |= 0;
+        }
+        return 'fp_' + Math.abs(hash).toString(36);
+    } catch (e) {
+        return null;
+    }
+}
+
+let bannedUserUid = null;
+
+function showBannedScreen(uid, userData) {
+    bannedUserUid = uid;
     document.getElementById('banned-overlay').style.display = 'flex';
     document.getElementById('maintenance-overlay').style.display = 'none';
     document.getElementById('app-container').style.display = 'none';
     document.getElementById('banned-user-id').innerText = uid;
+
+    const reasonBox = document.getElementById('banned-reason-box');
+    if (reasonBox) {
+        if (userData && userData.banReason) {
+            reasonBox.style.display = 'block';
+            reasonBox.innerHTML = `<i class="fas fa-circle-info"></i> Причина: ${escapeHtml(userData.banReason)}`;
+        } else {
+            reasonBox.style.display = 'none';
+        }
+    }
+
+    checkExistingBanAppeal(uid);
 }
 
         // --- INVENTORY, RECIPE, SHOPPING FUNCTIONS (UNCHANGED LOGIC) ---
@@ -5539,7 +5816,10 @@ async function deletePublicRecipe(id) {
                 message: `Ваш рецепт "${recipeData.name.ru || recipeData.name}" был удален модератором.`,
                 icon: 'fas fa-ban',
                 date: new Date().toISOString(),
-                read: false
+                read: false,
+                notifKind: 'recipe_rejected',
+                recipeName: (recipeData.name && (recipeData.name.ru || recipeData.name)) || 'Рецепт',
+                reason: 'Удалено администратором за нарушение правил.'
             };
             // Безопасное добавление через arrayUnion
             await userRef.update({
@@ -6026,6 +6306,7 @@ function cookRecipe(id) {
 
     // 3. Обновляем профиль и счетчики
     cookedDishes++;
+    userCO2Total += dishCO2;
     addXp(25);
     checkAchievements('cook', recipe.category);
 
@@ -6669,19 +6950,229 @@ let adminFridgeUserNameCache = {}; // uid -> имя, чтобы не дерга�
 let adminContentCache = []; // опубликованные рецепты для "Менеджера Контента"
 let managingAdminFridgeId = null;
 let adminDauChart = null; // Chart.js инстанс графика DAU/MAU
+let adminRetentionChart = null; // Chart.js инстанс когортного retention
+let adminLangBreakdownChart = null; // Chart.js инстанс доната по языкам интерфейса
 let adminFoodWasteChart = null; // Chart.js инстанс доната "Списание vs Использование"
 let adminSharingChart = null; // Chart.js инстанс доната "Личные vs Совместные холодильники"
 let adminXpLevelChart = null; // Chart.js инстанс бар-чарта распределения уровней
+
+// --- П.10: Доп. защита входа в панель модератора ---
+// Проверка currentUser.uid === ADMIN_UID — это только "кто вы" (учетка Firebase).
+// Дополнительно требуем пароль панели (хранится хэшем в Firestore) — это "что вы
+// знаете" — плюс защиту от подбора (лимит попыток + временная блокировка).
+const ADMIN_SECURITY_COLLECTION = 'admin_security';
+const ADMIN_SECURITY_DOC_ID = 'config';
+const ADMIN_MAX_ATTEMPTS = 5;
+const ADMIN_LOCKOUT_MS = 15 * 60 * 1000;   // 15 минут блокировки после превышения лимита попыток
+const ADMIN_SESSION_MS = 30 * 60 * 1000;   // 30 минут — сколько держится подтвержденный вход без повторного пароля
+let adminSecurityMode = 'login'; // 'login' | 'setup' | 'change'
+
+function adminSecurityDocRef() {
+    return db.collection(ADMIN_SECURITY_COLLECTION).doc(ADMIN_SECURITY_DOC_ID);
+}
+
+function isAdminSessionVerified() {
+    try {
+        const ts = parseInt(sessionStorage.getItem('axioAdminVerifiedAt') || '0', 10);
+        return !!ts && (Date.now() - ts) < ADMIN_SESSION_MS;
+    } catch (e) { return false; }
+}
+
+function markAdminSessionVerified() {
+    try { sessionStorage.setItem('axioAdminVerifiedAt', String(Date.now())); } catch (e) { /* приватный режим — не критично */ }
+}
+
+async function sha256Hex(text) {
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function genAdminSalt() {
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 function openAdminPanel() {
     if (!currentUser || currentUser.uid !== ADMIN_UID) {
         showToast("Доступ запрещен. Вы не Шеф!", "error");
         return;
     }
+    if (isAdminSessionVerified()) {
+        openAdminPanelUnlocked();
+        return;
+    }
+    openAdminSecurityGate();
+}
+
+// Открывает модалку пароля: подставляет режим "войти" или "задать пароль впервые"
+async function openAdminSecurityGate() {
+    adminSecurityMode = 'login';
+    document.getElementById('admin-security-input').value = '';
+    document.getElementById('admin-security-confirm').value = '';
+    document.getElementById('admin-security-error').style.display = 'none';
+    document.getElementById('admin-security-input').disabled = false;
+    document.getElementById('admin-security-submit-btn').disabled = false;
+    showModal('admin-security-modal');
+
+    try {
+        const doc = await adminSecurityDocRef().get();
+        if (!doc.exists || !doc.data().passwordHash) {
+            renderAdminSecuritySetupMode();
+        } else {
+            renderAdminSecurityLoginMode(doc.data());
+        }
+    } catch (e) {
+        console.error('Admin security check error:', e);
+        showAdminSecurityError('Ошибка проверки безопасности: ' + e.message);
+    }
+}
+
+function renderAdminSecuritySetupMode() {
+    adminSecurityMode = 'setup';
+    document.getElementById('admin-security-title').innerText = 'Задайте пароль панели';
+    document.getElementById('admin-security-subtitle').innerText = 'Это первый вход — придумайте пароль для доступа в панель модератора (минимум 6 символов). Он понадобится при каждом следующем входе.';
+    document.getElementById('admin-security-input').placeholder = 'Новый пароль';
+    document.getElementById('admin-security-confirm').style.display = 'block';
+    document.getElementById('admin-security-confirm').placeholder = 'Повторите пароль';
+    document.getElementById('admin-security-submit-btn').innerText = 'Сохранить и войти';
+}
+
+function renderAdminSecurityLoginMode(data) {
+    adminSecurityMode = 'login';
+    document.getElementById('admin-security-title').innerText = 'Подтверждение доступа';
+    document.getElementById('admin-security-subtitle').innerText = 'Введите пароль панели модератора';
+    document.getElementById('admin-security-input').placeholder = 'Пароль';
+    document.getElementById('admin-security-confirm').style.display = 'none';
+    document.getElementById('admin-security-submit-btn').innerText = 'Войти';
+
+    const lockedUntil = data.lockedUntil ? new Date(data.lockedUntil).getTime() : 0;
+    if (lockedUntil && Date.now() < lockedUntil) {
+        showAdminSecurityLockout(lockedUntil);
+    }
+}
+
+// Открывает ту же модалку в режиме смены пароля (доступно уже внутри панели)
+function openChangeAdminPassword() {
+    adminSecurityMode = 'change';
+    document.getElementById('admin-security-input').value = '';
+    document.getElementById('admin-security-confirm').value = '';
+    document.getElementById('admin-security-error').style.display = 'none';
+    document.getElementById('admin-security-input').disabled = false;
+    document.getElementById('admin-security-submit-btn').disabled = false;
+    document.getElementById('admin-security-title').innerText = 'Смена пароля панели';
+    document.getElementById('admin-security-subtitle').innerText = 'Введите новый пароль (минимум 6 символов)';
+    document.getElementById('admin-security-input').placeholder = 'Новый пароль';
+    document.getElementById('admin-security-confirm').style.display = 'block';
+    document.getElementById('admin-security-confirm').placeholder = 'Повторите новый пароль';
+    document.getElementById('admin-security-submit-btn').innerText = 'Сохранить';
+    showModal('admin-security-modal');
+}
+
+function showAdminSecurityError(msg) {
+    const err = document.getElementById('admin-security-error');
+    err.textContent = msg;
+    err.style.display = 'block';
+}
+
+function showAdminSecurityLockout(lockedUntilTs) {
+    const mins = Math.max(1, Math.ceil((lockedUntilTs - Date.now()) / 60000));
+    showAdminSecurityError(`Слишком много неверных попыток. Попробуйте снова через ${mins} мин.`);
+    document.getElementById('admin-security-submit-btn').disabled = true;
+    document.getElementById('admin-security-input').disabled = true;
+}
+
+async function submitAdminSecurity() {
+    const pass = document.getElementById('admin-security-input').value;
+    const btn = document.getElementById('admin-security-submit-btn');
+    document.getElementById('admin-security-error').style.display = 'none';
+
+    if (!pass || pass.length < 6) {
+        showAdminSecurityError('Пароль должен быть не короче 6 символов.');
+        return;
+    }
+
+    btn.disabled = true;
+    try {
+        if (adminSecurityMode === 'setup' || adminSecurityMode === 'change') {
+            const confirmPass = document.getElementById('admin-security-confirm').value;
+            if (pass !== confirmPass) {
+                showAdminSecurityError('Пароли не совпадают.');
+                btn.disabled = false;
+                return;
+            }
+            const salt = genAdminSalt();
+            const passwordHash = await sha256Hex(salt + pass);
+            await adminSecurityDocRef().set({
+                passwordHash, salt,
+                failedAttempts: 0, lockedUntil: null,
+                updatedAt: new Date().toISOString(),
+                updatedBy: (currentUser && (currentUser.name || currentUser.uid)) || 'admin'
+            }, { merge: true });
+
+            if (adminSecurityMode === 'setup') {
+                logAdmin('Пароль панели модератора установлен впервые', 'security');
+                markAdminSessionVerified();
+                hideModal('admin-security-modal');
+                showToast('Пароль сохранён', 'success');
+                openAdminPanelUnlocked();
+            } else {
+                logAdmin('Пароль панели модератора изменён', 'security');
+                hideModal('admin-security-modal');
+                showToast('Пароль обновлён', 'success');
+            }
+        } else {
+            // login
+            const doc = await adminSecurityDocRef().get();
+            const data = doc.exists ? doc.data() : {};
+
+            const lockedUntil = data.lockedUntil ? new Date(data.lockedUntil).getTime() : 0;
+            if (lockedUntil && Date.now() < lockedUntil) {
+                showAdminSecurityLockout(lockedUntil);
+                return;
+            }
+
+            const candidateHash = await sha256Hex((data.salt || '') + pass);
+            if (data.passwordHash && candidateHash === data.passwordHash) {
+                await adminSecurityDocRef().update({ failedAttempts: 0, lockedUntil: null });
+                logAdmin('Успешный вход в панель модератора', 'security');
+                markAdminSessionVerified();
+                hideModal('admin-security-modal');
+                openAdminPanelUnlocked();
+            } else {
+                const attempts = (data.failedAttempts || 0) + 1;
+
+                if (attempts >= ADMIN_MAX_ATTEMPTS) {
+                    const lockUntilTs = Date.now() + ADMIN_LOCKOUT_MS;
+                    await adminSecurityDocRef().update({ failedAttempts: 0, lockedUntil: new Date(lockUntilTs).toISOString() });
+                    logAdmin(`Панель модератора временно заблокирована на 15 минут после ${ADMIN_MAX_ATTEMPTS} неверных попыток входа`, 'security');
+                    showAdminSecurityLockout(lockUntilTs);
+                } else {
+                    await adminSecurityDocRef().update({ failedAttempts: attempts });
+                    logAdmin(`Неудачная попытка входа в панель модератора (${attempts}/${ADMIN_MAX_ATTEMPTS})`, 'security');
+                    showAdminSecurityError(`Неверный пароль. Осталось попыток: ${ADMIN_MAX_ATTEMPTS - attempts}.`);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Admin security error:', e);
+        showAdminSecurityError('Ошибка: ' + e.message);
+    } finally {
+        if (!document.getElementById('admin-security-input').disabled) btn.disabled = false;
+    }
+}
+
+function openAdminPanelUnlocked() {
     document.getElementById('admin-username-display').innerText = currentUser.name;
     showModal('admin-modal');
     switchAdminTab('dashboard'); // Открываем главную по умолчанию
     loadAdminStats(); // Грузим общие цифры
+    // Тихо считаем апелляции, чтобы бейджик на вкладке был виден сразу,
+    // не дожидаясь захода в Trust & Safety
+    db.collection('ban_appeals').where('status', '==', 'pending').get()
+        .then(snap => updateAppealsBadge(snap.size))
+        .catch(() => {});
 }
 
 function switchAdminTab(tabName) {
@@ -6726,6 +7217,11 @@ function switchAdminTab(tabName) {
     if (tabName === 'stats') renderDetailedStats();
     if (tabName === 'content') logAdmin("Инструменты готовы к работе.");
     if (tabName === 'journal') renderAuditLog();
+    if (tabName === 'trustsafety') {
+        runSuspiciousActivityScan();
+        refreshBanHistoryStats();
+        refreshBanAppeals();
+    }
     
     // Обновляем дашборд фоново, если открыта главная
     if (tabName === 'dashboard') { loadAdminStats(); renderDashboardActivityFeed(); }
@@ -7324,19 +7820,101 @@ function renderAdminUsers(users) {
 }
 
 // 4. Функция Бана/Разбана
+let banTargetUid = null;
+let banTargetName = null;
+let banTargetReasonCategory = 'other';
+
 async function toggleUserBan(uid, shouldBan) {
-    if(!confirm(shouldBan ? "Заблокировать пользователя?" : "Разблокировать пользователя?")) return;
-    
+    if (!shouldBan) {
+        return unbanUser(uid);
+    }
+
+    // Блокировка: сначала спрашиваем причину — нужна для статистики
+    // Trust & Safety → "История банов" (разбивка по причинам, рецидивы).
+    banTargetUid = uid;
+    const cached = (allUsersCache || []).find(u => u.id === uid);
+    banTargetName = (cached && cached.name) || 'Пользователь';
+    banTargetReasonCategory = 'other';
+
+    const customInput = document.getElementById('ban-reason-custom');
+    if (customInput) customInput.value = '';
+
+    showModal('ban-reason-modal');
+}
+
+async function unbanUser(uid) {
+    if (!confirm("Разблокировать пользователя?")) return;
     try {
-        await db.collection(USER_COLLECTION).doc(uid).update({
-            isBanned: shouldBan
-        });
-        showToast(shouldBan ? "Пользователь забанен" : "Пользователь разбанен", "success");
-        logAdmin(`${shouldBan ? 'Забанен' : 'Разбанен'} пользователь (${uid})`, 'users');
-        loadAllUsers(); // Обновить таблицу
-    } catch(e) {
+        await db.collection(USER_COLLECTION).doc(uid).update({ isBanned: false });
+        showToast("Пользователь разбанен", "success");
+        logAdmin(`Разбанен пользователь (${uid})`, 'users');
+
+        // Если по этому пользователю есть апелляция на рассмотрении — закрываем
+        // её как одобренную, чтобы очередь Trust & Safety не показывала "хвосты".
+        try {
+            const pendingAppeals = await db.collection('ban_appeals')
+                .where('uid', '==', uid).where('status', '==', 'pending').get();
+            if (!pendingAppeals.empty) {
+                await Promise.all(pendingAppeals.docs.map(d => d.ref.update({
+                    status: 'approved',
+                    resolvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    resolvedBy: (currentUser && currentUser.name) || 'Админ'
+                })));
+                if (typeof refreshBanAppeals === 'function') refreshBanAppeals();
+            }
+        } catch (e) { /* не критично для основного действия */ }
+
+        loadAllUsers();
+    } catch (e) {
         showToast("Ошибка: " + e.message, "error");
     }
+}
+
+// ================= Быстрый выбор причины блокировки =================
+function pickBanReason(category, label) {
+    banTargetReasonCategory = category;
+    const input = document.getElementById('ban-reason-custom');
+    if (input) input.value = label;
+}
+
+async function confirmBanWithReason() {
+    const uid = banTargetUid;
+    if (!uid) return;
+
+    const custom = (document.getElementById('ban-reason-custom')?.value || '').trim();
+    const reasonText = custom || 'Нарушение правил сообщества';
+    const category = banTargetReasonCategory || 'other';
+    const targetName = banTargetName || 'Пользователь';
+
+    hideModal('ban-reason-modal');
+
+    try {
+        await db.collection(USER_COLLECTION).doc(uid).update({
+            isBanned: true,
+            banReason: reasonText,
+            banCategory: category,
+            banCount: firebase.firestore.FieldValue.increment(1)
+        });
+        await db.collection('ban_history').add({
+            uid: uid,
+            userName: targetName,
+            reason: reasonText,
+            category: category,
+            bannedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            bannedBy: (currentUser && currentUser.name) || 'Админ'
+        });
+
+        showToast(`Пользователь забанен: ${reasonText}`, "success");
+        logAdmin(`Забанен пользователь ${targetName} (${uid}): ${reasonText}`, 'trustsafety');
+
+        loadAllUsers();
+        if (typeof refreshBanHistoryStats === 'function') refreshBanHistoryStats();
+    } catch (e) {
+        showToast("Ошибка: " + e.message, "error");
+    }
+
+    banTargetUid = null;
+    banTargetName = null;
 }
 
 /* ============================================================
@@ -7616,7 +8194,10 @@ async function quickUnpublishRecipe(id) {
                     message: `Ваш рецепт "${name}" был снят с публикации модератором.`,
                     icon: 'fas fa-ban',
                     date: new Date().toISOString(),
-                    read: false
+                    read: false,
+                    notifKind: 'recipe_rejected',
+                    recipeName: name,
+                    reason: 'Снято с публикации модератором.'
                 });
                 await userRef.update({ notifications: notifs });
             }
@@ -8093,7 +8674,334 @@ async function loadAvgModerationTime() {
     }
 }
 
-// Загрузка списка заявок
+/* ============================================================
+   TRUST & SAFETY
+   1) Подозрительная активность — простые правила по уже
+      существующим данным (без отдельного бэкенда/IP-логов):
+        - несколько аккаунтов с одинаковым "отпечатком устройства"
+          (см. computeDeviceFingerprint, пишется при регистрации)
+        - аномально быстрый набор XP относительно возраста аккаунта
+        - всплеск публикаций рецептов от одного автора за 1 час
+      Всё это только формирует список "на проверку" — решение
+      (варнинг/бан) всегда принимает модератор вручную.
+   2) История банов — коллекция ban_history с причиной/категорией,
+      статистика по категориям и по рецидивистам.
+   3) Апелляции — коллекция ban_appeals, заполняется пользователем
+      с экрана banned-overlay, разбирается здесь.
+   ============================================================ */
+
+const XP_ANOMALY_THRESHOLD_XP = 400;   // XP, подозрительно много для аккаунта младше суток
+const XP_ANOMALY_WINDOW_HOURS = 24;
+const RECIPE_BURST_THRESHOLD = 5;      // рецептов от одного автора за час — уже подозрительно
+const RECIPE_BURST_WINDOW_MS = 60 * 60 * 1000;
+
+const SUSPICIOUS_SEVERITY_META = {
+    high:   { label: 'Высокий риск', color: '#EF4444' },
+    medium: { label: 'Средний риск', color: '#F59E0B' }
+};
+const SUSPICIOUS_TYPE_META = {
+    multi_account: { icon: 'fa-user-group',   label: 'Мультирегистрация' },
+    xp_farm:       { icon: 'fa-bolt',         label: 'Фарм опыта' },
+    recipe_burst:  { icon: 'fa-layer-group',  label: 'Всплеск публикаций' }
+};
+
+async function runSuspiciousActivityScan() {
+    const listEl = document.getElementById('suspicious-activity-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="admin-table-loading">Сканирование по правилам...</div>';
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers();
+
+        const findings = [];
+        const now = Date.now();
+
+        // --- 1. Несколько аккаунтов с одним "отпечатком устройства" ---
+        const byFingerprint = {};
+        (allUsersCache || []).forEach(u => {
+            if (!u.deviceFingerprint) return;
+            (byFingerprint[u.deviceFingerprint] = byFingerprint[u.deviceFingerprint] || []).push(u);
+        });
+        Object.values(byFingerprint).forEach(users => {
+            if (users.length < 2) return;
+            findings.push({
+                type: 'multi_account',
+                severity: users.length >= 4 ? 'high' : 'medium',
+                title: `${users.length} аккаунта с одинаковым отпечатком устройства/браузера`,
+                detail: users.map(u => u.name || u.email || u.id).join(', '),
+                users
+            });
+        });
+
+        // --- 2. Аномальный набор XP для свежих аккаунтов ---
+        (allUsersCache || []).forEach(u => {
+            if (!u.createdAt || typeof u.createdAt.toDate !== 'function') return; // старые аккаунты без createdAt — пропускаем
+            const ageHours = (now - u.createdAt.toDate().getTime()) / 3600000;
+            if (ageHours < 0 || ageHours >= XP_ANOMALY_WINDOW_HOURS) return;
+            if ((u.xp || 0) < XP_ANOMALY_THRESHOLD_XP) return;
+
+            findings.push({
+                type: 'xp_farm',
+                severity: (u.xp || 0) >= XP_ANOMALY_THRESHOLD_XP * 2 ? 'high' : 'medium',
+                title: `${u.xp} XP менее чем за ${ageHours < 1 ? '1 час' : Math.round(ageHours) + ' ч'} с регистрации`,
+                detail: u.name || u.email || u.id,
+                users: [u]
+            });
+        });
+
+        // --- 3. Всплеск публикаций рецептов от одного автора за последний час ---
+        // submittedAt хранится как ISO-строка — лексикографическое сравнение совпадает
+        // с хронологическим, поэтому range-запрос work корректно без спец. поля-таймстампа.
+        const cutoffIso = new Date(now - RECIPE_BURST_WINDOW_MS).toISOString();
+        const [pendingSnap, publicSnap, rejectedSnap] = await Promise.all([
+            db.collection('pending_recipes').where('submittedAt', '>=', cutoffIso).get(),
+            db.collection('public_recipes').where('submittedAt', '>=', cutoffIso).get(),
+            db.collection('rejected_recipes').where('submittedAt', '>=', cutoffIso).get()
+        ]);
+        const byAuthor = {};
+        [pendingSnap, publicSnap, rejectedSnap].forEach(snap => {
+            snap.forEach(doc => {
+                const r = doc.data();
+                if (!r.authorId) return;
+                (byAuthor[r.authorId] = byAuthor[r.authorId] || []).push(r);
+            });
+        });
+        Object.entries(byAuthor).forEach(([authorId, recipes]) => {
+            if (recipes.length < RECIPE_BURST_THRESHOLD) return;
+            const u = (allUsersCache || []).find(x => x.id === authorId);
+            findings.push({
+                type: 'recipe_burst',
+                severity: recipes.length >= RECIPE_BURST_THRESHOLD * 2 ? 'high' : 'medium',
+                title: `${recipes.length} рецептов за последний час`,
+                detail: (u && (u.name || u.email)) || authorId,
+                users: [u || { id: authorId, name: authorId }]
+            });
+        });
+
+        renderSuspiciousActivity(findings);
+        updateSuspiciousStatWidgets(findings);
+        logAdmin(`Скан подозрительной активности: сигналов найдено — ${findings.length}`, 'trustsafety');
+    } catch (e) {
+        console.error('Suspicious activity scan error:', e);
+        listEl.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка сканирования: ${e.message}</p></div>`;
+    }
+}
+
+function renderSuspiciousActivity(findings) {
+    const listEl = document.getElementById('suspicious-activity-list');
+    if (!listEl) return;
+
+    if (!findings || findings.length === 0) {
+        listEl.innerHTML = '<div class="admin-empty-state" style="padding:20px;"><i class="fas fa-shield-check"></i><p>Подозрительной активности не обнаружено</p></div>';
+        return;
+    }
+
+    const ordered = findings.slice().sort((a, b) => (a.severity === 'high' ? 0 : 1) - (b.severity === 'high' ? 0 : 1));
+
+    listEl.innerHTML = ordered.map(f => {
+        const sev = SUSPICIOUS_SEVERITY_META[f.severity] || SUSPICIOUS_SEVERITY_META.medium;
+        const typeMeta = SUSPICIOUS_TYPE_META[f.type] || { icon: 'fa-triangle-exclamation', label: 'Сигнал' };
+        const primaryUser = f.users && f.users[0];
+        const uid = primaryUser ? primaryUser.id : null;
+        const unameRaw = (primaryUser && (primaryUser.name || primaryUser.email)) || 'Пользователь';
+        const unameEsc = escapeHtml(unameRaw).replace(/'/g, "\\'");
+
+        return `
+        <div class="suspicious-item">
+            <div class="suspicious-item-icon" style="color:${sev.color}; background:${sev.color}22;"><i class="fas ${typeMeta.icon}"></i></div>
+            <div class="suspicious-item-body">
+                <div class="suspicious-item-title">
+                    ${escapeHtml(f.title)}
+                    <span class="status-badge" style="background:${sev.color}22; color:${sev.color};">${sev.label}</span>
+                </div>
+                <div class="suspicious-item-detail">${typeMeta.label} · ${escapeHtml(f.detail)}</div>
+            </div>
+            <div class="suspicious-item-actions">
+                ${uid ? `<button class="icon-action-btn" title="Открыть профиль" onclick="switchAdminTab('users'); openUserDetail('${uid}')"><i class="fas fa-eye"></i></button>` : ''}
+                ${uid ? `<button class="icon-action-btn" title="Выдать предупреждение" onclick="giveUserWarning('${uid}', '${unameEsc}')"><i class="fas fa-triangle-exclamation"></i></button>` : ''}
+                ${uid ? `<button class="icon-action-btn is-danger" title="Забанить" onclick="toggleUserBan('${uid}', true)"><i class="fas fa-ban"></i></button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function updateSuspiciousStatWidgets(findings) {
+    const byType = { multi_account: 0, xp_farm: 0, recipe_burst: 0 };
+    (findings || []).forEach(f => { if (byType[f.type] !== undefined) byType[f.type]++; });
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('dash-ts-multiacc', byType.multi_account);
+    set('dash-ts-xpfarm', byType.xp_farm);
+    set('dash-ts-recipeburst', byType.recipe_burst);
+}
+
+// --- История банов: разбивка по причинам + рецидивы ---
+const BAN_REASON_META = {
+    spam:       { label: 'Спам / реклама',              icon: 'fa-ban',         color: '#A855F7' },
+    insults:    { label: 'Оскорбления в комментариях',  icon: 'fa-comment-slash', color: '#EF4444' },
+    plagiarism: { label: 'Плагиат рецептов',            icon: 'fa-user-secret', color: '#EC4899' },
+    fraud:      { label: 'Накрутка / мультиаккаунты',   icon: 'fa-user-group',  color: '#F59E0B' },
+    other:      { label: 'Другое',                      icon: 'fa-ellipsis',    color: 'var(--text-secondary)' }
+};
+
+async function refreshBanHistoryStats() {
+    const reasonsEl = document.getElementById('ban-reasons-container');
+    const listEl = document.getElementById('ban-history-list');
+    if (!reasonsEl && !listEl) return;
+
+    try {
+        const snap = await db.collection('ban_history').orderBy('bannedAt', 'desc').limit(500).get();
+        const entries = [];
+        snap.forEach(doc => entries.push({ id: doc.id, ...doc.data() }));
+
+        // Разбивка по причинам
+        const counts = {};
+        entries.forEach(e => {
+            const key = BAN_REASON_META[e.category] ? e.category : 'other';
+            counts[key] = (counts[key] || 0) + 1;
+        });
+        const total = entries.length;
+
+        if (reasonsEl) {
+            if (total === 0) {
+                reasonsEl.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-check-circle"></i><p>Банов пока не было</p></div>';
+            } else {
+                const ordered = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                reasonsEl.innerHTML = ordered.map(([key, count]) => {
+                    const m = BAN_REASON_META[key];
+                    const pct = Math.round((count / total) * 100);
+                    return `
+                        <div class="reason-bar-item">
+                            <div class="reason-bar-head">
+                                <span class="reason-bar-name"><i class="fas ${m.icon}" style="color:${m.color};"></i> ${escapeHtml(m.label)}</span>
+                                <span class="reason-bar-count">${count} <span style="color:var(--text-secondary); font-weight:500;">(${pct}%)</span></span>
+                            </div>
+                            <div class="reason-bar-track">
+                                <div class="reason-bar-fill" style="width:${Math.max(pct, 2)}%; background:${m.color};"></div>
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+        }
+
+        // Рецидивы: пользователи, забаненные более одного раза
+        const perUser = {};
+        entries.forEach(e => { if (e.uid) perUser[e.uid] = (perUser[e.uid] || 0) + 1; });
+        const recidivists = Object.values(perUser).filter(c => c > 1).length;
+
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setTxt('dash-ts-total-bans', total);
+        setTxt('dash-ts-recidivists', recidivists);
+        setTxt('dash-ts-active-bans', (allUsersCache || []).filter(u => u.isBanned).length);
+
+        if (listEl) {
+            if (entries.length === 0) {
+                listEl.innerHTML = '<tr><td colspan="5" style="text-align:center">Банов пока не было</td></tr>';
+            } else {
+                listEl.innerHTML = entries.slice(0, 50).map(e => {
+                    const m = BAN_REASON_META[e.category] || BAN_REASON_META.other;
+                    const repeatCount = perUser[e.uid] || 1;
+                    const dt = (e.bannedAt && typeof e.bannedAt.toDate === 'function') ? e.bannedAt.toDate().toLocaleString() : '—';
+                    return `
+                        <tr>
+                            <td>
+                                <span class="user-cell" style="cursor:pointer; display:inline-flex;" onclick="switchAdminTab('users'); openUserDetail('${e.uid}')">${escapeHtml(e.userName || e.uid)}</span>
+                                ${repeatCount > 1 ? `<span class="recidivist-badge" title="Повторная блокировка"><i class="fas fa-rotate"></i> ${repeatCount}</span>` : ''}
+                            </td>
+                            <td><span class="badge" style="background:${m.color}22; color:${m.color};"><i class="fas ${m.icon}"></i> ${escapeHtml(m.label)}</span></td>
+                            <td>${escapeHtml(e.reason || '—')}</td>
+                            <td>${escapeHtml(e.bannedBy || '—')}</td>
+                            <td>${dt}</td>
+                        </tr>`;
+                }).join('');
+            }
+        }
+    } catch (e) {
+        console.error('Ban history load error:', e);
+        if (reasonsEl) reasonsEl.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+        if (listEl) listEl.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--error);">Ошибка: ${e.message}</td></tr>`;
+    }
+}
+
+// --- Апелляции на бан ---
+async function refreshBanAppeals() {
+    const listEl = document.getElementById('ban-appeals-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="admin-table-loading">Загрузка...</div>';
+
+    try {
+        const snap = await db.collection('ban_appeals').where('status', '==', 'pending').get();
+        const appeals = [];
+        snap.forEach(doc => appeals.push({ id: doc.id, ...doc.data() }));
+        appeals.sort((a, b) => {
+            const at = (a.createdAt && typeof a.createdAt.toMillis === 'function') ? a.createdAt.toMillis() : 0;
+            const bt = (b.createdAt && typeof b.createdAt.toMillis === 'function') ? b.createdAt.toMillis() : 0;
+            return at - bt; // старые сначала
+        });
+
+        updateAppealsBadge(appeals.length);
+
+        if (appeals.length === 0) {
+            listEl.innerHTML = '<div class="admin-empty-state" style="padding:24px;"><i class="fas fa-inbox"></i><p>Нет апелляций на рассмотрении</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = appeals.map(a => {
+            const dt = (a.createdAt && typeof a.createdAt.toDate === 'function') ? a.createdAt.toDate().toLocaleString() : '—';
+            return `
+            <div class="appeal-card">
+                <div class="appeal-card-head">
+                    <span class="user-cell" style="cursor:pointer;" onclick="switchAdminTab('users'); openUserDetail('${a.uid}')"><b>${escapeHtml(a.userName || a.uid)}</b></span>
+                    <span style="color:var(--text-secondary); font-size:0.8em;">${dt}</span>
+                </div>
+                <p class="appeal-card-msg">${escapeHtml(a.message || '')}</p>
+                <div class="appeal-card-actions">
+                    <button class="btn btn-secondary" onclick="resolveBanAppeal('${a.id}', '${a.uid}', 'rejected')"><i class="fas fa-xmark"></i> Отклонить</button>
+                    <button class="btn btn-primary" onclick="resolveBanAppeal('${a.id}', '${a.uid}', 'approved')"><i class="fas fa-check"></i> Одобрить и разбанить</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Ban appeals load error:', e);
+        listEl.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+    }
+}
+
+function updateAppealsBadge(count) {
+    ['appeals-count-badge', 'appeals-count-badge-inline'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = count > 0 ? 'inline-block' : 'none';
+        el.textContent = count;
+    });
+}
+
+async function resolveBanAppeal(appealId, uid, decision) {
+    if (!confirm(decision === 'approved' ? 'Одобрить апелляцию и разбанить пользователя?' : 'Отклонить апелляцию?')) return;
+
+    try {
+        await db.collection('ban_appeals').doc(appealId).update({
+            status: decision,
+            resolvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            resolvedBy: (currentUser && currentUser.name) || 'Админ'
+        });
+
+        if (decision === 'approved') {
+            await db.collection(USER_COLLECTION).doc(uid).update({ isBanned: false });
+            showToast('Апелляция одобрена, пользователь разбанен', 'success');
+            logAdmin(`Апелляция одобрена, пользователь разбанен (${uid})`, 'trustsafety');
+            loadAllUsers();
+        } else {
+            showToast('Апелляция отклонена', 'success');
+            logAdmin(`Апелляция отклонена (${uid})`, 'trustsafety');
+        }
+
+        refreshBanAppeals();
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+
 async function loadPendingRecipes() {
     const list = document.getElementById('admin-pending-list');
     const emptyMsg = document.getElementById('admin-pending-empty');
@@ -8852,7 +9760,12 @@ async function rejectRecipeWithReason(docId, reason) {
                     message: `Рецепт "${r.name.ru || r.name}" отклонен. Причина: ${reason}`,
                     icon: 'fas fa-ban',
                     date: new Date().toISOString(),
-                    read: false
+                    read: false,
+                    // П.11: структурированные поля — по ним показываем явное
+                    // всплывающее окно с причиной автору (см. checkRejectedRecipesPopup)
+                    notifKind: 'recipe_rejected',
+                    recipeName: (r.name && (r.name.ru || r.name)) || 'Рецепт',
+                    reason: reason
                 });
                 await userRef.update({ notifications: notifs });
             }
@@ -9152,7 +10065,10 @@ document.addEventListener('DOMContentLoaded', () => { renderActiveAllergensInSet
     document.getElementById(`${sectionId}-section`).classList.add('active');
     
     document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-    const activeTab = document.querySelector(`.nav-tab[data-section="${sectionId}"]`);
+    // Награды больше не в нижнем меню — переходят туда из профиля (клик по уровню/опыту),
+    // поэтому визуально подсвечиваем вкладку "Профиль" и на экране наград.
+    const navSectionId = sectionId === 'achievements' ? 'profile' : sectionId;
+    const activeTab = document.querySelector(`.nav-tab[data-section="${navSectionId}"]`);
     if(activeTab) activeTab.classList.add('active');
 
     // Обновляем списки при переходе
@@ -9172,7 +10088,7 @@ document.addEventListener('DOMContentLoaded', () => { renderActiveAllergensInSet
 
         function updateUI() {
             updateHeader(); updateInventoryList(); updateRecipesList(); updateShoppingList(); updateAchievementsList(); updateProfile(); populateProductSuggestions();
-            applyTheme(currentUser ? currentUser.theme : 'dark'); setLanguage(currentLang);
+            applyTheme(currentUser ? currentUser.theme : 'dark'); applyAccessibilityMode(currentUser ? currentUser.accessibilityMode : false); setLanguage(currentLang);
 
         if (typeof UTCoreInitialization === "function") {
         setTimeout(UTCoreInitialization, 500); // Небольшая задержка, чтобы DOM успел обновиться
@@ -9574,7 +10490,17 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             }
         }
 
-        function applyTheme(theme) { document.body.className = theme === 'light' ? 'light-theme' : ''; const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
+        function applyTheme(theme) { document.body.classList.toggle('light-theme', theme === 'light'); const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
+        function applyAccessibilityMode(enabled) { document.body.classList.toggle('a11y-mode', !!enabled); const a11ySwitch = document.getElementById('a11y-switch'); if(a11ySwitch) a11ySwitch.checked = !!enabled; }
+        function populateLocationSettings() {
+            if (!currentUser) return;
+            const countryEl = document.getElementById('settings-country');
+            const regionEl = document.getElementById('settings-region');
+            const cityEl = document.getElementById('settings-city');
+            if (countryEl) countryEl.value = currentUser.country || '';
+            if (regionEl) regionEl.value = currentUser.region || '';
+            if (cityEl) cityEl.value = currentUser.city || '';
+        }
 
         // --- Резервные флаги-эмодзи: подстраховка на случай, если картинка с flagcdn.com не подтянулась
         // (медленная/нестабильная сеть, блокировка домена во внутреннем браузере и т.п.) ---
@@ -10149,6 +11075,43 @@ function checkDailyNotifications() {
     updateNotificationsList();
 }
 
+// --- П.11: Явная причина отклонения рецепта во всплывающем окне ---
+// Раньше автор узнавал об отклонении только из обычного пуш-уведомления
+// ("отклонено") и должен был сам идти в "Мои публикации" за причиной.
+// Теперь при входе в приложение, если есть новые решения по рецептам
+// (notifKind === 'recipe_rejected'), сразу показываем модалку с явной
+// причиной — тем самым текстом из чипов, которые модератор выбрал в админке.
+function checkRejectedRecipesPopup() {
+    if (!Array.isArray(userNotifications)) return;
+
+    const toShow = userNotifications.filter(n => n.notifKind === 'recipe_rejected' && !n.popupShown);
+    if (toShow.length === 0) return;
+
+    const list = document.getElementById('rejected-popup-list');
+    const title = document.getElementById('rejected-popup-title');
+    if (!list) return;
+
+    title.innerText = toShow.length > 1 ? `Рецепты отклонены (${toShow.length})` : 'Рецепт отклонён';
+
+    list.innerHTML = toShow.map(n => `
+        <div class="rejected-popup-item">
+            <div class="rejected-popup-item-name"><i class="fas fa-utensils"></i>${escapeHtml(n.recipeName || 'Рецепт')}</div>
+            <div class="rejected-popup-item-reason"><i class="fas fa-circle-info"></i>${escapeHtml(n.reason || 'Причина не указана')}</div>
+        </div>
+    `).join('');
+
+    showModal('rejected-recipe-popup-modal');
+
+    // Помечаем как показанные во всплывающем окне — но не как прочитанные,
+    // чтобы уведомление всё равно осталось видно (со значком) в колокольчике.
+    toShow.forEach(n => { n.popupShown = true; });
+    saveData(false);
+}
+
+function dismissRejectedRecipePopup() {
+    hideModal('rejected-recipe-popup-modal');
+}
+
 // Функция отрисовки с сортировкой (Пункт 28)
 function updateNotificationsList() {
     const list = document.getElementById('notifications-list');
@@ -10600,11 +11563,30 @@ if (taskWidget) {
         applyTheme(currentUser.theme); 
         saveData(false); 
     };
+
+    document.getElementById('a11y-switch').onchange = (e) => {
+        currentUser.accessibilityMode = e.target.checked;
+        applyAccessibilityMode(currentUser.accessibilityMode);
+        saveData(false);
+    };
     
     document.getElementById('language-select').onchange = (e) => { 
         setLanguage(e.target.value); 
         saveData(false); 
     };
+
+    // Местоположение для рейтинга (город/регион/страна) — сохраняем при уходе с поля,
+    // чтобы не слать запрос на каждую введённую букву.
+    ['country', 'region', 'city'].forEach(function (field) {
+        const input = document.getElementById('settings-' + field);
+        if (!input) return;
+        input.onblur = (e) => {
+            const val = e.target.value.trim();
+            if (currentUser[field] === val) return;
+            currentUser[field] = val;
+            saveData(false);
+        };
+    });
 
     // 9. Загрузка Аватара (ИСПРАВЛЕННАЯ СКОБКА)
     const avatarInput = document.getElementById('avatar-file-input');
@@ -10631,18 +11613,35 @@ if (taskWidget) {
     }
 });
 
-let currentLbTab = 'xp'; // 'xp' or 'ads'
+let currentLbTab = 'xp'; // 'xp' | 'dishes' | 'co2' | 'ads'
+let currentLbScope = 'all'; // 'all' | 'country' | 'region' | 'city'
+const LB_FIELD_MAP = { xp: 'xp', dishes: 'cookedDishes', co2: 'co2Saved', ads: 'adsWatched' };
+const LB_SCOPE_LABELS = { country: 'страну', region: 'регион', city: 'город' };
 
 function toggleLeaderboard(type) {
     currentLbTab = type;
     // Визуальное переключение кнопок
-    document.getElementById('lb-tab-xp').style.background = type === 'xp' ? 'var(--primary)' : 'transparent';
-    document.getElementById('lb-tab-xp').style.color = type === 'xp' ? 'white' : 'var(--text-secondary)';
-    
-    document.getElementById('lb-tab-ads').style.background = type === 'ads' ? 'var(--primary)' : 'transparent';
-    document.getElementById('lb-tab-ads').style.color = type === 'ads' ? 'white' : 'var(--text-secondary)';
-    
+    ['xp', 'dishes', 'co2', 'ads'].forEach(t => {
+        const btn = document.getElementById('lb-tab-' + t);
+        if (!btn) return;
+        btn.style.background = t === type ? 'var(--primary)' : 'transparent';
+        btn.style.color = t === type ? 'white' : 'var(--text-secondary)';
+    });
+
     openLeaderboard(); // Перезагружаем список
+}
+
+function setLeaderboardScope(scope, btnEl) {
+    // Без указанного города/региона/страны в профиле фильтровать не по чему —
+    // отправляем в настройки вместо пустого списка.
+    if (scope !== 'all' && !(currentUser && currentUser[scope])) {
+        showToast('Сначала укажите ' + (LB_SCOPE_LABELS[scope] || scope) + ' в настройках профиля', 'warning');
+        return;
+    }
+    currentLbScope = scope;
+    document.querySelectorAll('#lb-scope-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    openLeaderboard();
 }
 
 // --- LEADERBOARD LOGIC ---
@@ -10659,41 +11658,58 @@ async function openLeaderboard() {
     `;
 
     try {
-        let field = 'xp';
-        if (currentLbTab === 'ads') field = 'adsWatched';
+        const field = LB_FIELD_MAP[currentLbTab] || 'xp';
+
+        // Firestore сортирует только по одному полю без ручной настройки составного
+        // индекса, поэтому при фильтре по местоположению берём более широкий срез
+        // (топ-100 по метрике) и уже среди них оставляем совпадающих по городу/
+        // региону/стране — на клиенте.
+        const fetchLimit = currentLbScope === 'all' ? 20 : 100;
 
         const snapshot = await db.collection(USER_COLLECTION)
                                  .orderBy(field, 'desc')
-                                 .limit(20)
+                                 .limit(fetchLimit)
                                  .get();
+
+        let rows = [];
+        snapshot.forEach(doc => rows.push({ id: doc.id, data: doc.data() }));
+
+        if (currentLbScope !== 'all' && currentUser && currentUser[currentLbScope]) {
+            const myVal = currentUser[currentLbScope].trim().toLowerCase();
+            rows = rows.filter(r => (r.data[currentLbScope] || '').trim().toLowerCase() === myVal);
+        }
+        rows = rows.slice(0, 20);
 
         list.innerHTML = ''; // Очищаем лоадер
 
-        if (snapshot.empty) {
+        if (rows.length === 0) {
             list.innerHTML = '<div style="text-align:center; padding:20px;">Пока пусто!</div>';
             return;
         }
 
         let rank = 1;
-        snapshot.forEach(doc => {
-            // ИСПРАВЛЕНИЕ: Сначала получаем данные
-            const data = doc.data(); 
-            
-            // Теперь можно использовать data
-            let scoreDisplay = `${data.xp} XP`;
+        rows.forEach(({ id, data }) => {
+            let scoreDisplay = `${data.xp || 0} XP`;
             if (currentLbTab === 'ads') {
                 scoreDisplay = `<i class="fas fa-eye"></i> ${data.adsWatched || 0}`;
+            } else if (currentLbTab === 'dishes') {
+                scoreDisplay = `<i class="fas fa-utensils"></i> ${data.cookedDishes || 0}`;
+            } else if (currentLbTab === 'co2') {
+                scoreDisplay = `🌱 ${formatCO2(data.co2Saved || 0)}`;
             }
 
-            const isMe = currentUser && (doc.id === currentUser.uid);
+            const isMe = currentUser && (id === currentUser.uid);
             
-            // ... остальной код отрисовки без изменений ...
             let rankBadge = `<span style="font-weight:bold; color:var(--text-secondary); width: 25px; display:inline-block;">#${rank}</span>`;
             if (rank === 1) rankBadge = `<i class="fas fa-medal" style="color: #FFD700; width: 25px; font-size: 1.2em;"></i>`; 
             if (rank === 2) rankBadge = `<i class="fas fa-medal" style="color: #C0C0C0; width: 25px; font-size: 1.2em;"></i>`; 
             if (rank === 3) rankBadge = `<i class="fas fa-medal" style="color: #CD7F32; width: 25px; font-size: 1.2em;"></i>`; 
 
             const bgStyle = isMe ? 'background: rgba(16, 185, 129, 0.15); border: 1px solid var(--primary);' : 'background: var(--surface-light); border: 1px solid transparent;';
+
+            const locationLine = data.city || data.country
+                ? `<div style="font-size: 0.72em; color: var(--text-secondary); opacity:0.8;"><i class="fas fa-location-dot"></i> ${[data.city, data.country].filter(Boolean).join(', ')}</div>`
+                : '';
 
             list.innerHTML += `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; margin-bottom: 8px; border-radius: 12px; ${bgStyle}">
@@ -10707,6 +11723,7 @@ async function openLeaderboard() {
                             <div style="font-size: 0.75em; color: var(--text-secondary);">
                                 ${translations[currentLang].CookedDishes}: ${data.cookedDishes || 0}
                             </div>
+                            ${locationLine}
                         </div>
                     </div>
                     <div style="text-align: right;">
@@ -11000,6 +12017,7 @@ if(localRecipe) {
         }
 
         cookedDishes++;
+        userCO2Total += dishCO2;
         addXp(50); // Больше опыта за интерактивный режим!
         saveData();
         updateInventoryList();
@@ -11617,6 +12635,7 @@ function setAdmTab(tabName) {
 async function admSaveProfile(uid) {
     const emailVal = document.getElementById('adm-email').value.trim();
     const tgVal = document.getElementById('adm-telegram').value.trim();
+    const newBanState = document.getElementById('adm-isBanned').checked;
 
     const updates = {
         name: document.getElementById('adm-name').value,
@@ -11626,13 +12645,41 @@ async function admSaveProfile(uid) {
         xp: parseInt(document.getElementById('adm-xp').value),
         cookedDishes: parseInt(document.getElementById('adm-cooked').value), // Добавил поле cookedDishes
         isPremium: document.getElementById('adm-isPremium').checked,
-        isBanned: document.getElementById('adm-isBanned').checked,
+        isBanned: newBanState,
         isShadowBanned: document.getElementById('adm-isShadow').checked
     };
 
     try {
+        // Если бан включили именно здесь (а не через кнопку в таблице/причина не
+        // указывалась) — всё равно фиксируем событие в ban_history, чтобы
+        // статистика причин в Trust & Safety не теряла записи.
+        let wasAlreadyBanned = false;
+        try {
+            const beforeDoc = await db.collection(USER_COLLECTION).doc(uid).get();
+            wasAlreadyBanned = !!(beforeDoc.exists && beforeDoc.data().isBanned);
+        } catch (e) { /* не критично */ }
+
+        if (newBanState && !wasAlreadyBanned) {
+            updates.banReason = 'Заблокирован через карточку пользователя (без указания причины)';
+            updates.banCategory = 'other';
+            updates.banCount = firebase.firestore.FieldValue.increment(1);
+        }
+
         // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
         await db.collection(USER_COLLECTION).doc(uid).update(updates);
+
+        if (newBanState && !wasAlreadyBanned) {
+            db.collection('ban_history').add({
+                uid: uid,
+                userName: document.getElementById('adm-name').value || uid,
+                reason: 'Заблокирован через карточку пользователя (без указания причины)',
+                category: 'other',
+                bannedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                bannedBy: (currentUser && currentUser.name) || 'Админ'
+            }).catch(() => {});
+            if (typeof refreshBanHistoryStats === 'function') refreshBanHistoryStats();
+        }
+
         showToast('Профиль пользователя обновлен!', 'success');
         if (typeof logAdmin === 'function') logAdmin(`Изменены данные пользователя (${uid}): email/Telegram обновлены`, 'users');
         loadAllUsers(); // Обновить таблицу на фоне
@@ -12205,7 +13252,7 @@ function getAuditLogEntries() {
     catch(e) { return []; }
 }
 
-const AUDIT_ICONS = { moderation: 'fa-gavel', users: 'fa-users', system: 'fa-server', fridges: 'fa-kitchen-set' };
+const AUDIT_ICONS = { moderation: 'fa-gavel', users: 'fa-users', system: 'fa-server', fridges: 'fa-kitchen-set', trustsafety: 'fa-shield-halved', security: 'fa-lock' };
 function renderAuditLog() {
     const list = document.getElementById('audit-log-list');
     if (!list) return;
@@ -12365,6 +13412,7 @@ const ADMIN_COMMANDS = [
     { label: 'Пользователи', icon: 'fa-users', action: () => switchAdminTab('users') },
     { label: 'Холодильники', icon: 'fa-kitchen-set', action: () => switchAdminTab('fridges') },
     { label: 'Модерация рецептов', icon: 'fa-gavel', action: () => switchAdminTab('pending') },
+    { label: 'Trust & Safety', icon: 'fa-shield-halved', action: () => switchAdminTab('trustsafety') },
     { label: 'Менеджер Контента', icon: 'fa-file-circle-xmark', action: () => switchAdminTab('contentmgr') },
     { label: 'Обратная связь', icon: 'fa-comment-dots', action: () => switchAdminTab('feedback') },
     { label: 'Пуш-Уведомления', icon: 'fa-bell', action: () => switchAdminTab('push') },
@@ -13735,6 +14783,8 @@ async function renderDetailedStats() {
         // Каждая функция сама себя изолирует try/catch — падение одной не должно
         // портить остальные блоки.
         renderDauMauChart();
+        renderRetentionCohorts();
+        renderGeoLangBreakdown();
         renderOnboardingFunnel();
         renderPeakHoursHeatmap();
         renderTopContent();
@@ -13828,6 +14878,265 @@ async function renderDauMauChart() {
         if (dauTodayEl) dauTodayEl.textContent = '—';
         if (mauEl) mauEl.textContent = '—';
         if (ratioEl) ratioEl.textContent = '—';
+    }
+}
+
+// --- П.5: Когортный retention — % пользователей недели регистрации N,
+// всё ещё активных спустя 1/2/4 недели. В отличие от DAU/MAU (общая температура
+// по больнице), этот график показывает, действительно ли продукт удерживает
+// конкретных людей, или рост держится только на притоке новых, пока старые тихо уходят. ---
+
+// Понедельник той недели, к которой относится дата (YYYY-MM-DD, UTC-арифметика —
+// нам важна только группировка по неделям, а не точная локальная полночь)
+function mondayOfWeekStr(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const day = d.getUTCDay(); // 0=Вс, 1=Пн, ... 6=Сб
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setUTCDate(d.getUTCDate() + diff);
+    return d.toISOString().split('T')[0];
+}
+
+function addDaysToDateStr(dateStr, days) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().split('T')[0];
+}
+
+function formatCohortLabel(mondayStr) {
+    const d = new Date(mondayStr + 'T00:00:00Z');
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+}
+
+async function renderRetentionCohorts() {
+    const canvas = document.getElementById('retentionCohortChart');
+    const emptyEl = document.getElementById('retention-cohort-empty');
+    const w1El = document.getElementById('retention-w1-val');
+    const w2El = document.getElementById('retention-w2-val');
+    const w4El = document.getElementById('retention-w4-val');
+    if (!canvas) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+
+        // 1. Группируем пользователей в недельные когорты по дате регистрации.
+        // Старые аккаунты без createdAt пропускаем — честнее, чем гадать дату.
+        const usersWithReg = allUsersCache.filter(u => u.createdAt && typeof u.createdAt.toDate === 'function');
+        const cohorts = {}; // mondayStr -> { uids: [] }
+        usersWithReg.forEach(u => {
+            const regDateStr = u.createdAt.toDate().toISOString().split('T')[0];
+            const cohortKey = mondayOfWeekStr(regDateStr);
+            if (!cohorts[cohortKey]) cohorts[cohortKey] = [];
+            cohorts[cohortKey].push(u.id);
+        });
+
+        const cohortKeys = Object.keys(cohorts).sort();
+        const recentCohortKeys = cohortKeys.slice(-8); // последние 8 недельных когорт
+
+        if (recentCohortKeys.length === 0) {
+            canvas.style.display = 'none';
+            if (emptyEl) emptyEl.style.display = 'block';
+            if (w1El) w1El.textContent = '—';
+            if (w2El) w2El.textContent = '—';
+            if (w4El) w4El.textContent = '—';
+            return;
+        }
+        canvas.style.display = 'block';
+        if (emptyEl) emptyEl.style.display = 'none';
+
+        // 2. Тянем activity_log с запасом (нужно перекрыть горизонт 4 недели
+        // даже для самой старой из последних 8 когорт).
+        const startDate = dateStringNDaysAgo(69);
+        const snap = await db.collection('activity_log').where('date', '>=', startDate).get();
+        const activityByUid = {};
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (!d.uid || !d.date) return;
+            if (!activityByUid[d.uid]) activityByUid[d.uid] = [];
+            activityByUid[d.uid].push(d.date);
+        });
+
+        const todayStr = getLocalDateString();
+        const horizons = [1, 2, 4];
+
+        const labels = [];
+        const sizes = [];
+        const seriesByHorizon = { 1: [], 2: [], 4: [] };
+        const horizonSums = { 1: [], 2: [], 4: [] }; // для средних значений по всем "созревшим" когортам
+
+        recentCohortKeys.forEach(cohortKey => {
+            const uids = cohorts[cohortKey];
+            labels.push(formatCohortLabel(cohortKey) + ` (${uids.length})`);
+            sizes.push(uids.length);
+
+            horizons.forEach(w => {
+                const windowStart = addDaysToDateStr(cohortKey, w * 7);
+                const windowEnd = addDaysToDateStr(cohortKey, w * 7 + 6);
+                const eligible = windowEnd <= todayStr; // этот горизонт для когорты уже наступил
+
+                if (!eligible) {
+                    seriesByHorizon[w].push(null); // столбец не рисуем — данных ещё нет
+                    return;
+                }
+
+                let activeCount = 0;
+                uids.forEach(uid => {
+                    const dates = activityByUid[uid];
+                    if (!dates) return;
+                    if (dates.some(dt => dt >= windowStart && dt <= windowEnd)) activeCount++;
+                });
+                const pct = uids.length > 0 ? Math.round((activeCount / uids.length) * 100) : 0;
+                seriesByHorizon[w].push(pct);
+                horizonSums[w].push(pct);
+            });
+        });
+
+        const avg = arr => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+        const w1Avg = avg(horizonSums[1]);
+        const w2Avg = avg(horizonSums[2]);
+        const w4Avg = avg(horizonSums[4]);
+        if (w1El) w1El.textContent = w1Avg === null ? '—' : w1Avg + '%';
+        if (w2El) w2El.textContent = w2Avg === null ? '—' : w2Avg + '%';
+        if (w4El) w4El.textContent = w4Avg === null ? '—' : w4Avg + '%';
+
+        if (adminRetentionChart) adminRetentionChart.destroy();
+        const ctx = canvas.getContext('2d');
+        adminRetentionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Через 1 нед.', data: seriesByHorizon[1], backgroundColor: 'rgba(59, 130, 246, 0.65)', borderRadius: 4 },
+                    { label: 'Через 2 нед.', data: seriesByHorizon[2], backgroundColor: 'rgba(139, 92, 246, 0.65)', borderRadius: 4 },
+                    { label: 'Через 4 нед.', data: seriesByHorizon[4], backgroundColor: 'rgba(16, 185, 129, 0.65)', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { color: '#94A3B8', boxWidth: 12, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => 'Когорта недели ' + items[0].label,
+                            label: (item) => item.raw === null ? `${item.dataset.label}: срок ещё не наступил` : `${item.dataset.label}: ${item.raw}%`
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: '#94A3B8', maxRotation: 0, autoSkip: true, font: { size: 10 } }, grid: { display: false } },
+                    y: { beginAtZero: true, max: 100, ticks: { color: '#94A3B8', callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,0.1)' } }
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Retention cohorts chart error:', e);
+        if (w1El) w1El.textContent = '—';
+        if (w2El) w2El.textContent = '—';
+        if (w4El) w4El.textContent = '—';
+    }
+}
+
+// --- П.6: География и язык интерфейса ---
+// Язык — надёжное enum-поле (currentLang), берём из LANG_META для названия и флага.
+// Страна — свободный текст из профиля, поэтому группируем без учёта регистра/пробелов,
+// но не пытаемся угадать ISO-код — иначе можно молча исказить данные.
+async function renderGeoLangBreakdown() {
+    const langCanvas = document.getElementById('langBreakdownChart');
+    const langLegend = document.getElementById('lang-breakdown-legend');
+    const countryList = document.getElementById('geo-country-list');
+    if (!langCanvas && !countryList) return;
+
+    try {
+        if (!allUsersCache || allUsersCache.length === 0) await loadAllUsers(true);
+
+        // --- Язык ---
+        const langCounts = {};
+        allUsersCache.forEach(u => {
+            const code = u.lang || 'ru'; // ru — дефолт приложения, если поле не сохранено
+            langCounts[code] = (langCounts[code] || 0) + 1;
+        });
+        const langTotal = allUsersCache.length;
+        const langEntries = Object.entries(langCounts).sort((a, b) => b[1] - a[1]);
+        const langPalette = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#14B8A6', '#EC4899', '#A855F7'];
+
+        if (langCanvas && langTotal > 0) {
+            if (adminLangBreakdownChart) adminLangBreakdownChart.destroy();
+            const ctx = langCanvas.getContext('2d');
+            adminLangBreakdownChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: langEntries.map(([code]) => (typeof LANG_META !== 'undefined' && LANG_META[code]) ? LANG_META[code].name : code.toUpperCase()),
+                    datasets: [{
+                        data: langEntries.map(([, count]) => count),
+                        backgroundColor: langEntries.map((_, i) => langPalette[i % langPalette.length]),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '68%',
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        if (langLegend) {
+            if (langTotal === 0) {
+                langLegend.innerHTML = '<div class="admin-empty-state" style="padding:8px;"><p>Нет данных</p></div>';
+            } else {
+                langLegend.innerHTML = langEntries.map(([code, count], i) => {
+                    const meta = (typeof LANG_META !== 'undefined') ? LANG_META[code] : null;
+                    const name = meta ? meta.name : code.toUpperCase();
+                    const pct = Math.round((count / langTotal) * 100);
+                    return `
+                        <div class="donut-legend-item">
+                            <span class="donut-legend-swatch" style="background:${langPalette[i % langPalette.length]}"></span>
+                            <span>${escapeHtml(name)}</span>
+                            <span class="donut-legend-val">${count} <span style="color:var(--text-secondary); font-weight:500;">(${pct}%)</span></span>
+                        </div>`;
+                }).join('');
+            }
+        }
+
+        // --- Страна ---
+        if (countryList) {
+            const countryCounts = {}; // normalizedKey -> { label, count }
+            allUsersCache.forEach(u => {
+                const raw = (u.country || '').trim();
+                const key = raw ? raw.toLowerCase() : '__unset__';
+                const label = raw ? raw : 'Не указано';
+                if (!countryCounts[key]) countryCounts[key] = { label, count: 0 };
+                countryCounts[key].count++;
+            });
+
+            const countryTotal = allUsersCache.length;
+            const topCountries = Object.values(countryCounts).sort((a, b) => b.count - a.count).slice(0, 8);
+            const countryPalette = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#14B8A6', '#EC4899', 'var(--text-secondary)'];
+
+            if (countryTotal === 0) {
+                countryList.innerHTML = '<div class="admin-empty-state" style="padding:16px;"><i class="fas fa-inbox"></i><p>Нет данных</p></div>';
+            } else {
+                countryList.innerHTML = topCountries.map((c, i) => {
+                    const pct = Math.round((c.count / countryTotal) * 100);
+                    const color = countryPalette[i % countryPalette.length];
+                    return `
+                        <div class="reason-bar-item">
+                            <div class="reason-bar-head">
+                                <span class="reason-bar-name"><i class="fas ${c.label === 'Не указано' ? 'fa-question' : 'fa-location-dot'}" style="color:${color};"></i> ${escapeHtml(c.label)}</span>
+                                <span class="reason-bar-count">${c.count} <span style="color:var(--text-secondary); font-weight:500;">(${pct}%)</span></span>
+                            </div>
+                            <div class="reason-bar-track">
+                                <div class="reason-bar-fill" style="width:${Math.max(pct, 2)}%; background:${color};"></div>
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+        }
+    } catch (e) {
+        console.error('Geo/lang breakdown error:', e);
+        if (langLegend) langLegend.innerHTML = `<div class="admin-empty-state" style="padding:8px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
+        if (countryList) countryList.innerHTML = `<div class="admin-empty-state" style="padding:16px; color:var(--error);"><p>Ошибка: ${e.message}</p></div>`;
     }
 }
 
@@ -14646,9 +15955,17 @@ async function runTest(type) {
                 <h4>🏆 Топ Шеф-поваров</h4>
                 <span class="modal-close" onclick="hideModal('leaderboard-modal')"><i class="fas fa-times"></i></span>
             </div>
-            <div style="display:flex; background:var(--surface-light); padding:3px; border-radius:10px;">
-                <button id="lb-tab-xp" class="btn btn-sm" style="flex:1; background:var(--primary); color:white;" onclick="toggleLeaderboard('xp')">Опыт</button>
-                <button id="lb-tab-ads" class="btn btn-sm" style="flex:1; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('ads')">Спонсоры</button>
+            <div style="display:flex; background:var(--surface-light); padding:3px; border-radius:10px; overflow-x:auto;">
+                <button id="lb-tab-xp" class="btn btn-sm" style="flex:1; white-space:nowrap; background:var(--primary); color:white;" onclick="toggleLeaderboard('xp')">Опыт</button>
+                <button id="lb-tab-dishes" class="btn btn-sm" style="flex:1; white-space:nowrap; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('dishes')">🥘 Продукты</button>
+                <button id="lb-tab-co2" class="btn btn-sm" style="flex:1; white-space:nowrap; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('co2')">🌱 CO2</button>
+                <button id="lb-tab-ads" class="btn btn-sm" style="flex:1; white-space:nowrap; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('ads')">Спонсоры</button>
+            </div>
+            <div class="inventory-controls" id="lb-scope-filters" style="overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch; padding-bottom:2px;">
+                <button class="filter-btn active" data-scope="all" onclick="setLeaderboardScope('all', this)">🌍 Все</button>
+                <button class="filter-btn" data-scope="country" onclick="setLeaderboardScope('country', this)">Страна</button>
+                <button class="filter-btn" data-scope="region" onclick="setLeaderboardScope('region', this)">Регион</button>
+                <button class="filter-btn" data-scope="city" onclick="setLeaderboardScope('city', this)">Город</button>
             </div>
         </div>
         
@@ -15535,6 +16852,9 @@ function fallbackCopy(text) {
             </div>
         </div>
         <div class="admin-shell-header-actions">
+            <button class="admin-cmdk-trigger" onclick="openChangeAdminPassword()" title="Сменить пароль панели">
+                <i class="fas fa-key"></i> <span>Пароль</span>
+            </button>
             <button class="admin-cmdk-trigger" onclick="openAdminCommandPalette()" title="Быстрый поиск">
                 <i class="fas fa-magnifying-glass"></i> <span>Поиск</span> <kbd>Ctrl K</kbd>
             </button>
@@ -15547,6 +16867,7 @@ function fallbackCopy(text) {
         <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('trustsafety')"><i class="fas fa-shield-halved"></i> Trust & Safety <span id="appeals-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('contentmgr')"><i class="fas fa-file-circle-xmark"></i> Менеджер Контента</button>
         <button class="admin-tab-btn" onclick="switchAdminTab('feedback')"><i class="fas fa-comment-dots"></i> Обратная связь <span id="feedback-count-badge" class="badge-mini" style="display:none">0</span></button>
         <button class="admin-tab-btn" onclick="switchAdminTab('push')"><i class="fas fa-bell"></i> Пуш-Уведомления</button>
@@ -15723,6 +17044,112 @@ function fallbackCopy(text) {
             <div id="admin-pending-empty" class="admin-empty-state" style="display:none;">
                 <i class="fas fa-check-circle"></i>
                 <p>Все чисто! Заявок на публикацию нет.</p>
+            </div>
+        </div>
+
+        <div id="admin-tab-trustsafety" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-shield-halved"></i> Trust & Safety</h5>
+                <button class="small-action-btn" onclick="runSuspiciousActivityScan(); refreshBanHistoryStats(); refreshBanAppeals();"><i class="fas fa-sync"></i> Обновить всё</button>
+            </div>
+
+            <div class="analytics-hub-nav">
+                <a href="#ts-suspicious" class="analytics-hub-pill"><i class="fas fa-satellite-dish"></i> Подозрительная активность</a>
+                <a href="#ts-bans" class="analytics-hub-pill"><i class="fas fa-gavel"></i> История банов</a>
+                <a href="#ts-appeals" class="analytics-hub-pill"><i class="fas fa-scale-balanced"></i> Апелляции <span id="appeals-count-badge-inline" class="badge-mini" style="display:none">0</span></a>
+            </div>
+
+            <!-- ============ 1. ПОДОЗРИТЕЛЬНАЯ АКТИВНОСТЬ ============ -->
+            <div id="ts-suspicious" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-satellite-dish"></i> Подозрительная активность</div>
+
+                <div class="admin-stats-row">
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-user-group"></i></div>
+                        <div><div class="stat-val" id="dash-ts-multiacc">0</div><div class="stat-lbl">Мультирегистрации</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-bolt"></i></div>
+                        <div><div class="stat-val" id="dash-ts-xpfarm">0</div><div class="stat-lbl">Аномальный фарм XP</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(239, 68, 68, 0.12); color:#EF4444"><i class="fas fa-layer-group"></i></div>
+                        <div><div class="stat-val" id="dash-ts-recipeburst">0</div><div class="stat-lbl">Всплески публикаций</div></div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-list-check"></i> На проверку</h5>
+                    <div id="suspicious-activity-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Простые правила по уже собираемым данным: одинаковый отпечаток устройства у нескольких аккаунтов,
+                        подозрительно быстрый набор опыта в первые сутки после регистрации, и всплеск публикаций рецептов
+                        от одного автора (5+ за час). Список только для проверки — бан или предупреждение всегда решает модератор.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============ 2. ИСТОРИЯ БАНОВ ============ -->
+            <div id="ts-bans" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-gavel"></i> История банов</div>
+
+                <div class="admin-stats-row">
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(239, 68, 68, 0.12); color:#EF4444"><i class="fas fa-ban"></i></div>
+                        <div><div class="stat-val" id="dash-ts-total-bans">0</div><div class="stat-lbl">Всего банов</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-rotate"></i></div>
+                        <div><div class="stat-val" id="dash-ts-recidivists">0</div><div class="stat-lbl">Рецидивистов</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-user-lock"></i></div>
+                        <div><div class="stat-val" id="dash-ts-active-bans">0</div><div class="stat-lbl">Сейчас забанено</div></div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-chart-simple"></i> Причины банов</h5>
+                    <div id="ban-reasons-container" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-clock-rotate-left"></i> Последние баны</h5>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Пользователь</th>
+                                    <th>Категория</th>
+                                    <th>Причина</th>
+                                    <th>Модератор</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ban-history-list">
+                                <tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. АПЕЛЛЯЦИИ ============ -->
+            <div id="ts-appeals" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-scale-balanced"></i> Апелляции на баны</div>
+                <div class="admin-panel-card">
+                    <div id="ban-appeals-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Апелляцию пользователь отправляет с экрана блокировки. «Одобрить» сразу снимает бан,
+                        «Отклонить» просто закрывает обращение — пользователь остаётся заблокирован и может подать апелляцию повторно.
+                    </p>
+                </div>
             </div>
         </div>
 
@@ -16072,6 +17499,50 @@ function fallbackCopy(text) {
                 </div>
 
                 <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-layer-group"></i> Когортный retention</h5>
+                    <div class="admin-stats-row" style="margin-bottom:15px;">
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-week"></i></div>
+                            <div><div class="stat-val" id="retention-w1-val">—</div><div class="stat-lbl">Ср. удержание, 1 нед.</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-calendar-check"></i></div>
+                            <div><div class="stat-val" id="retention-w2-val">—</div><div class="stat-lbl">Ср. удержание, 2 нед.</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-medal"></i></div>
+                            <div><div class="stat-val" id="retention-w4-val">—</div><div class="stat-lbl">Ср. удержание, 4 нед.</div></div>
+                        </div>
+                    </div>
+                    <div style="position:relative; height:240px;">
+                        <canvas id="retentionCohortChart"></canvas>
+                    </div>
+                    <div id="retention-cohort-empty" class="admin-empty-state" style="display:none;"><i class="fas fa-inbox"></i><p>Пока недостаточно данных для когортного анализа</p></div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Каждый столбец — недельная когорта (по дате регистрации). Высота показывает, какой % пользователей этой когорты был активен спустя 1, 2 и 4 недели после регистрации. Столбец горизонта не рисуется, пока этот срок для когорты ещё не наступил — иначе процент был бы искусственно занижен. Так видно, удерживает ли продукт людей, или рост держится только на притоке новых.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-earth-americas"></i> География и язык интерфейса</h5>
+                    <div class="donut-row" style="margin-bottom:18px;">
+                        <div class="donut-canvas-box"><canvas id="langBreakdownChart"></canvas></div>
+                        <div class="donut-legend" id="lang-breakdown-legend">
+                            <div class="admin-table-loading">Загрузка...</div>
+                        </div>
+                    </div>
+                    <div style="font-weight:700; font-size:0.85em; color:var(--text-secondary); margin-bottom:10px;">
+                        <i class="fas fa-flag"></i> Топ стран (по полю профиля)
+                    </div>
+                    <div id="geo-country-list" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Язык — это выбор интерфейса пользователя (надёжное поле). Страна — то, что человек сам вписал в профиле, поэтому написания могут отличаться; значения нормализованы без учёта регистра, но не переведены в единый справочник.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
                     <h5><i class="fas fa-filter"></i> Воронка онбординга</h5>
                     <div id="onboarding-funnel-container" class="funnel-wrap">
                         <div class="admin-table-loading">Загрузка данных...</div>
@@ -16228,6 +17699,8 @@ function fallbackCopy(text) {
                 <button class="journal-filter-chip" data-filter="users" onclick="setJournalFilter('users')"><i class="fas fa-users"></i> Пользователи</button>
                 <button class="journal-filter-chip" data-filter="fridges" onclick="setJournalFilter('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
                 <button class="journal-filter-chip" data-filter="system" onclick="setJournalFilter('system')"><i class="fas fa-server"></i> Система</button>
+                <button class="journal-filter-chip" data-filter="trustsafety" onclick="setJournalFilter('trustsafety')"><i class="fas fa-shield-halved"></i> Trust & Safety</button>
+                <button class="journal-filter-chip" data-filter="security" onclick="setJournalFilter('security')"><i class="fas fa-lock"></i> Безопасность</button>
             </div>
 
             <div id="audit-log-list" class="audit-log-list">
@@ -16270,6 +17743,28 @@ function fallbackCopy(text) {
         <div class="admin-modal-actions">
             <button class="btn btn-secondary" onclick="hideModal('reject-reason-modal')">Отмена</button>
             <button class="btn btn-primary admin-btn-reject" onclick="confirmRejectWithReason()">Отклонить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Причина блокировки пользователя (Trust & Safety: статистика по категориям) -->
+<div id="ban-reason-modal" class="modal" style="z-index: 10002;" onclick="if(event.target.id === 'ban-reason-modal') hideModal('ban-reason-modal')">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-ban"></i> Причина блокировки</h4>
+            <span class="modal-close" onclick="hideModal('ban-reason-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <div class="reason-chip-grid" id="ban-reason-chip-grid">
+            <button class="reason-chip" onclick="pickBanReason('spam', 'Спам / реклама')">Спам</button>
+            <button class="reason-chip" onclick="pickBanReason('insults', 'Оскорбления в комментариях')">Оскорбления</button>
+            <button class="reason-chip" onclick="pickBanReason('plagiarism', 'Плагиат рецептов')">Плагиат</button>
+            <button class="reason-chip" onclick="pickBanReason('fraud', 'Накрутка / мультиаккаунты')">Накрутка/мульти</button>
+            <button class="reason-chip" onclick="pickBanReason('other', 'Другое нарушение правил')">Другое</button>
+        </div>
+        <input type="text" id="ban-reason-custom" class="styled-input" placeholder="Комментарий к причине (необязательно)" style="margin-top:12px;">
+        <div class="admin-modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('ban-reason-modal')">Отмена</button>
+            <button class="btn btn-primary admin-btn-reject" onclick="confirmBanWithReason()"><i class="fas fa-ban"></i> Забанить</button>
         </div>
     </div>
 </div>
@@ -16687,6 +18182,43 @@ function fallbackCopy(text) {
 
 <div id="ut-flying" style="position: fixed; right: 0; bottom: 90px; z-index: 99; pointer-events: none;"></div>
 
+<!-- П.10: Доп. защита входа в панель модератора (пароль + защита от подбора) -->
+<div id="admin-security-modal" class="modal" style="z-index: 10003;">
+    <div class="modal-content" style="max-width: 380px;">
+        <span class="modal-close" onclick="hideModal('admin-security-modal')"><i class="fas fa-times"></i></span>
+        <div class="admin-security-icon"><i class="fas fa-shield-halved"></i></div>
+        <div id="admin-security-title" class="admin-security-title">Подтверждение доступа</div>
+        <div id="admin-security-subtitle" class="admin-security-subtitle">Введите пароль панели модератора</div>
+
+        <div id="admin-security-error" class="admin-security-error"></div>
+
+        <input type="password" id="admin-security-input" class="styled-input" placeholder="Пароль" autocomplete="off" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter') submitAdminSecurity()">
+        <input type="password" id="admin-security-confirm" class="styled-input" placeholder="Повторите пароль" autocomplete="off" style="display:none; margin-bottom:10px;" onkeydown="if(event.key==='Enter') submitAdminSecurity()">
+
+        <div class="admin-security-modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('admin-security-modal')">Отмена</button>
+            <button class="btn btn-primary" id="admin-security-submit-btn" onclick="submitAdminSecurity()">Войти</button>
+        </div>
+    </div>
+</div>
+
+<!-- П.11: Явное окно с причиной отклонения рецепта (не просто уведомление-пуш) -->
+<div id="rejected-recipe-popup-modal" class="modal" style="z-index: 10003;">
+    <div class="modal-content" style="max-width: 400px;">
+        <span class="modal-close" onclick="dismissRejectedRecipePopup()"><i class="fas fa-times"></i></span>
+        <div class="rejected-popup-icon"><i class="fas fa-face-frown"></i></div>
+        <div class="admin-security-title" id="rejected-popup-title">Рецепт отклонён</div>
+        <div class="admin-security-subtitle">Модератор проверил вашу заявку — вот причина:</div>
+
+        <div id="rejected-popup-list" class="rejected-popup-list"></div>
+
+        <div class="admin-security-modal-actions">
+            <button class="btn btn-secondary" onclick="dismissRejectedRecipePopup()">Понятно</button>
+            <button class="btn btn-primary" onclick="dismissRejectedRecipePopup(); openMySubmissions();">Мои публикации</button>
+        </div>
+    </div>
+</div>
+
 <div id="expiry-filter-modal" class="modal" onclick="if(event.target.id === 'expiry-filter-modal') hideModal('expiry-filter-modal')">
     <div class="modal-content" style="max-width: 300px; text-align: center;">
         <div class="modal-header">
@@ -16708,6 +18240,91 @@ function fallbackCopy(text) {
 
 <script>
  document.addEventListener('DOMContentLoaded', loadAdsgram);
+</script>
+
+<script>
+// --- Offline-режим для инвентаря и списка покупок ---
+// 1) Индикатор сети (баннер вверху экрана) + тосты при потере/восстановлении связи.
+// 2) Резервный локальный кэш последнего состояния холодильника (items/shopping) на
+//    случай, если офлайн-кэш Firestore недоступен (приватный режим, старый браузер и т.п.).
+//    Firestore сам ставит записи в очередь и синхронизирует их при появлении сети
+//    (см. db.enablePersistence в <head>) — этот слой лишь подстраховывает чтение.
+(function () {
+    function setBannerState(state) {
+        var banner = document.getElementById('offline-banner');
+        var text = document.getElementById('offline-banner-text');
+        if (!banner || !text) return;
+        if (state === 'offline') {
+            banner.style.display = 'flex';
+            banner.classList.remove('syncing');
+            text.textContent = 'Нет сети — изменения сохраняются локально и синхронизируются автоматически';
+        } else if (state === 'syncing') {
+            banner.style.display = 'flex';
+            banner.classList.add('syncing');
+            text.textContent = 'Соединение восстановлено, синхронизируем...';
+            setTimeout(function () {
+                banner.style.display = 'none';
+                banner.classList.remove('syncing');
+            }, 1800);
+        }
+    }
+
+    function handleOnline() {
+        setBannerState('syncing');
+        if (typeof showToast === 'function') showToast('Соединение восстановлено', 'success');
+    }
+    function handleOffline() {
+        setBannerState('offline');
+        if (typeof showToast === 'function') showToast('Вы офлайн — изменения сохранятся и синхронизируются позже', 'info');
+    }
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!navigator.onLine) setBannerState('offline');
+    });
+
+    // --- Резервный кэш холодильника ---
+    function cacheKey(id) { return 'axio_offline_fridge_' + id; }
+
+    window.axioCacheFridge = function (fridgeId, items, shopping) {
+        if (!fridgeId) return;
+        try {
+            localStorage.setItem(cacheKey(fridgeId), JSON.stringify({
+                items: items || [], shopping: shopping || [], ts: Date.now()
+            }));
+        } catch (e) { /* localStorage недоступен — не критично */ }
+    };
+
+    window.axioGetCachedFridge = function (fridgeId) {
+        if (!fridgeId) return null;
+        try {
+            var raw = localStorage.getItem(cacheKey(fridgeId));
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    };
+
+    // Кэшируем сразу при каждом saveData() — до сетевого запроса, — чтобы
+    // изменения, сделанные офлайн, не потерялись при закрытии приложения.
+    if (typeof saveData === 'function') {
+        var _origSaveData = saveData;
+        saveData = function (fullUpdate) {
+            if (typeof activeFridgeId !== 'undefined' && activeFridgeId) {
+                window.axioCacheFridge(activeFridgeId, userInventory, userShopping);
+            }
+            return _origSaveData(fullUpdate);
+        };
+    }
+
+    // Кэшируем свежие данные холодильника сразу после каждой успешной загрузки.
+    if (typeof applyActiveFridge === 'function') {
+        var _origApplyActiveFridge = applyActiveFridge;
+        applyActiveFridge = function (fridge) {
+            _origApplyActiveFridge(fridge);
+            if (fridge && fridge.id) window.axioCacheFridge(fridge.id, fridge.items, fridge.shopping);
+        };
+    }
+})();
 </script>
 
 <script>
