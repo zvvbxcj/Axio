@@ -8,6 +8,7 @@
     <script src="translations.js"></script>
     <script src="allergy.js"></script>
     <script src="ai_chef.js"></script>
+    <script src="ai_stats.js"></script>
     <script src="ai_scan.js"></script>
     <script src="barcode_scan.js"></script>
     <script src="recipes.js"></script>
@@ -3857,7 +3858,11 @@ function switchStatsPeriod(period) {
     // Обновляем UI кнопок
     document.querySelectorAll('.stats-tab').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
-    
+
+    // Старый AI-анализ относится к прошлому периоду — прячем, чтобы не запутать пользователя.
+    const aiStatsContent = document.getElementById('ai-stats-content');
+    if (aiStatsContent) aiStatsContent.innerHTML = '';
+
     calculateAndRenderStats(period);
 }
 
@@ -8567,6 +8572,37 @@ async function runSpamPreFilter(docId, recipe) {
     } catch (e) {
         result = heuristicSpamCheck(recipe);
         result.source = 'heuristic';
+    }
+
+    // --- 6. Локальный регекс-детектор ссылок/телефонов/упоминаний -----
+    // Срабатывает всегда, вне зависимости от того, ответил AI или нет —
+    // не зависит от сети, поэтому им не стоит пренебрегать даже если
+    // AI уже дал ответ (он может пропустить ссылку, спрятанную в тексте
+    // инструкции).
+    if (typeof detectSpamLinks === 'function') {
+        const linkCheck = detectSpamLinks(getRecipeFullText(recipe));
+        if (linkCheck.hasSpamLinks) {
+            result.suspicious = true;
+            result.reason = [result.reason, ...linkCheck.reasons].filter(Boolean).join('; ');
+            result.confidence = 'high';
+        }
+    }
+
+    // --- 5. Дедуп по хэшу нормализованного содержимого -----------------
+    // Точнее, чем сравнение по названию (см. heuristicSpamCheck выше):
+    // ловит копипасты, даже если автор изменил заголовок.
+    if (typeof findDuplicateByHash === 'function' && window.pendingRecipesCache) {
+        const existingList = Object.entries(window.pendingRecipesCache)
+            .filter(([id]) => id !== docId)
+            .map(([id, r]) => ({ id, recipe: r }));
+        const dup = findDuplicateByHash(recipe, existingList);
+        if (dup) {
+            result.suspicious = true;
+            result.reason = [result.reason, `вероятный дубликат заявки №${dup.id}`]
+                .filter(Boolean)
+                .join('; ');
+            result.confidence = 'high';
+        }
     }
 
     const moderationFlag = {
@@ -16106,6 +16142,9 @@ async function runTest(type) {
     }
 }
 </script>
+<!-- Детектор спам-ссылок, дедуп по хэшу и реальный AI-модератор (свой воркер/токен) -->
+<!-- Подключается ПОСЛЕ инлайн-скрипта выше, чтобы переопределить заглушку callModerationAI() -->
+<script src="moderation_ai.js"></script>
 
 <div id="stats-modal" class="modal" onclick="if(event.target.id === 'stats-modal') hideModal('stats-modal')">
     <div class="modal-content" style="background: var(--bg-card); border: 2px solid var(--primary);">
@@ -16272,6 +16311,18 @@ async function runTest(type) {
                     <span class="stat-co2-hint" id="st-co2-hint"></span>
                     <i class="fas fa-chevron-right stat-box-chevron"></i>
                 </div>
+            </div>
+
+            <div class="ai-stats-block" style="margin-top:16px; padding:14px; border-radius:14px; background:var(--surface-light); border:1px solid var(--border-color);">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:8px; font-weight:700; color:var(--text-primary);">
+                        <i class="fas fa-brain" style="color:var(--accent);"></i> AI-анализ статистики
+                    </div>
+                    <button id="ai-stats-btn" class="btn btn-secondary" style="padding:8px 14px; white-space:nowrap;" onclick="generateAiStatsAnalysis()">
+                        <i class="fas fa-wand-magic-sparkles"></i> Проанализировать
+                    </button>
+                </div>
+                <div id="ai-stats-content" style="margin-top:12px;"></div>
             </div>
 
             <button class="stats-share-trigger-btn" onclick="openStatsShareCard()">
