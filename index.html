@@ -9,6 +9,7 @@
     <script src="allergy.js"></script>
     <script src="ai_chef.js"></script>
     <script src="ai_scan.js"></script>
+    <script src="barcode_scan.js"></script>
     <script src="recipes.js"></script>
     <script src="achievements.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -382,7 +383,7 @@
                             <i class="fas fa-bell"></i>
                             <span id="notification-badge" style="display: none;"></span>
                         </button>
-                        <button id="settings-btn" onclick="showModal('settings-modal'); initNotificationToggle(); populateLocationSettings();">
+                        <button id="settings-btn" onclick="showModal('settings-modal'); initNotificationToggle();">
                             <i class="fas fa-cog"></i>
                         </button>
                     </div>
@@ -821,8 +822,8 @@
                     <button type="button" class="btn btn-secondary add-choice-option" onclick="openBarcodeScanner()" style="display:flex; align-items:center; gap:14px; text-align:left; padding: 16px;">
                         <span style="width:44px; height:44px; flex-shrink:0; border-radius:12px; background: var(--surface-light); display:flex; align-items:center; justify-content:center; font-size:1.3em; color: var(--primary);"><i class="fas fa-barcode"></i></span>
                         <span>
-                            <span style="display:block; font-weight:600; color: var(--text-primary);" data-translate="AddChoiceBarcodeTitle">Штрих-код</span>
-                            <span style="display:block; font-size:0.85em; color: var(--text-secondary);" data-translate="AddChoiceBarcodeDesc">Отсканировать штрих-код товара</span>
+                            <span style="display:block; font-weight:600; color: var(--text-primary);" data-translate="AddChoiceBarcodeTitle">Штрих-код / QR</span>
+                            <span style="display:block; font-size:0.85em; color: var(--text-secondary);" data-translate="AddChoiceBarcodeDesc">Отсканировать штрих-код или QR-код товара</span>
                         </span>
                     </button>
                 </div>
@@ -1384,20 +1385,6 @@
     <select id="language-select" class="lang-native-fallback" aria-hidden="true">
     </select>
 </div>
-
-        <div class="settings-section">
-            <div class="settings-block-title" style="margin-top: 15px;">
-                <span>📍 Местоположение (для рейтинга)</span>
-            </div>
-            <p style="font-size: 0.8em; color: var(--text-secondary); margin: 6px 0 12px;">
-                Укажите, чтобы сравнивать себя с игроками из вашего города, региона или страны в рейтинге.
-            </p>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <input type="text" id="settings-country" class="styled-input" placeholder="Страна" autocomplete="off">
-                <input type="text" id="settings-region" class="styled-input" placeholder="Регион / область" autocomplete="off">
-                <input type="text" id="settings-city" class="styled-input" placeholder="Город" autocomplete="off">
-            </div>
-        </div>
 
         <div class="settings-section">
             <div class="settings-block-title" style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
@@ -10492,15 +10479,6 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 
         function applyTheme(theme) { document.body.classList.toggle('light-theme', theme === 'light'); const themeSwitch = document.getElementById('theme-switch'); if(themeSwitch) themeSwitch.checked = theme === 'light'; }
         function applyAccessibilityMode(enabled) { document.body.classList.toggle('a11y-mode', !!enabled); const a11ySwitch = document.getElementById('a11y-switch'); if(a11ySwitch) a11ySwitch.checked = !!enabled; }
-        function populateLocationSettings() {
-            if (!currentUser) return;
-            const countryEl = document.getElementById('settings-country');
-            const regionEl = document.getElementById('settings-region');
-            const cityEl = document.getElementById('settings-city');
-            if (countryEl) countryEl.value = currentUser.country || '';
-            if (regionEl) regionEl.value = currentUser.region || '';
-            if (cityEl) cityEl.value = currentUser.city || '';
-        }
 
         // --- Резервные флаги-эмодзи: подстраховка на случай, если картинка с flagcdn.com не подтянулась
         // (медленная/нестабильная сеть, блокировка домена во внутреннем браузере и т.п.) ---
@@ -11575,19 +11553,6 @@ if (taskWidget) {
         saveData(false); 
     };
 
-    // Местоположение для рейтинга (город/регион/страна) — сохраняем при уходе с поля,
-    // чтобы не слать запрос на каждую введённую букву.
-    ['country', 'region', 'city'].forEach(function (field) {
-        const input = document.getElementById('settings-' + field);
-        if (!input) return;
-        input.onblur = (e) => {
-            const val = e.target.value.trim();
-            if (currentUser[field] === val) return;
-            currentUser[field] = val;
-            saveData(false);
-        };
-    });
-
     // 9. Загрузка Аватара (ИСПРАВЛЕННАЯ СКОБКА)
     const avatarInput = document.getElementById('avatar-file-input');
     if (avatarInput) {
@@ -11613,15 +11578,16 @@ if (taskWidget) {
     }
 });
 
-let currentLbTab = 'xp'; // 'xp' | 'dishes' | 'co2' | 'ads'
+let currentLbTab = 'xp'; // 'xp' | 'dishes' | 'co2'
 let currentLbScope = 'all'; // 'all' | 'country' | 'region' | 'city'
-const LB_FIELD_MAP = { xp: 'xp', dishes: 'cookedDishes', co2: 'co2Saved', ads: 'adsWatched' };
+const LB_FIELD_MAP = { xp: 'xp', dishes: 'cookedDishes', co2: 'co2Saved' };
 const LB_SCOPE_LABELS = { country: 'страну', region: 'регион', city: 'город' };
+const LB_SCOPE_TITLES = { country: 'Укажите страну', region: 'Укажите регион', city: 'Укажите город' };
 
 function toggleLeaderboard(type) {
     currentLbTab = type;
     // Визуальное переключение кнопок
-    ['xp', 'dishes', 'co2', 'ads'].forEach(t => {
+    ['xp', 'dishes', 'co2'].forEach(t => {
         const btn = document.getElementById('lb-tab-' + t);
         if (!btn) return;
         btn.style.background = t === type ? 'var(--primary)' : 'transparent';
@@ -11631,17 +11597,236 @@ function toggleLeaderboard(type) {
     openLeaderboard(); // Перезагружаем список
 }
 
+// Переключение фильтра "Страна/Регион/Город" в рейтинге.
+// Местоположение больше не хранится в настройках профиля — запрашиваем его
+// именно в момент переключения: сперва пробуем геолокацию браузера, а если
+// пользователь её запретил (или она недоступна) — просим ввести вручную,
+// с подсказками по мере набора.
 function setLeaderboardScope(scope, btnEl) {
-    // Без указанного города/региона/страны в профиле фильтровать не по чему —
-    // отправляем в настройки вместо пустого списка.
-    if (scope !== 'all' && !(currentUser && currentUser[scope])) {
-        showToast('Сначала укажите ' + (LB_SCOPE_LABELS[scope] || scope) + ' в настройках профиля', 'warning');
+    if (scope === 'all') {
+        applyLeaderboardScope('all', btnEl);
         return;
     }
+
+    // Уже знаем местоположение (например, определили раньше в этой сессии) — просто фильтруем.
+    if (currentUser && currentUser[scope]) {
+        applyLeaderboardScope(scope, btnEl);
+        return;
+    }
+
+    resolveLeaderboardLocation(scope, btnEl);
+}
+
+function applyLeaderboardScope(scope, btnEl) {
     currentLbScope = scope;
     document.querySelectorAll('#lb-scope-filters .filter-btn').forEach(b => b.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
+    if (btnEl) {
+        btnEl.classList.add('active');
+    } else {
+        const fallbackBtn = document.querySelector(`#lb-scope-filters .filter-btn[data-scope="${scope}"]`);
+        if (fallbackBtn) fallbackBtn.classList.add('active');
+    }
     openLeaderboard();
+}
+
+// --- ОПРЕДЕЛЕНИЕ МЕСТОПОЛОЖЕНИЯ ДЛЯ РЕЙТИНГА ---
+// Бесплатный геокодинг без ключей и регистрации — OpenStreetMap Nominatim.
+
+let lbLocationPendingScope = null;
+let lbLocationPendingBtn = null;
+let lbLocationSuggestTimer = null;
+
+function resolveLeaderboardLocation(scope, btnEl) {
+    if (!navigator.geolocation) {
+        openLbLocationPrompt(scope, btnEl, 'Геолокация не поддерживается браузером — введите вручную.');
+        return;
+    }
+
+    showToast('Определяем ваше местоположение...', 'info');
+
+    navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+            try {
+                const { latitude, longitude } = pos.coords;
+                const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1&accept-language=ru`;
+                const res = await fetch(url);
+                const data = await res.json();
+                const addr = data && data.address ? data.address : {};
+
+                const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
+                const region = addr.state || addr.region || '';
+                const country = addr.country || '';
+
+                if (!city && !region && !country) {
+                    openLbLocationPrompt(scope, btnEl, 'Не удалось распознать адрес по координатам — введите вручную.');
+                    return;
+                }
+
+                currentUser.city = city || currentUser.city || '';
+                currentUser.region = region || currentUser.region || '';
+                currentUser.country = country || currentUser.country || '';
+                saveData(false);
+
+                if (!currentUser[scope]) {
+                    openLbLocationPrompt(scope, btnEl, `Определили местоположение, но не смогли распознать конкретно ${LB_SCOPE_LABELS[scope]} — введите вручную.`);
+                    return;
+                }
+
+                applyLeaderboardScope(scope, btnEl);
+            } catch (e) {
+                console.error('Reverse geocoding error', e);
+                openLbLocationPrompt(scope, btnEl, 'Не удалось определить адрес автоматически — введите вручную.');
+            }
+        },
+        (err) => {
+            // Пользователь запретил доступ к геолокации (или она недоступна) — спрашиваем лично.
+            console.warn('Geolocation denied/failed', err.message);
+            openLbLocationPrompt(scope, btnEl, 'Доступ к геолокации не разрешён — введите местоположение вручную.');
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 }
+    );
+}
+
+function openLbLocationPrompt(scope, btnEl, hint) {
+    lbLocationPendingScope = scope;
+    lbLocationPendingBtn = btnEl;
+
+    const titleEl = document.getElementById('lb-location-modal-title');
+    const hintEl = document.getElementById('lb-location-modal-hint');
+    const input = document.getElementById('lb-location-input');
+    const suggestions = document.getElementById('lb-location-suggestions');
+    const statusEl = document.getElementById('lb-location-status');
+
+    if (titleEl) titleEl.textContent = LB_SCOPE_TITLES[scope] || 'Укажите местоположение';
+    if (hintEl) hintEl.textContent = hint || 'Введите вручную — подскажем варианты по мере набора.';
+    if (input) {
+        input.value = '';
+        input.placeholder = scope === 'city' ? 'Например: Москва' : (scope === 'region' ? 'Например: Московская область' : 'Например: Россия');
+    }
+    if (suggestions) { suggestions.style.display = 'none'; suggestions.innerHTML = ''; }
+    if (statusEl) statusEl.style.display = 'none';
+
+    showModal('lb-location-modal');
+    initLbLocationAutocomplete();
+    if (input) setTimeout(() => input.focus(), 50);
+}
+
+function closeLbLocationPrompt() {
+    hideModal('lb-location-modal');
+    lbLocationPendingScope = null;
+    lbLocationPendingBtn = null;
+}
+
+// Подсказки по мере набора — например, ввели "мос", ниже предлагаются подходящие
+// варианты ("Москва", "Московская область" и т.д.), с задержкой (debounce), чтобы
+// не долбить бесплатный сервис на каждую букву.
+function initLbLocationAutocomplete() {
+    const input = document.getElementById('lb-location-input');
+    if (!input || input.dataset.bound) return;
+    input.dataset.bound = '1';
+
+    input.addEventListener('input', () => {
+        const query = input.value.trim();
+        clearTimeout(lbLocationSuggestTimer);
+        const suggestions = document.getElementById('lb-location-suggestions');
+
+        if (query.length < 2) {
+            if (suggestions) { suggestions.style.display = 'none'; suggestions.innerHTML = ''; }
+            return;
+        }
+
+        lbLocationSuggestTimer = setTimeout(() => fetchLbLocationSuggestions(query), 400);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmLbLocationManual();
+        }
+    });
+}
+
+async function fetchLbLocationSuggestions(query) {
+    const suggestions = document.getElementById('lb-location-suggestions');
+    const statusEl = document.getElementById('lb-location-status');
+    if (!suggestions) return;
+
+    try {
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Ищем варианты...'; }
+
+        const scope = lbLocationPendingScope;
+        const featureType = scope === 'country' ? '&featureType=country' : (scope === 'region' ? '&featureType=state' : '');
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&accept-language=ru&limit=6${featureType}&q=${encodeURIComponent(query)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (statusEl) statusEl.style.display = 'none';
+
+        if (!Array.isArray(data) || data.length === 0) {
+            suggestions.innerHTML = '<div style="padding:12px; color:var(--text-secondary); font-size:0.85em;">Ничего не найдено — можно ввести вручную и нажать «Использовать как есть»</div>';
+            suggestions.style.display = 'block';
+            return;
+        }
+
+        suggestions.innerHTML = data.map((item, idx) => {
+            const addr = item.address || {};
+            const label = item.display_name || item.name || '';
+            return `<div class="lb-location-suggestion-item" data-idx="${idx}" style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border-color); font-size:0.9em;">${label}</div>`;
+        }).join('');
+        suggestions.style.display = 'block';
+
+        suggestions.querySelectorAll('.lb-location-suggestion-item').forEach((el) => {
+            el.onclick = () => selectLbLocationSuggestion(data[parseInt(el.dataset.idx, 10)]);
+        });
+    } catch (e) {
+        console.error('Location suggest error', e);
+        if (statusEl) statusEl.style.display = 'none';
+        suggestions.innerHTML = '<div style="padding:12px; color:var(--error); font-size:0.85em;">Не удалось загрузить подсказки</div>';
+        suggestions.style.display = 'block';
+    }
+}
+
+function selectLbLocationSuggestion(item) {
+    const scope = lbLocationPendingScope;
+    const btnEl = lbLocationPendingBtn;
+    if (!scope || !item) return;
+
+    const addr = item.address || {};
+    const city = addr.city || addr.town || addr.village || addr.municipality || '';
+    const region = addr.state || addr.region || '';
+    const country = addr.country || '';
+
+    // Заодно подтягиваем и остальные уровни, если они есть в ответе — пригодится для других фильтров.
+    if (city) currentUser.city = city;
+    if (region) currentUser.region = region;
+    if (country) currentUser.country = country;
+
+    if (!currentUser[scope]) {
+        // На случай, если для нужного уровня конкретики не нашлось — берём отображаемое имя целиком.
+        currentUser[scope] = (item.name || item.display_name || '').split(',')[0].trim();
+    }
+
+    saveData(false);
+    closeLbLocationPrompt();
+    applyLeaderboardScope(scope, btnEl);
+}
+
+function confirmLbLocationManual() {
+    const scope = lbLocationPendingScope;
+    const btnEl = lbLocationPendingBtn;
+    const input = document.getElementById('lb-location-input');
+    const val = (input && input.value || '').trim();
+
+    if (!scope) return;
+    if (!val) {
+        showToast('Введите значение или выберите подсказку', 'warning');
+        return;
+    }
+
+    currentUser[scope] = val;
+    saveData(false);
+    closeLbLocationPrompt();
+    applyLeaderboardScope(scope, btnEl);
 }
 
 // --- LEADERBOARD LOGIC ---
@@ -11690,9 +11875,7 @@ async function openLeaderboard() {
         let rank = 1;
         rows.forEach(({ id, data }) => {
             let scoreDisplay = `${data.xp || 0} XP`;
-            if (currentLbTab === 'ads') {
-                scoreDisplay = `<i class="fas fa-eye"></i> ${data.adsWatched || 0}`;
-            } else if (currentLbTab === 'dishes') {
+            if (currentLbTab === 'dishes') {
                 scoreDisplay = `<i class="fas fa-utensils"></i> ${data.cookedDishes || 0}`;
             } else if (currentLbTab === 'co2') {
                 scoreDisplay = `🌱 ${formatCO2(data.co2Saved || 0)}`;
@@ -15959,7 +16142,6 @@ async function runTest(type) {
                 <button id="lb-tab-xp" class="btn btn-sm" style="flex:1; white-space:nowrap; background:var(--primary); color:white;" onclick="toggleLeaderboard('xp')">Опыт</button>
                 <button id="lb-tab-dishes" class="btn btn-sm" style="flex:1; white-space:nowrap; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('dishes')">🥘 Продукты</button>
                 <button id="lb-tab-co2" class="btn btn-sm" style="flex:1; white-space:nowrap; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('co2')">🌱 CO2</button>
-                <button id="lb-tab-ads" class="btn btn-sm" style="flex:1; white-space:nowrap; background:transparent; color:var(--text-secondary);" onclick="toggleLeaderboard('ads')">Спонсоры</button>
             </div>
             <div class="inventory-controls" id="lb-scope-filters" style="overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch; padding-bottom:2px;">
                 <button class="filter-btn active" data-scope="all" onclick="setLeaderboardScope('all', this)">🌍 Все</button>
@@ -15974,6 +16156,26 @@ async function runTest(type) {
         <div style="margin-top: 10px; text-align: center; font-size: 0.8em; color: var(--text-secondary);">
             Рейтинг обновляется в реальном времени
         </div>
+    </div>
+</div>
+
+<div id="lb-location-modal" class="modal" style="z-index: 10070;" onclick="if(event.target.id === 'lb-location-modal') closeLbLocationPrompt()">
+    <div class="modal-content" style="max-width: 380px;">
+        <div class="modal-header">
+            <h4 id="lb-location-modal-title">Укажите город</h4>
+            <span class="modal-close" onclick="closeLbLocationPrompt()"><i class="fas fa-times"></i></span>
+        </div>
+        <p style="font-size: 0.85em; color: var(--text-secondary); margin: 0 0 12px;" id="lb-location-modal-hint">
+            Не удалось определить автоматически — введите вручную.
+        </p>
+        <div style="position:relative;">
+            <input type="text" id="lb-location-input" class="styled-input" placeholder="Начните вводить..." autocomplete="off" style="width:100%;">
+            <div id="lb-location-suggestions" style="display:none; position:absolute; left:0; right:0; top:calc(100% + 4px); background:var(--surface); border:1px solid var(--border-color); border-radius:12px; max-height:220px; overflow-y:auto; z-index:20; box-shadow:0 8px 24px rgba(0,0,0,0.15);"></div>
+        </div>
+        <div id="lb-location-status" style="font-size:0.8em; color:var(--text-secondary); margin-top:8px; display:none;"></div>
+        <button type="button" class="btn btn-primary" style="margin-top:16px;" onclick="confirmLbLocationManual()">
+            <i class="fas fa-check"></i> Использовать как есть
+        </button>
     </div>
 </div>
 
