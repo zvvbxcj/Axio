@@ -1,4 +1,4 @@
-const AXIO_AI_STATS_ENDPOINT = 'stats-ai.axioaxio.workers.dev';
+const AXIO_AI_STATS_ENDPOINT = 'https://stats-ai.axioaxio.workers.dev';
 
 let aiStatsBusy = false;
 
