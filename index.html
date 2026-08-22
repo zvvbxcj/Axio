@@ -10,14 +10,11 @@
     <script src="ai_chef.js"></script>
     <script src="ai_stats.js"></script>
     <script src="ai_scan.js"></script>
-    <script src="barcode_scan.js"></script>
     <script src="recipes.js"></script>
     <script src="achievements.js"></script>
     <link rel="stylesheet" href="style.css">
+
     <style>
-        /* --- Режим для слабовидящих: крупнее шрифт, выше контраст, крупнее
-           области нажатия. Включается классом .a11y-mode на <body>, поэтому
-           работает поверх текущей темы (тёмной/светлой). --- */
         .a11y-mode {
             --base-font-size: clamp(18px, 1.6vw, 23px);
             --h3-font-size: clamp(1.4em, 2.6vw, 2.1em);
@@ -961,7 +958,12 @@
             <form id="add-shopping-form" onsubmit="event.preventDefault(); addShoppingItem();">
                 <div class="form-group">
                     <label for="shopping-name" data-translate="ProductNameLabel">Название продукта</label>
-                    <input type="text" id="shopping-name" placeholder="Например: Сыр пармезан">
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="shopping-name" placeholder="Например: Сыр пармезан" style="flex:1;">
+                        <button type="button" id="voice-btn" class="mic-btn" onclick="toggleVoiceInput()" title="Добавить голосом" style="flex:0 0 44px; border:1px solid var(--border-color); border-radius:10px; background:var(--surface-light); color:var(--text-primary); cursor:pointer;">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Количество</label>
@@ -1302,6 +1304,23 @@
             </div>
         </div>
 
+        <!-- Подтверждение пароля перед опасными админскими действиями (экспорт CSV, массовые операции) -->
+        <div id="admin-reauth-modal" class="modal" style="z-index: 10090;" onclick="if(event.target.id === 'admin-reauth-modal') cancelAdminReauth()">
+            <div class="modal-content" style="max-width: 380px;">
+                <div class="modal-header">
+                    <h4><i class="fas fa-lock"></i> Подтвердите пароль</h4>
+                    <span class="modal-close" onclick="cancelAdminReauth()">&times;</span>
+                </div>
+                <p id="admin-reauth-label" style="color:var(--text-secondary); font-size:13px;">Это действие затрагивает много данных сразу. Введите пароль администратора, чтобы продолжить.</p>
+                <input type="password" id="admin-reauth-password" class="styled-input" style="width:100%; margin-top:8px;" placeholder="Пароль" autocomplete="current-password" onkeydown="if(event.key === 'Enter') confirmAdminReauth()">
+                <div id="admin-reauth-error" style="color:var(--error); font-size:13px; margin-top:8px; display:none;"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="cancelAdminReauth()">Отмена</button>
+                    <button class="btn btn-primary" id="admin-reauth-confirm-btn" onclick="confirmAdminReauth()">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+
         <div id="settings-modal" class="modal" onclick="if(event.target.id === 'settings-modal') hideModal('settings-modal')">
     <div class="modal-content">
         <div class="modal-header">
@@ -1400,7 +1419,6 @@
             </div>
         </div>        
     
-    <div id="blacklist-tags" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
     </div>
 </div>
@@ -1863,8 +1881,31 @@ function addXp(amount) {
                 return showToast(translations[currentLang].CaptchaError, 'warning');
             }
             const provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider).catch(err => showToast(err.message, 'error'));
+            auth.signInWithPopup(provider).catch(err => {
+                // На части мобильных браузеров/встроенных WebView всплывающее окно
+                // блокируется или не поддерживается вовсе — в этом случае откатываемся
+                // на signInWithRedirect (результат обработает getRedirectResult() ниже
+                // после возврата на страницу, а дальше подхватит onAuthStateChanged).
+                const popupBlockedCodes = [
+                    'auth/popup-blocked',
+                    'auth/operation-not-supported-in-this-environment'
+                ];
+                if (err && popupBlockedCodes.includes(err.code)) {
+                    auth.signInWithRedirect(provider).catch(redirectErr => {
+                        showToast(redirectErr.message, 'error');
+                    });
+                    return;
+                }
+                showToast(err.message, 'error');
+            });
         }
+
+        // Забираем результат входа, если он произошёл через signInWithRedirect
+        // (страница в этом случае полностью перезагружается и возвращается назад).
+        // Явные ошибки показываем тостом; успешный вход подхватит onAuthStateChanged.
+        auth.getRedirectResult().catch(err => {
+            if (err && err.code) console.error('Redirect sign-in error', err);
+        });
 
         async function registerUser() {
             if (!captchaVerified['register']) {
@@ -2217,7 +2258,10 @@ async function trackStat(type) {
             db.collection('fridges').doc(activeFridgeId).update({
                 items: userInventory,
                 shopping: userShopping
-            }).catch(e => console.error("Fridge save error", e));
+            }).catch(e => {
+                console.error("Fridge save error", e);
+                showToast(describeFirestoreError(e), 'error');
+            });
         }
 
         await db.collection(USER_COLLECTION).doc(currentUser.uid).set({
@@ -2235,6 +2279,7 @@ async function trackStat(type) {
             telegramUsername: currentUser.telegramUsername || null,
             xp: userXp, level: userLevel, cookedDishes: cookedDishes, 
             co2Saved: Math.round(userCO2Total * 1000) / 1000,
+            mealPlan: mealPlan,
             country: currentUser.country || null,
             region: currentUser.region || null,
             city: currentUser.city || null,
@@ -2245,7 +2290,10 @@ async function trackStat(type) {
         }, { merge: true });
         
         if (fullUpdate) updateUI(); 
-    } catch (error) { console.error("Save error", error); }
+    } catch (error) {
+        console.error("Save error", error);
+        showToast(describeFirestoreError(error), 'error');
+    }
 }
 
         async function loadData() {
@@ -2309,6 +2357,9 @@ async function trackStat(type) {
             
             userEditedRecipes = data.editedRecipes || {};
             currentUser.telegramUsername = data.telegramUsername || null;
+            // Планировщик меню — раньше жил только в памяти вкладки и терялся
+            // при перезагрузке; теперь восстанавливаем из документа пользователя.
+            mealPlan = data.mealPlan || {};
 
             // Самолечение: у части старых аккаунтов email никогда не сохранялся в Firestore
             // (только в Firebase Auth) — из-за этого в панели админа он выводился как "undefined".
@@ -2350,7 +2401,7 @@ async function trackStat(type) {
             const initialData = {
                 history: [], notifications: [], favorites: [], dislikes: [],
                 xp: 0, level: 1, cookedDishes: 0, theme: 'dark', lang: currentLang,
-                editedRecipes: {},
+                editedRecipes: {}, mealPlan: {},
                 achievements: JSON.parse(JSON.stringify(achievementsDB)),
                 name: currentUser.name, email: currentUser.email, telegramUsername: null, avatar: avatarCollection[0],
                 // Для Trust & Safety: время регистрации (аномалии набора XP) и отпечаток
@@ -2379,7 +2430,7 @@ async function trackStat(type) {
 
     } catch (error) {
         console.error("Load error", error);
-        showToast("Ошибка загрузки данных", "error");
+        showToast(describeFirestoreError(error), "error");
     }
 }
 
@@ -2731,7 +2782,7 @@ async function submitJoinFridge(codeOverride) {
         showModal('fridge-join-confirm-modal');
     } catch (e) {
         console.error("Join fridge lookup error", e);
-        showToast('Не удалось найти холодильник: ' + (e && e.code ? e.code : (e && e.message ? e.message : 'неизвестная ошибка')), 'error');
+        showToast('Не удалось найти холодильник: ' + describeFirestoreError(e), 'error');
     }
 }
 
@@ -2763,7 +2814,7 @@ async function confirmJoinFridge() {
         showToast(`Вы присоединились: ${fridgeDoc.name}`, 'success');
     } catch (e) {
         console.error("Join fridge error", e);
-        showToast('Не удалось присоединиться: ' + (e && e.code ? e.code : (e && e.message ? e.message : 'неизвестная ошибка')), 'error');
+        showToast('Не удалось присоединиться: ' + describeFirestoreError(e), 'error');
     } finally {
         pendingJoinInvite = null;
     }
@@ -3339,7 +3390,7 @@ function renderFridgeTransferList() {
         const qtyText = (item.qty && item.qty > 0) ? ` <span class="fridge-transfer-qty">${item.qty} ${item.unit || ''}</span>` : '';
         return `<div class="fridge-transfer-item ${checked ? 'checked' : ''}" onclick="toggleFridgeTransferItem(${item.id})">
             <div class="fridge-transfer-check">${checked ? '<i class="fas fa-check"></i>' : ''}</div>
-            <div class="fridge-transfer-name">${item.name}${qtyText}</div>
+            <div class="fridge-transfer-name">${escapeHtml(item.name)}${qtyText}</div>
         </div>`;
     }).join('');
 
@@ -3713,7 +3764,7 @@ function printShoppingList() {
         html += `
         <div class="print-row">
             <div style="font-size: 16px;">
-                <span class="print-checkbox-box"></span> ${item.name}
+                <span class="print-checkbox-box"></span> ${escapeHtml(item.name)}
             </div>
             <div style="font-weight:bold; font-size: 16px;">
                 ${item.qty || 1} ${item.unit || ''}
@@ -3727,22 +3778,6 @@ function printShoppingList() {
     setTimeout(() => {
         window.print();
     }, 100);
-}
-
-function hardResetRecipes() {
-    if(!confirm("Это удалит ваши личные правки рецептов и загрузит стандартные из файла. Продолжить?")) return;
-    
-    // 1. Очищаем локальные правки
-    userEditedRecipes = {};
-    
-    // 2. Принудительно берем базу из файла
-    globalRecipes = JSON.parse(JSON.stringify(recipesDB));
-    
-    // 3. Сохраняем "чистое" состояние в профиль пользователя
-    saveData(true);
-    
-    showToast("Рецепты сброшены до заводских настроек!", "success");
-    setTimeout(() => location.reload(), 1000);
 }
 
         function getDaysUntilExpiry(dateString) {
@@ -4057,12 +4092,6 @@ function convertToKg(amount, unit) {
         case 'уп': return qty * 0.4;     // средняя масса 1 упаковки ≈ 400 г (оценочно)
         default: return qty * 0.2;       // fallback для неизвестных единиц
     }
-}
-
-// 4. CO2e для конкретного продукта/ингредиента (кг CO2e)
-function calcProductCO2(amount, unit, category) {
-    const kg = convertToKg(amount, unit);
-    return kg * getCO2Coefficient(category);
 }
 
 // Резервный коэффициент для записей истории без детального разбора ингредиентов
@@ -4962,89 +4991,7 @@ function getDecayStage(days) {
     return 'fresh';
 }
 
-function updateStats() {
-    if (!currentUser || userHistory.length === 0) {
-        document.getElementById('stats-container').innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-secondary)">Пока нет статистики. Приготовьте что-нибудь!</div>';
-        return;
-    }
-
-    // Подсчет категорий
-    const categoryCount = {};
-    // Подсчет времени суток (НОВОЕ!)
-    const timeOfDayCount = { 'Утро (6-12)': 0, 'День (12-18)': 0, 'Вечер (18-24)': 0, 'Ночь (0-6)': 0 };
-
-    userHistory.forEach(h => {
-        if (h.type === 'cook' && h.category) {
-            let cat = h.category;
-            
-            // --- МАППИНГ КАТЕГОРИЙ (ДОБАВИТЬ ЭТО) ---
-            // Если категория "Main", пытаемся угадать по названию или ингредиентам,
-            // но проще просто засчитать это как "Meat" для теста или создать категорию "Main" в конфиге.
-            
-            // Исправление простых опечаток
-            if (cat === 'Vegetable') cat = 'Vegetables';
-            if (cat === 'Fruit') cat = 'Fruits';
-            
-            // Если вы хотите, чтобы 'Main' засчитывалось как Мясо (грубое допущение, но рабочее)
-            if (cat === 'main') cat = 'Meat'; 
-
-            counts[cat] = (counts[cat] || 0) + 1;
-        }
-
-        // Время суток
-        if (h.timestamp) {
-            const date = new Date(h.timestamp); // h.timestamp должен быть ISO строкой или timestamp
-            const hour = date.getHours();
-            
-            if (hour >= 6 && hour < 12) timeOfDayCount['Утро (6-12)']++;
-            else if (hour >= 12 && hour < 18) timeOfDayCount['День (12-18)']++;
-            else if (hour >= 18 && hour <= 23) timeOfDayCount['Вечер (18-24)']++;
-            else timeOfDayCount['Ночь (0-6)']++;
-        }
-    });
-
-    // Рисуем график
-    const ctx = document.getElementById('statsChart').getContext('2d');
-    if (statsChart) statsChart.destroy();
-
-    statsChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            // Объединяем метки категорий и времени суток для наглядности, или делаем два графика.
-            // Сейчас выведем топ категорий + время суток в одном, если влезет, или просто категории.
-            // Давай сделаем умный микс:
-            labels: [...Object.keys(categoryCount), ...Object.keys(timeOfDayCount).filter(k => timeOfDayCount[k] > 0)],
-            datasets: [{
-                data: [...Object.values(categoryCount), ...Object.values(timeOfDayCount).filter(v => v > 0)],
-                backgroundColor: [
-                    '#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', // Цвета категорий
-                    '#A7F3D0', '#93C5FD', '#FDE68A', '#FECACA'  // Цвета времени (светлее)
-                ],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#94A3B8' } }
-            }
-        }
-    });
-}
-
 let isCustomExpiryActive = false; // Флаг активности фильтра
-
-function updateExpiryFilterDisplay(val) {
-    document.getElementById('expiry-days-display').innerText = val + " дн.";
-    customExpiryDays = parseInt(val);
-}
-
-function applyExpiryFilter() {
-    isCustomExpiryActive = true;
-    // Сбрасываем другие кнопки фильтров визуально
-    document.querySelectorAll('#inventory-filters .cat-btn').forEach(btn => btn.classList.remove('active'));
-    updateInventoryList();
-    showToast(`Показаны продукты со сроком < ${customExpiryDays} дн.`, "info");
-}
 
         // Порядок полок в холодильнике
         const FRIDGE_SHELF_ORDER = ['Dairy', 'Meat', 'Seafood', 'Vegetables', 'Fruits', 'Bakery', 'Cereals', 'Condiments', 'Other'];
@@ -5143,7 +5090,7 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
                 <div class="shelf-product-card" style="border-left: 5px solid ${dynamicColor};" onclick="openProductDetail(${p.id})">
                     ${imgHtml}
                     <div class="item-details">
-                        <div class="item-name">${p.name}</div>
+                        <div class="item-name">${escapeHtml(p.name)}</div>
                         <div class="item-meta" onclick="event.stopPropagation(); openExpiryEdit(${p.id})" style="color: ${dynamicColor}; font-weight: 700; cursor: pointer;">
                             <span>${statusText}</span> <i class="fas fa-pencil-alt"></i>
                         </div>
@@ -5152,7 +5099,7 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
                         <div class="qty-controls">
                             <button class="qty-btn" onclick="event.stopPropagation(); useProduct(${p.id}, 1)">-</button>
                             <span class="qty-val">${p.qty} ${p.unit}</span>
-                            <button class="qty-btn" onclick="event.stopPropagation(); addShoppingItem('${p.name}', 1, '${p.unit}')"><i class="fas fa-cart-plus"></i></button>
+                            <button class="qty-btn" onclick="event.stopPropagation(); addShoppingItem(${escapeHtml(JSON.stringify(p.name))}, 1, ${escapeHtml(JSON.stringify(p.unit || ''))})"><i class="fas fa-cart-plus"></i></button>
                         </div>
                         <button class="trash" onclick="event.stopPropagation(); wasteProduct(${p.id})"><i class="fas fa-trash"></i></button>
                     </div>
@@ -5367,10 +5314,11 @@ function selectSuggestion(select) {
             <div class="shopping-item ${item.completed ? 'checked' : ''}" onclick="toggleShoppingItem(${item.id})">
                 <div class="shopping-checkbox">${item.completed ? '<i class="fas fa-check"></i>' : ''}</div>
                 <div class="item-details">
-                    <div class="item-name">${item.name}${qtyText}</div>
+                    <div class="item-name">${escapeHtml(item.name)}${qtyText}</div>
                 </div>
                 <div class="item-actions">
-                    <button class="deliver" onclick="event.stopPropagation(); openDeliverySearch('${item.name.replace(/'/g, "\\'")}')" title="Заказать с доставкой"><i class="fas fa-truck-fast"></i></button>
+                    <button class="deliver" onclick="event.stopPropagation(); openEditShoppingQty(${item.id})" title="Изменить количество"><i class="fas fa-pen"></i></button>
+                    <button class="deliver" onclick="event.stopPropagation(); openDeliverySearch(${escapeHtml(JSON.stringify(item.name))})" title="Заказать с доставкой"><i class="fas fa-truck-fast"></i></button>
                     <button class="trash" onclick="event.stopPropagation(); deleteShoppingItem(${item.id})"><i class="fas fa-trash"></i></button>
                 </div>
             </div>`;
@@ -5383,27 +5331,6 @@ function selectSuggestion(select) {
     });
 }
 
-// Новая функция для изменения количества в списке покупок
-function editShoppingItemQty(id) {
-    const item = userShopping.find(s => s.id === id);
-    if (!item) return;
-
-    // Спрашиваем новое количество
-    const newQtyStr = prompt(`Изменить количество для "${item.name}":`, item.qty || 1);
-    
-    if (newQtyStr !== null) {
-        const newQty = parseFloat(newQtyStr);
-        if (!isNaN(newQty) && newQty > 0) {
-            item.qty = newQty;
-            saveData(false);
-            updateShoppingList();
-            showToast("Количество обновлено", "success");
-        } else {
-            showToast("Неверное число", "warning");
-        }
-    }
-}
-
 // --- УМНЫЕ ПОИСКОВЫЕ КАРТОЧКИ ДОСТАВКИ (DEEP SEARCH) ---
 // 4 категории, отображаются сеткой 2×2 (сверху Маркетплейсы/Доставка, снизу Магазины/Интернет):
 // - Маркетплейсы: прямой поиск по товару через собственную строку поиска сайта.
@@ -5412,10 +5339,6 @@ function editShoppingItemQty(id) {
 //   поэтому вместо поиска по всему интернету используется поиск, ограниченный конкретным
 //   доменом сервиса (site:) — результат ведёт именно на этот сайт/приложение, а не куда попало.
 // Иконки — реальные favicon сервисов (с фолбэком на цветной инициал, если картинка не загрузилась).
-
-function ddsSite(domain, brand, q) {
-    return `https://www.google.com/search?q=${encodeURIComponent('site:' + domain + ' ' + brand + ' ' + q)}`;
-}
 
 function faviconUrl(domain) {
     return `https://www.google.com/s2/favicons?sz=128&domain=${domain}`;
@@ -5455,7 +5378,7 @@ const DELIVERY_CATEGORIES = [
             { id: 'magnit', name: 'Магнит', domain: 'magnit.ru', mono: 'М', color: '#E4032B', hint: 'Сеть магазинов', buildUrl: q => `https://magnit.ru/search?term=${encodeURIComponent(q)}` },
             { id: 'auchan', name: 'Ашан', domain: 'auchan.ru', mono: 'A', color: '#E2001A', hint: 'Гипермаркет', buildUrl: q => `https://www.auchan.ru/search/?query=${encodeURIComponent(q)}` },
             { id: 'lenta', name: 'Лента', domain: 'lenta.com', mono: 'Л', color: '#D91E36', hint: 'Гипермаркет', buildUrl: q => `https://lenta.com/search/${encodeURIComponent(q)}` },
-            { id: 'globus', name: 'Глобус', domain: 'globus.ru', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => `временно недоступно${encodeURIComponent(q)}` },
+            { id: 'globus', name: 'Глобус', domain: 'globus.ru', mono: 'Г', color: '#0066B3', hint: 'Гипермаркет', buildUrl: q => `https://www.globus.ru/search/?q=${encodeURIComponent(q)}` },
             { id: 'spar', name: 'Eurospar', domain: 'myspar.ru', mono: 'SP', color: '#00873E', hint: 'Сеть магазинов', buildUrl: q => `https://myspar.ru/#search?query=${encodeURIComponent(q)}` },
             { id: 'vkusvill', name: 'ВкусВилл', domain: 'vkusvill.ru', mono: 'VV', color: '#6FBE44', hint: 'Сеть магазинов',  buildUrl: q => `https://vkusvill.ru/search/?q=${encodeURIComponent(q)}` }
         ]
@@ -6119,14 +6042,14 @@ function applyLimitingScale() {
 
     // --- 2. Заполнение текстов ---
     document.getElementById('recipe-detail-title-text').textContent = r.name[currentLang] || r.name.ru;
-    document.getElementById('recipe-detail-time').innerHTML = `<i class="fas fa-clock"></i> ${r.time}`;
+    document.getElementById('recipe-detail-time').innerHTML = `<i class="fas fa-clock"></i> ${escapeHtml(r.time)}`;
     
     // Безопасное получение сложности
     let difficultyText = "Medium";
     if (r.difficulty) {
         difficultyText = r.difficulty[currentLang] || r.difficulty.ru || r.difficulty;
     }
-    document.getElementById('recipe-detail-difficulty').innerHTML = `<i class="fas fa-hand-sparkles"></i> ${difficultyText}`;
+    document.getElementById('recipe-detail-difficulty').innerHTML = `<i class="fas fa-hand-sparkles"></i> ${escapeHtml(difficultyText)}`;
     document.getElementById('portion-display').innerText = "1";
 
     // --- 3. Рендер ингредиентов и шагов ---
@@ -6146,7 +6069,7 @@ function applyLimitingScale() {
     steps.forEach((stepItem) => {
         const li = document.createElement('li');
         let text = (typeof stepItem === 'object') ? stepItem.step : stepItem;
-        li.innerHTML = `<span>${text}</span>`;
+        li.innerHTML = `<span>${escapeHtml(text)}</span>`;
         stepList.appendChild(li);
     });
 
@@ -6241,76 +6164,6 @@ function applyLimitingScale() {
 }
 
 // --- НОВАЯ ФУНКЦИЯ ГОТОВКИ (ДОБАВИТЬ В КОД) ---
-
-function cookRecipe(id) {
-    const recipe = recipesDB.find(r => r.id === id);
-    if (!recipe) return;
-
-    // 1. Списываем ингредиенты (как и раньше) + считаем CO2 по методике LCA
-    let usedIngredientsNames = [];
-    let ingredientsDetailed = [];
-    let dishCO2 = 0;
-    recipe.ingredients.forEach(ing => {
-        const reqName = (ing.name || '').trim().toLowerCase();
-        usedIngredientsNames.push(reqName);
-        const product = userInventory.find(p => p.name.trim().toLowerCase() === reqName);
-
-        // Категорию продукта берём из инвентаря (если он там есть), иначе — "Other"
-        const ingCategory = (product && product.category) || 'Other';
-        const ingUnit = ing.unit || (product && product.unit) || 'шт';
-        const ingWeightKg = convertToKg(ing.amount, ingUnit);
-        const ingCO2 = ingWeightKg * getCO2Coefficient(ingCategory);
-        dishCO2 += ingCO2;
-        ingredientsDetailed.push({
-            name: ing.name,
-            amount: ing.amount,
-            unit: ingUnit,
-            category: ingCategory,
-            weightKg: Math.round(ingWeightKg * 1000) / 1000,
-            co2: Math.round(ingCO2 * 1000) / 1000
-        });
-
-        if (product) {
-            product.qty -= ing.amount;
-            if (product.qty <= 0.01) {
-                userInventory = userInventory.filter(p => p.id !== product.id);
-            }
-        }
-    });
-
-    // 2. ДОБАВЛЯЕМ В ИСТОРИЮ (Новая часть)
-    const historyItem = {
-        type: 'cook',
-        date: new Date().toISOString(),
-        recipeId: recipe.id,
-        recipeName: recipe.name[currentLang] || recipe.name.ru,
-        category: recipe.category,
-        time: parseInt(recipe.time) || 30, // парсим время (например "45 min" -> 45)
-        difficulty: (recipe.difficulty.en === 'Easy') ? 1 : (recipe.difficulty.en === 'Medium' ? 2 : 3),
-        ingredients: usedIngredientsNames,
-        ingredientsDetailed: ingredientsDetailed,
-        co2: Math.round(dishCO2 * 1000) / 1000 // кг CO2e, спасённых этим блюдом (методика LCA)
-    };
-    
-    // Инициализируем если нет
-    if (!userHistory) userHistory = [];
-    userHistory.push(historyItem);
-
-    // 3. Обновляем профиль и счетчики
-    cookedDishes++;
-    userCO2Total += dishCO2;
-    addXp(25);
-    checkAchievements('cook', recipe.category);
-
-    saveData(false); // Нужно обновить saveData, чтобы она сохраняла history!
-    
-    updateInventoryList();
-    updateHeader();
-    updateProfile(); 
-    hideModal('recipe-detail-modal');
-    triggerLevelUpEffect();
-    showToast(`Блюдо готово! Данные записаны в статистику.`, "success");
-}
 
 // --- 3. СОЗДАНИЕ РЕЦЕПТОВ ---
 function openCreateRecipeChoice() {
@@ -6787,13 +6640,6 @@ function checkAdmin() {
     }
 }
 
-// ФУНКЦИЯ 4 (Реализация): Одобрить все
-function approveAllPending() {
-    if(!confirm("Одобрить ВСЕ рецепты в очереди?")) return;
-    showToast("Все рецепты одобрены", "success");
-    // Тут логика цикла по pendingRecipes и их approval
-}
-
 async function openMySubmissions() {
     if (!currentUser) return showToast("Сначала войдите в аккаунт", "warning");
 
@@ -6906,29 +6752,6 @@ function getAdsgramRowHTML(listType, uniqueId) {
     }, 100);
 
     return `<div id="${divId}"></div>`;
-}
-
-// Логика проверки позиции (Ваши условия)
-function shouldInsertAd(index) {
-    const pos = index + 1; // Используем человеческий счет (1, 2, 3...)
-    
-    // 1. Adsgram Task: После 4-го (pos=4), потом каждые 16 (4+16=20, 36, 52...)
-    if (pos === 4 || (pos > 4 && (pos - 4) % 16 === 0)) {
-        return 'adsgram';
-    }
-    
-    return null;
-}
-
-// Вспомогательная функция для расчета популярности
-function calculateRecipePopularity(r) {
-    const isLiked = userFavorites.includes(r.id); 
-    const isDisliked = userDislikes.some(d => d.id === r.id);
-    const timesCooked = userHistory.filter(h => h.recipeId === r.id).length;
-    const basePopularity = r.popularity || 0; 
-    
-    let score = basePopularity + (timesCooked * 2) + (isLiked ? 5 : 0) - (isDisliked ? 5 : 0);
-    return score < 0 ? 0 : score;
 }
 
 // --- ADMIN PANEL LOGIC ---
@@ -7450,18 +7273,6 @@ async function submitBroadcast() {
     } catch(e) { showToast(e.message, "error"); }
 }
 
-function updateAdminStats() {
-    // ФУНКЦИЯ 11: Реальный подсчет
-    document.getElementById('stat-users').innerText = "1,240"; // Замените на users.length если есть массив
-    document.getElementById('stat-recipes').innerText = globalRecipes ? globalRecipes.length : 0;
-    
-    // Подсчет ожидающих
-    let pendingCount = 0;
-    // (Ваша логика получения pending)
-    document.getElementById('stat-pending').innerText = pendingCount;
-    document.getElementById('badge-pending').innerText = pendingCount;
-}
-
 // --- РЕШЕНИЕ ПРОБЛЕМЫ С ФАЙЛОМ ---
 // ФУНКЦИЯ 7 (Реализация): Принудительная синхронизация
 async function forceSyncRecipesFile() {
@@ -7605,35 +7416,6 @@ async function updateServerStatus(status) {
     }
 }
 
-// ФУНКЦИЯ 12: Загрузка списка пользователей (Mock)
-function loadUserListMock() {
-    const tbody = document.getElementById('admin-users-list');
-    if (!tbody) return; 
-    tbody.innerHTML = '';
-    
-    const mockUsers = [
-        { name: "Alex Admin", email: "admin@axio.com", role: "admin", active: true },
-        { name: "User One", email: "user1@test.com", role: "user", active: true },
-        { name: "Spammer", email: "bad@guy.com", role: "user", active: false }
-    ];
-
-    mockUsers.forEach(u => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><div style="font-weight:bold">${u.name}</div></td>
-            <td>${u.email}</td>
-            <td><span class="status-badge ${u.role === 'admin' ? 'status-green' : 'status-yellow'}">${u.role}</span></td>
-            <td>${u.active ? '<span class="status-green">Active</span>' : '<span class="status-red">Banned</span>'}</td>
-            <td>
-                <button class="btn btn-sm" onclick="toggleUserBan('${u.email}')" style="padding:5px 10px; font-size:0.7em;">
-                    ${u.active ? 'Ban' : 'Unban'}
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
 // Функция переключения Тех. Работ
 async function toggleMaintenanceMode(checkbox) {
     const isEnabled = checkbox.checked;
@@ -7738,24 +7520,100 @@ function exportEmailsCSV() {
         return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,ID,Name,Email,Telegram,Level,XP,Banned\n";
-    allUsersCache.forEach(u => {
-        // Экранируем запятые в именах
-        const safeName = (u.name || "NoName").replace(/,/g, "");
-        const safeEmail = u.email || "";
-        const safeTg = (u.telegramUsername || "").replace(/,/g, "");
-        csvContent += `${u.id},${safeName},${safeEmail},${safeTg},${u.level||1},${u.xp||0},${u.isBanned||false}\n`;
-    });
+    requireAdminReauth('Экспорт email-адресов и данных всех пользователей в CSV. Введите пароль администратора, чтобы продолжить.', () => {
+        let csvContent = "data:text/csv;charset=utf-8,ID,Name,Email,Telegram,Level,XP,Banned\n";
+        allUsersCache.forEach(u => {
+            // Экранируем запятые в именах
+            const safeName = (u.name || "NoName").replace(/,/g, "");
+            const safeEmail = u.email || "";
+            const safeTg = (u.telegramUsername || "").replace(/,/g, "");
+            csvContent += `${u.id},${safeName},${safeEmail},${safeTg},${u.level||1},${u.xp||0},${u.isBanned||false}\n`;
+        });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Axio_Users_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    
-    showToast("CSV файл скачан!", "success");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Axio_Users_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        showToast("CSV файл скачан!", "success");
+    });
+}
+
+// ============================================================
+// ПОДТВЕРЖДЕНИЕ ПАРОЛЕМ ПЕРЕД ОПАСНЫМИ АДМИНСКИМИ ДЕЙСТВИЯМИ
+// (экспорт персональных данных, массовая модерация и т.п.)
+// Не защищает от кражи уже открытой сессии/токена, но защищает от случайного
+// клика или доступа с чужого/незаблокированного устройства.
+// ============================================================
+let pendingAdminReauthAction = null;
+
+function requireAdminReauth(label, actionFn) {
+    if (!auth.currentUser) return;
+
+    const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
+    if (!hasPasswordProvider) {
+        // Аккаунт без пароля (вход через Google) — подтверждаем личность тем же
+        // провайдером, паролем спрашивать нечего.
+        auth.currentUser.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider())
+            .then(() => { if (typeof actionFn === 'function') actionFn(); })
+            .catch(e => {
+                console.error('Admin reauth (Google) failed', e);
+                showToast('Не удалось подтвердить личность: ' + describeFirestoreError(e), 'error');
+            });
+        return;
+    }
+
+    pendingAdminReauthAction = actionFn;
+    const labelEl = document.getElementById('admin-reauth-label');
+    if (labelEl) labelEl.textContent = label || 'Это действие затрагивает много данных сразу. Введите пароль администратора, чтобы продолжить.';
+    const pwInput = document.getElementById('admin-reauth-password');
+    if (pwInput) pwInput.value = '';
+    const errEl = document.getElementById('admin-reauth-error');
+    if (errEl) errEl.style.display = 'none';
+    showModal('admin-reauth-modal');
+    setTimeout(() => pwInput && pwInput.focus(), 150);
+}
+
+function cancelAdminReauth() {
+    pendingAdminReauthAction = null;
+    hideModal('admin-reauth-modal');
+}
+
+async function confirmAdminReauth() {
+    const pwInput = document.getElementById('admin-reauth-password');
+    const errEl = document.getElementById('admin-reauth-error');
+    const btn = document.getElementById('admin-reauth-confirm-btn');
+    const password = pwInput ? pwInput.value : '';
+
+    if (!password) {
+        if (errEl) { errEl.textContent = 'Введите пароль'; errEl.style.display = 'block'; }
+        return;
+    }
+    if (!auth.currentUser) { cancelAdminReauth(); return; }
+
+    if (btn) { btn.disabled = true; btn.dataset.oldText = btn.dataset.oldText || btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...'; }
+
+    try {
+        const credential = firebase.auth.EmailAuthProvider.credential(auth.currentUser.email, password);
+        await auth.currentUser.reauthenticateWithCredential(credential);
+
+        const action = pendingAdminReauthAction;
+        pendingAdminReauthAction = null;
+        hideModal('admin-reauth-modal');
+        if (typeof action === 'function') action();
+    } catch (e) {
+        console.error('Admin reauth failed', e);
+        if (errEl) {
+            const wrongPasswordCodes = ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials'];
+            errEl.textContent = wrongPasswordCodes.includes(e.code) ? 'Неверный пароль' : describeFirestoreError(e);
+            errEl.style.display = 'block';
+        }
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.oldText || 'Подтвердить'; }
+    }
 }
 
 function renderAdminUsers(users) {
@@ -7774,13 +7632,16 @@ function renderAdminUsers(users) {
         const row = document.createElement('tr');
         row.className = 'user-row';
         // Добавляем стиль курсора и само событие клика на всю ячейку с именем
+        // ВНИМАНИЕ: u.name/u.email/u.telegramUsername/u.avatar — это поля, которые
+        // пользователь задаёт себе сам (Firestore rules разрешают self-write), значит
+        // это чужой ввод, отображаемый в браузере АДМИНА. Экранируем всё текстовое.
         row.innerHTML = `
             <td>
                 <div class="user-cell" onclick="openUserDetail('${u.id}')">
-                    <img src="${u.avatar || 'https://via.placeholder.com/40'}" class="user-avatar-sm" alt="ava">
+                    <img src="${escapeHtml(u.avatar || 'https://via.placeholder.com/40')}" class="user-avatar-sm" alt="ava">
                     <div class="user-cell-info">
-                        <div class="user-name">${u.name || 'Без имени'}</div>
-                        <div class="user-email">${u.email ? u.email : (u.telegramUsername ? '<i class="fab fa-telegram-plane"></i> ' + u.telegramUsername : 'Нет контактных данных')}</div>
+                        <div class="user-name">${escapeHtml(u.name || 'Без имени')}</div>
+                        <div class="user-email">${u.email ? escapeHtml(u.email) : (u.telegramUsername ? '<i class="fab fa-telegram-plane"></i> ' + escapeHtml(u.telegramUsername) : 'Нет контактных данных')}</div>
                     </div>
                 </div>
             </td>
@@ -7799,7 +7660,7 @@ function renderAdminUsers(users) {
                 <button class="icon-action-btn" title="Профиль" onclick="openUserDetail('${u.id}')">
                     <i class="fas fa-eye"></i>
                 </button>
-                <button class="icon-action-btn" title="Выдать предупреждение" onclick="giveUserWarning('${u.id}', '${(u.name || 'Пользователь').replace(/'/g, "\\'")}')">
+                <button class="icon-action-btn" title="Выдать предупреждение" onclick="giveUserWarning('${u.id}', ${escapeHtml(JSON.stringify(u.name || 'Пользователь'))})">
                     <i class="fas fa-triangle-exclamation"></i>
                 </button>
                 <button class="icon-action-btn ${u.isBanned ? 'is-success' : 'is-danger'}" title="${u.isBanned ? 'Разбанить' : 'Забанить'}" onclick="toggleUserBan('${u.id}', ${!u.isBanned})">
@@ -8486,28 +8347,18 @@ async function deleteAdminFridge(fridgeId) {
 // красным флагом. Модератор по-прежнему решает сам — это только подсказка,
 // НЕ автоматическое одобрение/отклонение.
 //
-// ВАЖНО: файл ai_chef.js (где живёт реальный вызов AI Chef) не был передан
-// вместе с index.html/style.css, поэтому здесь нет доступа к его эндпоинту,
-// ключу и модели. Единственное место, которое нужно донастроить — тело
-// callModerationAI() ниже: замените его на fetch к тому же провайдеру, что
-// использует AI Chef. Пока эндпоинт не подключён, автоматически работает
-// резервная эвристика (heuristicSpamCheck) — фича полностью рабочая и без AI,
-// просто менее точная.
-
-// Точка интеграции с реальным AI-эндпоинтом (тем же, что у AI Chef)
+// Использует уже готовый рабочий AI-эндпоинт модерации из moderation_ai.js
+// (AXIO_MODERATION_ENDPOINT, тот же принцип авторизации через Firebase ID-токен,
+// что у AI Chef). moderateTextWithAI сама делает fetch к воркеру и сама же
+// откатывается на локальную regex-эвристику (fallbackModeration), если
+// воркер недоступен/не ответил — поэтому она практически никогда не бросает
+// исключение, и внешний catch(heuristicSpamCheck) в runSpamPreFilter служит
+// доп. подстраховкой на случай, если сам moderation_ai.js не загрузился.
 async function callModerationAI(promptText) {
-    // TODO: заменить на реальный вызов, например:
-    //
-    // const res = await fetch(AI_CHEF_ENDPOINT, {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ prompt: promptText, response_format: 'json' })
-    // });
-    // const data = await res.json();
-    // return JSON.parse(data.text); // ожидаем { suspicious: bool, reason: string|null }
-    //
-    // Пока не настроено — сообщаем вызывающему коду, что нужно использовать эвристику.
-    throw new Error('AI moderation endpoint is not configured yet');
+    if (typeof moderateTextWithAI !== 'function') {
+        throw new Error('Модуль модерации (moderation_ai.js) не загружен');
+    }
+    return await moderateTextWithAI(promptText, 'recipe');
 }
 
 // Резервная эвристика — без AI, ловит самые очевидные случаи спама/мусора/дублей
@@ -9098,10 +8949,10 @@ async function loadPendingRecipes() {
             card.innerHTML = `
                 <div style="display:flex; align-items:center;">
                     <input type="checkbox" class="pending-select-checkbox" onclick="event.stopPropagation(); toggleSelectPending('${id}')">
-                    <img src="${r.image || 'https://via.placeholder.com/50'}">
+                    <img src="${escapeHtml(r.image || 'https://via.placeholder.com/50')}">
                     <div>
-                        <div style="font-weight:bold; color:var(--text-primary)">${r.name.ru || r.name}</div>
-                        <div style="font-size:0.8em; color:var(--text-secondary);">от ${r.authorName || 'Аноним'} • ${r.category}</div>
+                        <div style="font-weight:bold; color:var(--text-primary)">${escapeHtml(r.name.ru || r.name)}</div>
+                        <div style="font-size:0.8em; color:var(--text-secondary);">от ${escapeHtml(r.authorName || 'Аноним')} • ${escapeHtml(r.category)}</div>
                     </div>
                 </div>
                 <div class="pending-card-actions" style="display:flex; align-items:center; gap:8px;">
@@ -9196,24 +9047,27 @@ async function previewPendingRecipe(docId) {
             : '';
 
         // Формируем HTML для превью (похоже на showRecipeDetail, но проще)
+        // ВАЖНО: r приходит из pending_recipes, куда может писать любой авторизованный
+        // пользователь (см. правила Firestore) — это ЧУЖОЙ ввод, который попадёт
+        // в браузер администратора. Экранируем ВСЁ текстовое содержимое.
         content.innerHTML = `
             ${flagBannerHtml}
-            <img src="${r.image}" style="width:100%; height:200px; object-fit:cover; border-radius:10px; margin-bottom:15px;">
-            <h2>${r.name.ru || r.name}</h2>
-            <p style="color:var(--text-secondary); margin-bottom:10px;">${r.description?.ru || "Нет описания"}</p>
+            <img src="${escapeHtml(r.image || '')}" style="width:100%; height:200px; object-fit:cover; border-radius:10px; margin-bottom:15px;">
+            <h2>${escapeHtml(r.name.ru || r.name)}</h2>
+            <p style="color:var(--text-secondary); margin-bottom:10px;">${escapeHtml(r.description?.ru || "Нет описания")}</p>
             
             <div style="background:var(--bg); padding:10px; border-radius:8px; margin-bottom:10px;">
-                <strong><i class="fas fa-clock"></i> Время:</strong> ${r.time}<br>
-                <strong><i class="fas fa-layer-group"></i> Сложность:</strong> ${r.difficulty?.en || 'Medium'}
+                <strong><i class="fas fa-clock"></i> Время:</strong> ${escapeHtml(r.time)}<br>
+                <strong><i class="fas fa-layer-group"></i> Сложность:</strong> ${escapeHtml(r.difficulty?.en || 'Medium')}
             </div>
 
             <h4>Ингредиенты:</h4>
             <ul style="margin-bottom:15px; padding-left:20px;">
-                ${r.ingredients.map(i => `<li>${i.name} (${i.amount} ${i.unit})</li>`).join('')}
+                ${r.ingredients.map(i => `<li>${escapeHtml(i.name)} (${escapeHtml(i.amount)} ${escapeHtml(i.unit)})</li>`).join('')}
             </ul>
             
             <h4>Инструкция:</h4>
-            <div style="font-size:0.9em; line-height:1.5;">${(r.instructions?.ru || '').replace(/\n/g, '<br>')}</div>
+            <div style="font-size:0.9em; line-height:1.5;">${escapeHtml(r.instructions?.ru || '').replace(/\n/g, '<br>')}</div>
         `;
 
         // Навешиваем обработчики на кнопки в модалке
@@ -9916,10 +9770,10 @@ async function rejectRecipeWithReason(docId, reason) {
             <img src="${mainImage}" class="recipe-image" loading="lazy">
             <div class="recipe-content">
                 <div class="recipe-header">
-                    <div class="recipe-title">${r.name[currentLang]||r.name.ru}</div>
-                    <div class="recipe-time"><i class="fas fa-clock"></i> ${r.time} <i class="fas fa-fire" style="margin-left:5px; color:${fireColor}"></i></div>
+                    <div class="recipe-title">${escapeHtml(r.name[currentLang]||r.name.ru)}</div>
+                    <div class="recipe-time"><i class="fas fa-clock"></i> ${escapeHtml(r.time)} <i class="fas fa-fire" style="margin-left:5px; color:${fireColor}"></i></div>
                 </div>
-                <div class="recipe-ingredients-preview">${check.missing.slice(0,3).map(m=>`<span class="ingredient-tag missing">${m.name}</span>`).join('')}</div>
+                <div class="recipe-ingredients-preview">${check.missing.slice(0,3).map(m=>`<span class="ingredient-tag missing">${escapeHtml(m.name)}</span>`).join('')}</div>
                 <div class="recipe-actions-bar" onclick="event.stopPropagation()">
                     <div style="display:flex; gap:5px;">
                         <button class="action-btn like-btn ${isLiked ? 'active' : ''}" onclick="toggleRecipeStatus(${r.id}, 'like')"><i class="${isLiked ? 'fas' : 'far'} fa-heart"></i></button>
@@ -10245,21 +10099,6 @@ function setShoppingFilter(filterType, btnElement) {
     updateShoppingList();
 }
 
-function filterMealSelector() {
-    renderMealSelectorList();
-}
-
-function confirmAddToPlan(recipeId) {
-    if(!currentPlannerDay) return;
-    
-    if(!mealPlan[currentPlannerDay]) mealPlan[currentPlannerDay] = [];
-    mealPlan[currentPlannerDay].push(recipeId);
-    
-    hideModal('meal-selector-modal');
-    renderPlanner(); // Refresh planner view
-    showToast("Блюдо добавлено в план", "success");
-}
-
 // Updated Render Planner (Better CSS structure)
 
 // Remove item from plan
@@ -10267,6 +10106,7 @@ function removeFromPlan(day, index) {
     if(mealPlan[day]) {
         mealPlan[day].splice(index, 1);
         renderPlanner();
+        saveData();
     }
 }
 
@@ -10381,6 +10221,27 @@ async function checkAchievements(triggerType, payload = null) {
         function showToast(msg, type = 'success') {
             const toast = document.getElementById('toast'); document.getElementById('toast-message').textContent = msg;
             toast.className = type; toast.style.display = 'flex'; setTimeout(() => { toast.style.display = 'none'; toast.className = ''; }, 3000);
+        }
+
+        // Единая расшифровка сетевых/Firestore-ошибок в понятное для пользователя сообщение.
+        // Раньше почти везде было просто "Ошибка" — не ясно, что случилось и что делать
+        // (переподключаться, ждать, или проблема не в сети вовсе).
+        function describeFirestoreError(e) {
+            if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) {
+                return 'Нет подключения к интернету. Попробуем сохранить снова, когда связь восстановится.';
+            }
+            const code = e && e.code;
+            switch (code) {
+                case 'unavailable':
+                case 'deadline-exceeded':
+                    return 'Сервер сейчас не отвечает — похоже, слабое или нестабильное соединение. Попробуйте ещё раз.';
+                case 'permission-denied':
+                    return 'Нет доступа к этим данным. Попробуйте перезайти в аккаунт.';
+                case 'resource-exhausted':
+                    return 'Сервер временно перегружен, попробуйте через минуту.';
+                default:
+                    return e && e.message ? `Ошибка связи с сервером: ${e.message}` : 'Не удалось связаться с сервером.';
+            }
         }
 
 // --- НОВАЯ ЛОГИКА АЛЛЕРГИЙ И ЧЕРНОГО СПИСКА ---
@@ -10505,11 +10366,15 @@ function showModal(id) { document.getElementById(id).style.display = 'flex'; }
             const modal = document.getElementById(id); modal.style.display = 'none';
             const form = modal.querySelector('form'); if (form) form.reset();
             const qtyInput = document.getElementById('product-qty'); if(qtyInput) qtyInput.value = 1;  
-            if (id === 'settings-modal') {
-        renderBlacklistTags();
-    }
             if ((id === 'fridge-select-modal' || id === 'fridge-qr-scanner-modal') && typeof fridgeQrScannerInstance !== 'undefined' && fridgeQrScannerInstance) {
                 closeFridgeQrScanner();
+            }
+            // Модалка готовки могла оставить висеть setInterval таймера шага, если её
+            // закрыли крестиком/свайпом/оверлеем, а не кнопкой "Стоп" (которая сама
+            // чистит activeTimerInterval через cancelStepTimer()). Без этого таймер
+            // тикает в фоне бесконечно, продолжая играть звук/вибрацию по истечении.
+            if (id === 'cooking-mode-modal' && typeof cancelStepTimer === 'function' && typeof activeTimerInterval !== 'undefined' && activeTimerInterval) {
+                cancelStepTimer();
             }
         }
 
@@ -12238,6 +12103,7 @@ if(localRecipe) {
         cookedDishes++;
         userCO2Total += dishCO2;
         addXp(50); // Больше опыта за интерактивный режим!
+        checkAchievements('cook', recipe.category);
         saveData();
         updateInventoryList();
         updateRecipesList();
@@ -12341,15 +12207,6 @@ function togglePushNotifications(checkboxEl) {
 
 
 
-
-// 1. Переключение вкладок внутри модалки пользователя
-function switchAdmUserTab(tabName) {
-    document.querySelectorAll('.adm-user-tab').forEach(t => t.classList.remove('active'));
-    event.target.classList.add('active');
-    
-    document.querySelectorAll('.adm-tab-view').forEach(v => v.style.display = 'none');
-    document.getElementById(`adm-tab-${tabName}`).style.display = 'block';
-}
 
 // 2. Сохранение профиля (все поля и чекбоксы разом)
 async function saveAdmUserProfile(uid) {
@@ -12536,7 +12393,7 @@ function renderRecipeIngredientsWithMultiplier(id) {
         const hasEnough = userItem && userItem.qty >= (ing.amount * currentPortions);
         
         const li = document.createElement('li');
-        const ingText = `${ing.name}: ${totalAmount} ${ing.unit}`;
+        const ingText = escapeHtml(`${ing.name}: ${totalAmount} ${ing.unit}`);
         
         if (hasEnough) {
             li.className = 'have-item';
@@ -12552,87 +12409,6 @@ function renderRecipeIngredientsWithMultiplier(id) {
     });
 }
 
-// --- BLACKLIST LOGIC ---
-
-function renderBlacklistTags() {
-    const container = document.getElementById('blacklist-tags');
-    if (!container) return;
-    container.innerHTML = '';
-    
-    userBlacklist.forEach((item, index) => {
-        const tag = document.createElement('div');
-        tag.style.cssText = `
-            background: rgba(239, 68, 68, 0.15); 
-            color: #EF4444; 
-            padding: 5px 10px; 
-            border-radius: 15px; 
-            font-size: 0.85em; 
-            display: flex; 
-            align-items: center; 
-            gap: 8px; 
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        `;
-        tag.innerHTML = `<span>${item}</span> <i class="fas fa-times" onclick="removeFromBlacklist(${index})" style="cursor:pointer"></i>`;
-        container.appendChild(tag);
-    });
-}
-
-function addToBlacklist() {
-    const input = document.getElementById('blacklist-input');
-    const val = input.value.trim();
-    if (val && !userBlacklist.includes(val)) {
-        userBlacklist.push(val);
-        input.value = '';
-        saveData(false);
-        renderBlacklistTags();
-        updateRecipesList(); // Сразу обновляем ленту рецептов
-        showToast(`"${val}" добавлено в черный список`, "success");
-    }
-}
-
-const originalShowModal = showModal;
-showModal = function(id) {
-    originalShowModal(id);
-    if (id === 'settings-modal') {
-        renderBlacklistTags();
-    }
-}
-
-// Вроде все ненужное удалил
-function initAdminCharts() {
-    // Activity Chart
-    const ctx1 = document.getElementById('adminChartActivity').getContext('2d');
-    new Chart(ctx1, {
-        type: 'line',
-        data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            datasets: [{
-                label: 'Активные пользователи (DAU)',
-                data: [12, 19, 15, 25, 22, 30, 45],
-                borderColor: '#10B981',
-                tension: 0.4,
-                fill: true,
-                backgroundColor: 'rgba(16, 185, 129, 0.1)'
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
-
-    // Category Chart
-    const ctx2 = document.getElementById('adminChartCategories').getContext('2d');
-    new Chart(ctx2, {
-        type: 'doughnut',
-        data: {
-            labels: ['Завтраки', 'Супы', 'Второе', 'Десерты'],
-            datasets: [{
-                data: [30, 15, 40, 15],
-                backgroundColor: ['#F59E0B', '#3B82F6', '#EF4444', '#8B5CF6'],
-                borderWidth: 0
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-    });
-}
 
 function filterAdminUsers() {
     const q = document.getElementById('admin-user-search').value.toLowerCase();
@@ -12779,8 +12555,8 @@ async function openUserDetail(uid) {
                     ${(u.inventory || []).map((item, idx) => `
                         <div class="adm-list-item">
                             <div>
-                                <b>${item.name}</b> <small>(${item.qty} ${item.unit})</small>
-                                <div style="font-size:0.7em; color:gray">Годен до: ${item.expiryDate || 'N/A'}</div>
+                                <b>${escapeHtml(item.name)}</b> <small>(${escapeHtml(item.qty)} ${escapeHtml(item.unit)})</small>
+                                <div style="font-size:0.7em; color:gray">Годен до: ${escapeHtml(item.expiryDate || 'N/A')}</div>
                             </div>
                             <button class="small-action-btn" style="background:var(--error); padding:2px 8px;" onclick="admDeleteItem('${uid}', 'inventory', ${idx})">
                                 <i class="fas fa-trash"></i>
@@ -12799,7 +12575,7 @@ async function openUserDetail(uid) {
                     ${(u.shopping || []).map((item, idx) => `
                         <div class="adm-list-item">
                             <div style="${item.completed ? 'text-decoration:line-through; opacity:0.6' : ''}">
-                                <b>${item.name}</b> <small>(${item.qty} ${item.unit})</small>
+                                <b>${escapeHtml(item.name)}</b> <small>(${escapeHtml(item.qty)} ${escapeHtml(item.unit)})</small>
                             </div>
                             <button class="small-action-btn" style="background:var(--error); padding:2px 8px;" onclick="admDeleteItem('${uid}', 'shopping', ${idx})">
                                 <i class="fas fa-trash"></i>
@@ -13097,25 +12873,6 @@ async function admAction(type, uid, val) {
 }
 
 // 5. CONTENT & SYSTEM TOOLS
-// ФУНКЦИЯ 6 (Реализация): Бэкап
-function exportDatabase() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(globalRecipes));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "recipes_backup_" + new Date().toISOString() + ".json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-}
-
-// ФУНКЦИЯ 3 (Реализация): Объявление
-function sendGlobalAnnouncement() {
-    const text = document.getElementById('global-announce-input').value;
-    if(!text) return;
-    // ИСПРАВЛЕНО: Добавлены обратные кавычки
-    showToast(`Отправлено всем: "${text}"`, "success");
-}
-
 /* --- 10 POWER TOOLS FOR ADMIN (FULLY FUNCTIONAL) --- */
 
 // 1. Recipe Analytics (Что готовят?) - РЕАЛИЗОВАНО ЧЕРЕЗ КЭШ
@@ -13566,12 +13323,14 @@ async function bulkApproveSelected() {
     if (ids.length === 0) return;
     if (!confirm(`Одобрить ${ids.length} рецепт(ов)?`)) return;
 
-    for (const id of ids) {
-        const r = window.pendingRecipesCache[id];
-        if (r) await approveRecipe(id, r);
-    }
-    logAdmin(`Массово одобрено рецептов: ${ids.length}`, 'moderation');
-    showToast(`Одобрено рецептов: ${ids.length}`, 'success');
+    requireAdminReauth(`Массовое одобрение ${ids.length} рецепт(ов). Введите пароль администратора, чтобы продолжить.`, async () => {
+        for (const id of ids) {
+            const r = window.pendingRecipesCache[id];
+            if (r) await approveRecipe(id, r);
+        }
+        logAdmin(`Массово одобрено рецептов: ${ids.length}`, 'moderation');
+        showToast(`Одобрено рецептов: ${ids.length}`, 'success');
+    });
 }
 
 async function bulkRejectSelected() {
@@ -13580,11 +13339,13 @@ async function bulkRejectSelected() {
     const reason = prompt('Причина отклонения для всех выбранных:', 'Не соответствует правилам');
     if (reason === null) return;
 
-    for (const id of ids) {
-        await rejectRecipeWithReason(id, reason);
-    }
-    logAdmin(`Массово отклонено рецептов: ${ids.length} (${reason})`, 'moderation');
-    showToast(`Отклонено рецептов: ${ids.length}`, 'success');
+    requireAdminReauth(`Массовое отклонение ${ids.length} рецепт(ов). Введите пароль администратора, чтобы продолжить.`, async () => {
+        for (const id of ids) {
+            await rejectRecipeWithReason(id, reason);
+        }
+        logAdmin(`Массово отклонено рецептов: ${ids.length} (${reason})`, 'moderation');
+        showToast(`Отклонено рецептов: ${ids.length}`, 'success');
+    });
 }
 
 // ================= Быстрый выбор причины отклонения =================
@@ -13891,29 +13652,6 @@ async function setMOTD() {
     }
 }
 
-// 9. Export Emails
-function exportUserEmails() {
-    const emails = allUsersCache.map(u => u.email).filter(e => e).join('\n');
-    const blob = new Blob([emails], {type: "text/plain"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = "users_emails_list.txt";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    logAdmin("Список Email скачан.");
-}
-
-// 10. Flush Cache
-function flushAllCaches() {
-    // Меняет версию ресурсов в конфиге, заставляя клиентов обновиться
-    const ver = Date.now().toString();
-    db.collection('global_settings').doc('config').update({ resourceVersion: ver });
-    logAdmin(`Cache flush signal sent (v${ver})`);
-    showToast("Сигнал очистки кэша отправлен", "success");
-}
-
 // 11. Maintenance Toggle
 async function toggleMaintenance() {
     const doc = await db.collection('global_settings').doc('config').get();
@@ -13930,12 +13668,6 @@ async function forceLogoutAll() {
     await db.collection('global_settings').doc('config').update({ minSessionVersion: Date.now() });
     logAdmin("Kill switch activated.");
     showToast("Все сессии сброшены", "success");
-}
-
-// 13. View Logs
-function viewErrorLogs() {
-    // В реальном приложении это запрос к коллекции 'error_logs'
-    showAdminResultModal("Логи ошибок", "<p>За последние 24 часа критических ошибок не зафиксировано.</p>");
 }
 
 // 14. Auto-Fix Broken Images
@@ -13968,37 +13700,6 @@ async function seedFakeUsers() {
     }
 }
 
-// 18. Unlock All Recipes (For Admin)
-function unlockAllForMe() {
-    // Локальный хак
-    userLevel = 100;
-    userXp = 999999;
-    showToast("Вы теперь Бог Кухни (Локально)", "success");
-    updateHeader();
-}
-
-function exportData(type) {
-    let dataStr = "";
-    if(type === 'recipes') {
-        dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(globalRecipes));
-    }
-    
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `axio_${type}_export.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    logAdmin(`Exported ${type} data.`);
-}
-
-function adminClearCache() {
-    if(confirm("Очистить LocalStorage и перезагрузить?")) {
-        localStorage.clear();
-        location.reload();
-    }
-}
-
 /* --- NEW ADMIN LOGIC & FEATURES --- */
 // 2. Функция: Глобальный буст XP (Вкл/Выкл флаг в БД)
 async function toggleGlobalBoost(checkbox) {
@@ -14021,13 +13722,6 @@ async function givePremium(uid) {
         logAdmin(`Gave premium to ${uid}`);
         loadAllUsers();
     } catch(e) { showToast(e.message, "error"); }
-}
-
-// 4. Функция: Сброс пароля (имитация отправки письма)
-function sendResetEmail(email) {
-    auth.sendPasswordResetEmail(email)
-        .then(() => showToast("Письмо для сброса отправлено", "info"))
-        .catch(e => showToast(e.message, "error"));
 }
 
 // 5. Функция: Просмотр инвентаря пользователя (Spy View)
@@ -14085,27 +13779,6 @@ async function cleanupOldData() {
         logAdmin("Cleanup finished. Freed 1.2MB space.");
         showToast("База очищена", "success");
     }, 1500);
-}
-
-// 10. Функция: Бэкап базы
-function backupDB() {
-    const data = {
-        users: allUsersCache,
-        recipes: globalRecipes
-    };
-    const str = JSON.stringify(data, null, 2);
-    const blob = new Blob([str], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `axio_backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    logAdmin("Backup generated.");
-}
-
-function toggleAdsGlobal(checkbox) {
-    db.collection('global_settings').doc('config').set({ adsDisabled: checkbox.checked }, { merge: true });
-    logAdmin(`Ads Global Status: ${!checkbox.checked}`);
 }
 
 // 3. НОВОЕ: РЕДАКТИРОВАНИЕ РЕЦЕПТОВ (Перед одобрением)
@@ -14451,8 +14124,7 @@ function finalizePlanUpdate() {
     renderPlanner(); // Обновляем отображение планировщика
     hideModal('meal-selector-modal'); // Закрываем окно
     showToast("Блюдо добавлено!", "success");
-    // Здесь можно добавить сохранение mealPlan в базу данных, если есть такая функция
-    // saveData(); 
+    saveData(); // Persist mealPlan в Firestore, иначе план теряется при перезагрузке
 }
 
 // 6. Отрисовка планировщика: неделя реальных дат (plannerWeekStart .. +6 дней)
@@ -14659,24 +14331,7 @@ async function loadFeedback() {
 }
 
 // 4. Аналитика: Топ-5 Популярных продуктов (из истории всех юзеров)
-// Примечание: Это требует cloud function для идеальной работы, но сделаем эмуляцию по кэшу
-function analyzeTopProducts() {
-    alert("Анализ запущен... (См. консоль)");
-    // В реальном проекте тут агрегация BigQuery.
-    // Тут мы просто выведем алерт.
-    showToast("Функция требует Cloud Functions (Plan Blaze)", "info");
-}
-
 // 5. "Красная Кнопка" (Сброс кэша всех картинок)
-// Полезно если изменились URL аватаров
-function flushImageCache() {
-    if(confirm("Принудительно обновить картинки у всех? (Изменит версию CSS)")) {
-        // Логика обновления версии конфига
-        db.collection('global_settings').doc('config').update({ resourceVersion: Date.now() });
-        showToast("Команда обновления кэша отправлена", "success");
-    }
-}
-
 // 6. Генератор случайных "Ежедневных заданий"
 async function generateDailyQuest() {
     const quests = ["Приготовь суп", "Купи 3 овоща", "Не выбрасывай еду сегодня"];
@@ -14697,12 +14352,6 @@ async function shadowBanUser(uid) {
     showToast("Пользователь скрыт (Shadowban)", "success");
 }
 
-// 9. Отправить Push-уведомление (Симуляция)
-function sendPushNotification() {
-    const msg = prompt("Текст пуша:");
-    if(msg) showToast(`Push отправлен ${allUsersCache.length} устройствам`, "success");
-}
-
 // 10. Удаление старых логов (Cleanup) - ИСПРАВЛЕННАЯ ВЕРСИЯ
 async function cleanupFeedback() {
     // Добавили подтверждение из второй функции
@@ -14721,39 +14370,6 @@ async function cleanupFeedback() {
 }
 
 // --- НОВЫЕ ФУНКЦИИ ИНСТРУМЕНТОВ ---
-// 2. Поиск юзера по Email
-function promptUserLookup() {
-    const email = prompt("Введите Email пользователя:");
-    if(!email) return;
-    
-    const user = allUsersCache.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-    
-    if(user) {
-        alert(`Нашел!\nID: ${user.id}\nИмя: ${user.name}\nУровень: ${user.level}\nXP: ${user.xp}\nБан: ${user.isBanned}`);
-    } else {
-        alert("Пользователь не найден в кэше (обновите список во вкладке Юзеры).");
-    }
-}
-
-// 3. Симуляция Пуша (Тест уведомлений)
-function simulateBroadcast() {
-    const msg = prompt("Текст тестового уведомления:");
-    if(!msg) return;
-    
-    // Добавляем уведомление самому себе для теста
-    userNotifications.push({
-        id: Date.now(),
-        type: 'info',
-        message: `📢 TEST: ${msg}`,
-        icon: 'fas fa-broadcast-tower',
-        date: new Date().toISOString(),
-        read: false
-    });
-    updateHeader();
-    updateNotificationsList();
-    showToast("Тестовый пуш отправлен вам", "success");
-}
-
 // 4. Диагностика (Пинг)
 async function runDiagnostics(btn) {
     const oldHtml = btn.innerHTML;
@@ -17664,6 +17280,30 @@ function fallbackCopy(text) {
                 <h4>Глобальная Рассылка</h4>
                 <p>Уведомление всем юзерам</p>
             </div>
+
+            <div class="tool-card warning" onclick="openAnnouncementModal()">
+                <div class="tool-card-icon"><i class="fas fa-bell"></i></div>
+                <h4>Объявление</h4>
+                <p>Опубликовать в ленту анонсов</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openQuestSelector()">
+                <div class="tool-card-icon"><i class="fas fa-scroll"></i></div>
+                <h4>Ежедневный Квест</h4>
+                <p>Назначить задание дня</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openSpeedTestModal()">
+                <div class="tool-card-icon"><i class="fas fa-gauge-high"></i></div>
+                <h4>Тест Скорости</h4>
+                <p>Проверка соединения с сервером</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openSystemTestsModal()">
+                <div class="tool-card-icon"><i class="fas fa-stethoscope"></i></div>
+                <h4>Диагностика</h4>
+                <p>Системные тесты и пинг</p>
+            </div>
         </div>
     </div>
 
@@ -18371,6 +18011,12 @@ function fallbackCopy(text) {
         </p>
 
         <div id="allergies-grid-container" class="allergies-grid"></div>
+
+        <div class="blacklist-input-container">
+            <input type="text" id="blacklist-input-modal" class="styled-input" placeholder="Добавить продукт в черный список..." onkeypress="if(event.key==='Enter') addBlacklistItemFromModal()">
+            <button class="btn btn-primary" onclick="addBlacklistItemFromModal()" style="width:auto; padding: 0 16px;"><i class="fas fa-plus"></i></button>
+        </div>
+        <div id="blacklist-chips-container" class="blacklist-chips"></div>
 
         <button class="btn btn-primary" onclick="hideModal('allergies-modal')" style="margin-top: 20px;">
             Готово

@@ -24,7 +24,7 @@ const SPAM_LINK_PATTERNS = {
  * @param {string} text
  * @returns {{ hasSpamLinks: boolean, reasons: string[], matches: Object }}
  */
-export function detectSpamLinks(text) {
+function detectSpamLinks(text) {
     const str = (text || '').toString();
     const urls = str.match(SPAM_LINK_PATTERNS.url) || [];
     const telegram = str.match(SPAM_LINK_PATTERNS.telegram) || [];
@@ -50,7 +50,7 @@ export function detectSpamLinks(text) {
  * @param {string} text
  * @returns {ReturnType<detectSpamLinks>}
  */
-export function checkTextForSpamLinks(text) {
+function checkTextForSpamLinks(text) {
     return detectSpamLinks(text);
 }
 
@@ -86,7 +86,7 @@ function djb2Hash(str) {
 /**
  * Получить текстовое содержимое рецепта для проверки
  */
-export function getRecipeFullText(recipe) {
+function getRecipeFullText(recipe) {
     if (!recipe) return '';
     const name = recipe.name?.ru || recipe.name || '';
     const desc = recipe.description?.ru || recipe.description || '';
@@ -99,7 +99,7 @@ export function getRecipeFullText(recipe) {
 /**
  * Генерация хэша содержимого рецепта (ингредиенты + шаги)
  */
-export function generateRecipeContentHash(recipe) {
+function generateRecipeContentHash(recipe) {
     if (!recipe) return '';
     const ingredientsNorm = (recipe.ingredients || [])
         .map(i => normalizeForHash(i.name))
@@ -118,7 +118,7 @@ export function generateRecipeContentHash(recipe) {
  * @param {Array<{id: string, recipe: Object}>} existingList - массив с полями id и recipe
  * @returns {{ id: string, hash: string } | null}
  */
-export function findDuplicateByHash(newRecipe, existingList) {
+function findDuplicateByHash(newRecipe, existingList) {
     const targetHash = generateRecipeContentHash(newRecipe);
     if (!targetHash) return null;
     const match = (existingList || []).find(
@@ -177,7 +177,7 @@ async function callWorker(payload) {
  * @param {string} type - 'recipe' | 'fridge' | 'username' | 'comment'
  * @returns {Promise<{suspicious: boolean, reason: string|null}>}
  */
-export async function moderateTextWithAI(text, type = 'recipe') {
+async function moderateTextWithAI(text, type = 'recipe') {
     if (!text || text.length < 3) {
         return { suspicious: false, reason: null };
     }
@@ -195,7 +195,7 @@ export async function moderateTextWithAI(text, type = 'recipe') {
  * @param {string} type - контекст (например, 'recipe')
  * @returns {Promise<{suspicious: boolean, reason: string|null}>}
  */
-export async function moderateImageWithAI(imageBase64, type = 'recipe') {
+async function moderateImageWithAI(imageBase64, type = 'recipe') {
     if (!imageBase64 || imageBase64.length < 100) {
         return { suspicious: false, reason: null };
     }
@@ -215,7 +215,7 @@ export async function moderateImageWithAI(imageBase64, type = 'recipe') {
 /**
  * Эвристическая проверка (без AI) – быстрый фильтр
  */
-export function fallbackModeration(text) {
+function fallbackModeration(text) {
     const spam = detectSpamLinks(text);
     if (spam.hasSpamLinks) {
         return { suspicious: true, reason: `Обнаружены: ${spam.reasons.join(', ')}` };
@@ -234,7 +234,7 @@ export function fallbackModeration(text) {
 /**
  * Умная проверка: сначала эвристика, потом AI при необходимости
  */
-export async function moderateTextSmart(text, type = 'recipe') {
+async function moderateTextSmart(text, type = 'recipe') {
     const heuristic = fallbackModeration(text);
     if (heuristic.suspicious) {
         // Уточняем через AI
@@ -261,7 +261,7 @@ export async function moderateTextSmart(text, type = 'recipe') {
  *   imageResult: Object | null
  * }>}
  */
-export async function moderateRecipe(recipe, existingRecipes = [], imageBase64 = null) {
+async function moderateRecipe(recipe, existingRecipes = [], imageBase64 = null) {
     const result = {
         suspicious: false,
         reasons: [],
@@ -324,7 +324,7 @@ export async function moderateRecipe(recipe, existingRecipes = [], imageBase64 =
 /**
  * Проверка названия холодильника (быстрая)
  */
-export async function moderateFridgeName(name) {
+async function moderateFridgeName(name) {
     if (!name) return { suspicious: false, reason: null };
     // сначала эвристика
     const heuristic = fallbackModeration(name);
@@ -342,7 +342,7 @@ export async function moderateFridgeName(name) {
 /**
  * Проверка имени пользователя
  */
-export async function moderateUsername(name) {
+async function moderateUsername(name) {
     if (!name) return { suspicious: false, reason: null };
     const heuristic = fallbackModeration(name);
     if (heuristic.suspicious) {
@@ -358,7 +358,7 @@ export async function moderateUsername(name) {
 /**
  * Проверка комментария
  */
-export async function moderateComment(text) {
+async function moderateComment(text) {
     if (!text) return { suspicious: false, reason: null };
     const heuristic = fallbackModeration(text);
     if (heuristic.suspicious) {
@@ -375,7 +375,7 @@ export async function moderateComment(text) {
 // 7. ЭКСПОРТ ВСЕХ ФУНКЦИЙ (для удобства)
 // ============================================================
 
-export default {
+const ModerationAI = {
     detectSpamLinks,
     checkTextForSpamLinks,
     getRecipeFullText,

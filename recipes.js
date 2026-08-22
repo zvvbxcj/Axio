@@ -3,7 +3,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 101, 
         category: "breakfast",
-        taste: ",", 
         time: "15 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Сытный Омлет с томатами", en: "Hearty Omelette" },
@@ -34,7 +33,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 102, 
         category: "breakfast",
-        taste: ",", 
         time: "10 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Овсянка с бананом и медом", en: "Banana Oatmeal" },
@@ -63,7 +61,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 103, 
         category: "breakfast",
-        taste: ",", 
         time: "30 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Нежные Сырники", en: "Cheese Pancakes" },
@@ -95,7 +92,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 201, 
         category: "soup",
-        taste: ",", 
         time: "90 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Борщ Домашний", en: "Classic Borscht" },
@@ -127,8 +123,7 @@ window.recipesDB = window.recipesDB || [
     },
     {
         id: 202, 
-        category: "soup", 
-        taste: ",",
+        category: "soup",
         time: "35 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Крем-суп из тыквы", en: "Pumpkin Cream Soup" },
@@ -160,7 +155,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 301, 
         category: "pasta",
-        taste: ",", 
         time: "20 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Паста Карбонара", en: "Pasta Carbonara" },
@@ -192,7 +186,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 302, 
         category: "pasta",
-        taste: ",", 
         time: "25 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Фетучини с грибами", en: "Mushroom Fettuccine" },
@@ -224,7 +217,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 401, 
         category: "main",
-        taste: ",", 
         time: "40 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Курица Терияки с рисом", en: "Teriyaki Chicken" },
@@ -254,7 +246,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 402, 
         category: "main",
-        taste: ",", 
         time: "45 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Запеченный Лосось с картофелем", en: "Baked Salmon" },
@@ -285,7 +276,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 403, 
         category: "main",
-        taste: ",", 
         time: "40 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Сочные котлеты из индейки", en: "Turkey Cutlets" },
@@ -318,7 +308,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 501, 
         category: "salad",
-        taste: ",", 
         time: "15 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Греческий Салат", en: "Greek Salad" },
@@ -349,7 +338,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 502, 
         category: "salad",
-        taste: ",", 
         time: "25 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Салат Цезарь с курицей", en: "Caesar Salad" },
@@ -554,8 +542,7 @@ window.recipesDB = window.recipesDB || [
     // --- ВЕГЕТАРИАНСКОЕ ---
     {
         id: 601, 
-        category: "veg",
-        taste: ",", 
+        category: "vegetarian",
         time: "15 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Тост с авокадо и яйцом", en: "Avocado Toast" },
@@ -583,8 +570,7 @@ window.recipesDB = window.recipesDB || [
     },
     {
         id: 602, 
-        category: "veg",
-        taste: ",", 
+        category: "vegetarian",
         time: "40 min", 
         difficulty: {ru:"Легко", en:"Easy"},
         name: { ru: "Рататуй по-домашнему", en: "Simple Ratatouille" },
@@ -616,7 +602,6 @@ window.recipesDB = window.recipesDB || [
     {
         id: 701, 
         category: "dessert",
-        taste: ",", 
         time: "50 min", 
         difficulty: {ru:"Средне", en:"Medium"},
         name: { ru: "Банановый хлеб (Кекс)", en: "Banana Bread" },

@@ -1,5 +1,5 @@
 /* --- Base Styles and Variables (Dark Theme Default) --- */
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
 
         :root {
             /* Dark Theme */
@@ -23,8 +23,8 @@
             --app-max-width: 480px;
         }
 
-        * { font-size: var(--base-font-size); }
-.section h3 { font-size: var(--h3-font-size); }
+        
+
 
         /* --- Light Theme Variables --- */
         .light-theme {
@@ -41,10 +41,7 @@
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
-* {
-    scrollbar-width: thin;
-    scrollbar-color: var(--surface-lighter) transparent;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; font-size: var(--base-font-size); scrollbar-width: thin; scrollbar-color: var(--surface-lighter) transparent; }
 
 *::-webkit-scrollbar {
     width: 6px;
@@ -512,24 +509,18 @@
     transition: opacity 0.3s ease;
 }
 
-.server-state-btn {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--surface-light);
-    border: 2px solid transparent;
-    padding: 10px; border-radius: 12px;
-    cursor: pointer; transition: 0.2s; position: relative;
-}
-.server-state-btn:hover { transform: translateY(-2px); background: var(--surface-lighter); }
-.server-state-btn.active { border-color: var(--primary); background: rgba(16, 185, 129, 0.1); }
+
+
+
 .state-dot { width: 10px; height: 10px; border-radius: 50%; }
 .state-info { display: flex; flex-direction: column; }
 .state-info strong { font-size: 0.9em; color: var(--text-primary); }
 .state-info span { font-size: 0.7em; color: var(--text-secondary); }
 .state-check { position: absolute; top: 10px; right: 10px; color: var(--primary); display: none; }
-.server-state-btn.active .state-check { display: block; }
 
-#state-btn-maintenance.active { border-color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
-#state-btn-maintenance.active .state-check { color: #F59E0B; }
+
+
+
 #state-btn-readonly.active { border-color: #3B82F6; background: rgba(59, 130, 246, 0.1); }
 #state-btn-readonly.active .state-check { color: #3B82F6; }
 #state-btn-overload.active { border-color: #EF4444; background: rgba(239, 68, 68, 0.1); }
@@ -746,14 +737,7 @@
 }
 
 /* Эффект полок */
-.fridge-shelf {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 15px;
-    padding-bottom: 15px;
-    margin-bottom: 15px;
-    border-bottom: 8px solid rgba(0,0,0,0.1); /* Линия полки */
-}
+
 .fridge-shelf:last-child { border-bottom: none; }
 
 .fridge-item-card {
@@ -815,37 +799,11 @@
 }
 
 /* --- КРАСИВАЯ ПАНЕЛЬ ИНСТРУМЕНТОВ --- */
-.admin-tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 15px;
-    padding-bottom: 20px;
-}
 
-.tool-card {
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 20px 15px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    min-height: 150px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-}
 
-.tool-card:hover {
-    transform: translateY(-5px);
-    border-color: var(--primary);
-    box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.2);
-}
+
+
+
 
 .tool-card i {
     font-size: 2.5em;
@@ -859,28 +817,18 @@
     transform: scale(1.1);
 }
 
-.tool-card h4 {
-    font-size: 1em;
-    font-weight: 700;
-    margin: 0 0 5px 0;
-    color: var(--text-primary);
-}
 
-.tool-card p {
-    font-size: 0.75em;
-    color: var(--text-secondary);
-    margin: 0;
-    line-height: 1.3;
-}
+
+
 
 /* Цветовые акценты */
-.tool-card.danger:hover { border-color: #EF4444; }
+
 .tool-card.danger:hover i { color: #EF4444; }
 
-.tool-card.warning:hover { border-color: #F59E0B; }
+
 .tool-card.warning:hover i { color: #F59E0B; }
 
-.tool-card.info:hover { border-color: #3B82F6; }
+
 .tool-card.info:hover i { color: #3B82F6; }
 
 /* --- НОВЫЕ СТИЛИ--- */
@@ -908,47 +856,19 @@
     flex-shrink: 0;
 }
 
-.small-action-btn {
-    padding: 8px 16px;
-    background: var(--surface-light);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-    padding: 8px 14px;
-    border-radius: 10px;
-    font-size: 0.85em;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s ease;
-}
 
-.small-action-btn:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-}
+
+
 
 .small-action-btn i { font-size: 1.1em; }
 
 .share-option.email i { color: #EA4335; }
-.share-option.vk i { color: #0077FF; }
+
 
 /* --- АНИМАЦИЯ НАВИГАЦИИ (ИСПРАВЛЕННАЯ) --- */
-.nav-tab {
-    transition: color 0.2s ease;
-    padding: 5px 0; /* Немного воздуха */
-}
 
-.nav-tab i {
-    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-    display: block;
-    margin-bottom: 4px;
-    transform-origin: center bottom;
-}
+
+
 
 /* При наведении: легкий подъем без вращения */
 .nav-tab:hover i {
@@ -963,10 +883,7 @@
 }
 
 /* Активная вкладка: фиксированный подъем, но не слишком высоко */
-.nav-tab.active i {
-    transform: translateY(-3px);
-    color: var(--primary);
-}
+
 
 .nav-tab.active span {
     font-weight: 700;
@@ -1035,27 +952,9 @@
     margin-top: 15px;
 }
 
-.tool-card {
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 12px;
-    padding: 15px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: left;
-    color: white;
-    width: 100%;
-}
+.tool-card { background: #2a2a2a; border: 1px solid #444; border-radius: 12px; padding: 15px; text-align: left; cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 150px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); gap: 15px; color: white; width: 100%; }
 
-.tool-card:hover {
-    transform: translateY(-3px);
-    background: #333;
-    border-color: var(--primary);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
+.tool-card:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.3); background: #333; }
 
 .tool-card .icon {
     font-size: 24px;
@@ -1078,7 +977,7 @@
 
 /* Особые стили для опасных кнопок */
 .tool-card.danger .icon { color: #ff4444; }
-.tool-card.danger:hover { border-color: #ff4444; background: rgba(255, 68, 68, 0.1); }
+
 
 .tool-card.warning .icon { color: #ffbb33; }
 
@@ -1136,7 +1035,7 @@
 .planner-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 10px; }
 .day-card { background: var(--surface-light); border-radius: 8px; padding: 10px; min-width: 100px; border: 1px solid var(--border-color); }
 .day-title { font-weight: bold; font-size: 0.9em; margin-bottom: 5px; color: var(--primary); }
-.meal-slot { background: var(--surface); padding: 5px; border-radius: 5px; font-size: 0.8em; margin-bottom: 5px; cursor: pointer; min-height: 30px; border: 1px dashed var(--border-color); }
+
 
 /* Голосовой ввод */
 .mic-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--surface-light); color: var(--text-secondary); cursor: pointer; transition: 0.3s; }
@@ -1225,28 +1124,9 @@
 }
 
 /* --- Стили для продвинутой Админки --- */
-.admin-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
-}
-.admin-tab-btn {
-    white-space: nowrap;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    padding: 8px 15px;
-    cursor: pointer;
-    font-weight: 600;
-    border-radius: 8px;
-    transition: 0.3s;
-}
-.admin-tab-btn.active {
-    background: var(--primary-light);
-    color: #fff;
-}
+
+
+
 .admin-stat-card {
     background: var(--surface);
     padding: 15px;
@@ -1263,17 +1143,10 @@
 .status-badge { padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; }
 
 /* Применяем к кнопкам в header-actions */
-.header-actions button:hover {
-    animation: rubberBand 0.8s both; /* both сохраняет конечное состояние */
-    color: var(--primary); /* Дополнительно меняем цвет */
-    background: var(--surface); /* Немного меняем фон */
-    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3); /* Добавляем свечение */
-}
+
 
 /* Убедимся, что бейдж уведомлений не ломает анимацию */
-.header-actions button {
-    transition: background 0.3s, color 0.3s box-shadow 0.3s; /* Плавность для цвета */
-}
+
 
 /* --- DONATION STYLES --- */
 .donation-option {
@@ -1349,7 +1222,7 @@
         background: white;
         color: black;
         display: block !important;
-        font-family: 'Segoe UI', sans-serif;
+        font-family: "Segoe UI", sans-serif;
     }
     
     /* Стили для печатного списка */
@@ -1436,48 +1309,40 @@
 }
 
 /* Стилизация самого компонента Adsgram внутри обертки */
-adsgram-task {
-    --adsgram-task-background-color: transparent !important;
-    --adsgram-task-text-color: var(--text-primary) !important;
-    --adsgram-task-font-family: inherit !important;
-    --adsgram-task-border-radius: 0 !important;
-    --adsgram-task-button-background: var(--primary) !important;
-    --adsgram-task-button-color: #fff !important;
-    width: 100%;
-}
+
 
 /* --- ADMIN PANEL ADVANCED STYLES --- */
-.badge-mini { background: var(--error); color: white; border-radius: 10px; padding: 2px 6px; font-size: 0.7em; margin-left: 5px; }
-.admin-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-.admin-stat-widget { background: var(--surface); padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 15px; box-shadow: var(--shadow); border: 1px solid var(--border-color); }
-.stat-icon { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2em; }
+
+
+
+
 .stat-val { font-size: 1.4em; font-weight: 800; color: var(--text-primary); }
 .stat-lbl { font-size: 0.75em; color: var(--text-secondary); text-transform: uppercase; }
 
-.admin-panel-card { background: var(--surface); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); border: 1px solid var(--border-color); }
-.admin-panel-card h5 { margin-bottom: 15px; color: var(--primary); font-size: 1.1em; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
 
-.admin-table { width: 100%; border-collapse: collapse; }
-.admin-table th { text-align: left; padding: 12px; color: var(--text-secondary); font-size: 0.85em; background: var(--surface-light); }
-.admin-table td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.9em; vertical-align: middle; }
-.admin-table tr:last-child td { border-bottom: none; }
+
+
+
+
+
+
 .admin-table tr:hover { background: var(--surface-light); }
 
 .search-bar-container { position: relative; margin-bottom: 15px; }
 .search-bar-container i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
 .search-bar-container input { width: 100%; padding: 12px 12px 12px 40px; background: var(--surface); border: 1px solid var(--border-color); border-radius: 12px; color: var(--text-primary); outline: none; }
 
-.admin-grid-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
-.admin-tool-card { background: var(--surface); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border-color); transition: 0.2s; }
-.admin-tool-card:hover { transform: translateY(-3px); border-color: var(--primary); }
+
+
+
 .admin-tool-card .tool-icon { font-size: 2em; color: var(--primary); margin-bottom: 10px; }
 .admin-tool-card h6 { font-size: 1em; margin-bottom: 5px; }
-.admin-tool-card p { font-size: 0.8em; color: var(--text-secondary); margin-bottom: 15px; height: 32px; overflow: hidden; }
 
-.console-log { background: #1e1e1e; color: #00ff00; font-family: monospace; padding: 15px; border-radius: 8px; height: 150px; overflow-y: auto; font-size: 0.85em; }
+
+
 .log-line { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px; }
 
-.grid-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+
 .system-monitor-row { display: flex; gap: 10px; margin-bottom: 20px; }
 .monitor-card { flex: 1; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid transparent; }
 .monitor-card.ok { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); color: #10B981; }
@@ -1490,87 +1355,24 @@ adsgram-task {
 }
 
 /* --- Стили для Админ-панели (из файла 46) --- */
-.admin-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
-    overflow-x: auto;
-}
-.admin-tab-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    padding: 8px 15px;
-    cursor: pointer;
-    font-weight: 600;
-    border-radius: 8px;
-    transition: 0.3s;
-    white-space: nowrap;
-}
-.admin-tab-btn.active {
-    background: var(--primary-light);
-    color: #fff;
-}
+
+
+
 .admin-tab-content {
     display: none;
     animation: fadeIn 0.3s;
 }
-.admin-stats-row { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
-    gap: 15px; 
-    margin-bottom: 20px; 
-}
-.admin-stat-widget { 
-    background: var(--surface); 
-    padding: 15px; 
-    border-radius: 12px; 
-    display: flex; 
-    align-items: center; 
-    gap: 15px; 
-    box-shadow: var(--shadow); 
-    border: 1px solid var(--border-color); 
-}
 
-.admin-table { width: 100%; border-collapse: collapse; }
-.admin-table th { text-align: left; padding: 12px; color: var(--text-secondary); font-size: 0.85em; background: var(--surface-light); }
-.admin-table td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.9em; vertical-align: middle; }
+
+
+
+
+
 .admin-grid-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; }
-.admin-tool-card { 
-    background: var(--surface); 
-    padding: 15px; 
-    border-radius: 12px; 
-    text-align: center; 
-    border: 1px solid var(--border-color); 
-    transition: 0.2s; 
-    cursor: pointer;
-    height: 100%; 
-    min-height: 140px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-.admin-tool-card p {
-    font-size: 0.8em; 
-    color: var(--text-secondary); 
-    margin-bottom: 0; 
-    margin-top: 5px;
-    line-height: 1.2;
-}
+.admin-tool-card { background: var(--surface); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid var(--border-color); transition: 0.2s; cursor: pointer; height: 100%; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.admin-tool-card p { font-size: 0.8em; color: var(--text-secondary); margin-bottom: 0; height: 32px; overflow: hidden; margin-top: 5px; line-height: 1.2; }
 .admin-tool-card:hover { transform: translateY(-3px); border-color: var(--primary); }
-.console-log { 
-    background: #1e1e1e; 
-    color: #00ff00; 
-    font-family: monospace; 
-    padding: 15px; 
-    border-radius: 8px; 
-    height: 150px; 
-    overflow-y: auto; 
-    font-size: 0.85em; 
-}
+
 
 /* --- НОВЫЙ ДИЗАЙН ДОСТИЖЕНИЙ (GRID CARD + ACCORDION) --- */
 .achievements-grid {
@@ -2206,16 +2008,7 @@ adsgram-task {
     grid-column: span 1;
 }
 
-.stat-icon {
-    font-size: 1.5em;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: var(--surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+.stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5em; background: var(--surface); }
 .highlight .stat-icon { color: var(--primary); }
 .highlight-red .stat-icon { color: var(--error); }
 
@@ -2328,7 +2121,7 @@ adsgram-task {
     animation: decayShakeExpired 2.4s ease-in-out infinite;
 }
 .decay-visual.decay-expired::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     border-radius: 10px;
@@ -2449,7 +2242,7 @@ adsgram-task {
         linear-gradient(160deg, #0B1220 0%, #131B33 45%, #0B1220 100%);
     box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
     color: #F8FAFC;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     animation: shareCardPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes shareCardPop {
@@ -3249,13 +3042,7 @@ adsgram-task {
 }
 
         /* --- GLOBAL LOADER --- */
-#global-loader {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: var(--background); z-index: 9999;
-    display: none;
-    flex-direction: column; align-items: center; justify-content: center;
-    transition: opacity 0.3s ease;
-}
+
 
 .kitchen-loader-container {
     position: relative;
@@ -3459,12 +3246,7 @@ adsgram-task {
 @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
         /* --- Auth Screen --- */
-        #auth-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            padding: 20px; background: var(--background); z-index: 2000;
-            transition: opacity 0.5s; overflow-y: auto;
-        }
+        
 
         .auth-logo { font-size: 5em; color: var(--primary); margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.4)); animation: float 3s ease-in-out infinite; }
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
@@ -3649,12 +3431,8 @@ adsgram-task {
         .greeting p { font-size: 0.8em; color: var(--text-secondary); margin-top: 2px; }
         
         .header-actions { display: flex; align-items: center; gap: 8px; }
-        .header-actions button {
-            background: var(--surface-light); color: var(--text-primary); border: none; padding: 10px; border-radius: 50%;
-            width: 42px; height: 42px; cursor: pointer; position: relative; transition: 0.2s;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .header-actions button:hover { background: var(--primary); color: white; transform: scale(1.05); }
+        .header-actions button { transition: 0.2s; background: var(--surface-light); color: var(--text-primary); border: none; padding: 10px; border-radius: 50%; width: 42px; height: 42px; cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; }
+        .header-actions button:hover { animation: rubberBand 0.8s both; color: white; background: var(--primary); box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3); transform: scale(1.05); }
         
         #notification-badge {
             position: absolute; top: -2px; right: -2px; background-color: var(--error); color: white;
@@ -4049,7 +3827,7 @@ adsgram-task {
             overflow: hidden;
         }
         .market-option::before {
-            content: '';
+            content: "";
             position: absolute; inset: 0;
             background: linear-gradient(135deg, var(--market-color, var(--primary)) 0%, transparent 65%);
             opacity: 0.07;
@@ -4180,7 +3958,7 @@ adsgram-task {
 
         /* Profile & Achievements */
         .profile-card { text-align: center; background: var(--surface); padding: 40px 20px; border-radius: var(--radius); margin-bottom: 20px; position: relative; overflow: hidden; }
-        .profile-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 5px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+        .profile-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 5px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
         
         .profile-image-container { position: relative; width: 120px; height: 120px; margin: 0 auto 20px; }
         .profile-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 4px solid var(--surface-light); box-shadow: var(--shadow); background: var(--surface-light); }
@@ -4188,8 +3966,8 @@ adsgram-task {
         .edit-avatar-btn:hover { transform: scale(1.1); background: var(--primary-light); }
 
         .avatar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; padding: 10px; max-height: 300px; overflow-y: auto; }
-        .avatar-option { width: 100%; aspect-ratio: 1; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all 0.2s; background: var(--surface-light); padding: 2px; object-fit: cover; }
-        .avatar-option:hover { transform: scale(1.05); border-color: var(--primary-light); }
+        
+        
         .avatar-option.selected { border-color: var(--primary); box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); transform: scale(1.05); }
 
         /* Nav Bar */
@@ -4201,11 +3979,11 @@ adsgram-task {
             border-top: 1px solid var(--border-color); z-index: 100;
             box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
         }
-        .nav-tab { text-align: center; color: var(--text-secondary); flex-grow: 1; cursor: pointer; transition: 0.2s; position: relative; }
-        .nav-tab i { font-size: 1.3em; margin-bottom: 5px; display: block; transition: 0.2s; }
+        .nav-tab { transition: 0.2s; padding: 5px 0; text-align: center; color: var(--text-secondary); flex-grow: 1; cursor: pointer; position: relative; }
+        .nav-tab i { transition: 0.2s; display: block; margin-bottom: 5px; transform-origin: center bottom; font-size: 1.3em; }
         .nav-tab span { font-size: 0.7em; font-weight: 600; }
         .nav-tab.active { color: var(--primary); }
-        .nav-tab.active i { transform: translateY(-3px); }
+        .nav-tab.active i { transform: translateY(-3px); color: var(--primary); }
 
         /* Плавающая кнопка "+" в правом нижнем углу секции */
         .section-fab-wrap {
@@ -4506,42 +4284,12 @@ adsgram-task {
         .action-btn.dislike-btn.active { color: var(--text-secondary); opacity: 0.6; }
         .action-btn.dislike-btn.active i { font-weight: 900; }
 
-#auth-screen {
-    /* Скрываем экран входа сразу, JS покажет его только если нет юзера */
-    display: none; 
-    /* ...остальные стили auth-screen оставьте... */
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    flex-direction: column; justify-content: center; align-items: center;
-    padding: 20px; background: var(--background); z-index: 2000;
-    transition: opacity 0.5s; overflow-y: auto;
-}
+#auth-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; background: var(--background); z-index: 2000; transition: opacity 0.5s; overflow-y: auto; }
 
-#global-loader {
-    /* Показываем лоадер СРАЗУ, как только загрузился HTML */
-    display: flex; 
-    /* ...остальные стили loader оставьте... */
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: var(--background); z-index: 9999;
-    flex-direction: column; align-items: center; justify-content: center;
-    transition: opacity 0.3s ease;
-}
+#global-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--background); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s ease; }
 
 /* --- ADSGRAM TASK STYLES --- */
-adsgram-task {
-    display: block;
-    width: 100%;
-    margin: 0 auto;
-    
-    /* Адаптация под тему Axio */
-    --adsgram-task-background-color: var(--surface-light);
-    --adsgram-task-text-color: var(--text-primary);
-    --adsgram-task-font-family: 'Segoe UI', sans-serif;
-    --adsgram-task-border-radius: 16px;
-    --adsgram-task-icon-size: 48px;
-    --adsgram-task-padding: 12px;
-    --adsgram-task-icon-border-radius: 12px;
-    --adsgram-task-button-width: 100px;
-}
+adsgram-task { --adsgram-task-background-color: var(--surface-light); --adsgram-task-text-color: var(--text-primary); --adsgram-task-font-family: "Segoe UI", sans-serif; --adsgram-task-border-radius: 16px; --adsgram-task-button-background: var(--primary) !important; --adsgram-task-button-color: #fff !important; width: 100%; display: block; margin: 0 auto; --adsgram-task-icon-size: 48px; --adsgram-task-padding: 12px; --adsgram-task-icon-border-radius: 12px; --adsgram-task-button-width: 100px; }
 
 /* Стилизация слотов внутри компонента (кнопки) */
 .task-slot-reward {
@@ -4651,28 +4399,9 @@ adsgram-task {
 #maintenance-screen.premium-mode .maint-icon-container i { color: #F59E0B; }
 
 /* Сетка статистики */
-.stats-grid-mega {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 8px;
-    max-height: 60vh;
-    overflow-y: auto;
-    padding-right: 5px;
-}
-.stat-micro-card {
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    padding: 12px;
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: transform 0.2s;
-}
-.stat-micro-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--primary);
-}
+
+
+
 .stat-micro-key {
     font-size: 0.75em;
     color: var(--text-secondary);
@@ -4684,7 +4413,7 @@ adsgram-task {
     font-size: 1.1em;
     font-weight: 800;
     color: var(--text-primary);
-    font-family: 'Segoe UI', monospace;
+    font-family: "Segoe UI", monospace;
 }
 
 /* Таблица пользователей */
@@ -4709,19 +4438,8 @@ adsgram-task {
 }
 
 /* Карточки заявки на модерацию */
-.pending-card {
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-.pending-card img {
-    width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 15px;
-}
+
+
 
 /* --- CSS Update for Planner & Sliders --- */
 
@@ -4976,7 +4694,7 @@ adsgram-task {
     transition: border-color 0.25s ease, transform 0.25s ease;
 }
 #meal-planner-modal .day-card::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 3px;
@@ -5070,20 +4788,7 @@ adsgram-task {
 }
 
 /* Блюдо дня */
-.meal-slot {
-    background: var(--surface-light);
-    padding: 7px 8px 7px 9px;
-    border-radius: 10px;
-    font-size: 0.85em;
-    margin-bottom: 8px;
-    cursor: pointer;
-    border: 1px solid transparent;
-    border-left: 2px solid rgba(212, 175, 55, 0.45);
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+.meal-slot { background: var(--surface-light); padding: 7px 8px 7px 9px; border-radius: 10px; font-size: 0.85em; margin-bottom: 8px; cursor: pointer; min-height: 30px; border: 1px solid transparent; border-left: 2px solid rgba(212, 175, 55, 0.45); transition: all 0.2s ease; display: flex; align-items: center; gap: 8px; }
 .meal-slot:hover {
     border-color: rgba(212, 175, 55, 0.4);
     border-left-color: #D4AF37;
@@ -5273,21 +4978,7 @@ adsgram-task {
     max-width: 320px;
 }
 
-.lang-picker-trigger {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 10px 16px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 16px;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
+
 
 .lang-picker-trigger:hover {
     border-color: rgba(255, 215, 0, 0.5); /* Золотистый акцент при наведении */
@@ -5483,7 +5174,7 @@ adsgram-task {
    ============================================================ */
 
 /* Лёгкий блеск, пробегающий по кнопке-триггеру при наведении */
-.lang-picker-trigger { position: relative; overflow: hidden; }
+.lang-picker-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 16px; background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); position: relative; overflow: hidden; }
 .lang-picker-trigger::after {
     content: "";
     position: absolute;
@@ -5677,7 +5368,7 @@ adsgram-task {
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.16), rgba(255, 215, 0, 0.02));
 }
 .lang-visa-card.active::after {
-    content: "\2713";
+    content: "✓";
     position: absolute; top: 6px; right: 8px;
     width: 16px; height: 16px;
     border-radius: 50%;
@@ -6017,11 +5708,8 @@ adsgram-task {
     display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
     margin-bottom: 16px; padding: 10px; border-radius: 10px; background: var(--surface-light);
 }
-.avatar-option {
-    display: flex; align-items: center; justify-content: center; font-size: 20px;
-    padding: 8px 0; border-radius: 8px; cursor: pointer; border: 1px solid transparent;
-}
-.avatar-option:hover { background: var(--surface-lighter); }
+.avatar-option { width: 100%; aspect-ratio: 1; border-radius: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; background: var(--surface-light); padding: 8px 0; object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.avatar-option:hover { transform: scale(1.05); border-color: var(--primary-light); background: var(--surface-lighter); }
 .avatar-option.active { border-color: var(--primary); background: rgba(16, 185, 129, 0.12); }
 
 .fridge-members-section { margin-top: 4px; }
@@ -6229,16 +5917,9 @@ adsgram-task {
 }
 
 /* --- Полки --- */
-.fridge-shelf {
-    position: relative;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 14px;
-    padding: 10px 10px 16px;
-    flex-shrink: 0;
-}
+.fridge-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding-bottom: 15px; margin-bottom: 15px; border-bottom: 8px solid rgba(0,0,0,0.1); position: relative; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 10px 10px 16px; flex-shrink: 0; }
 .fridge-shelf::after {
-    content: '';
+    content: "";
     position: absolute;
     left: 6px;
     right: 6px;
@@ -6579,55 +6260,16 @@ adsgram-task {
 .admin-shell-sub #admin-username-display { color: var(--primary); font-weight: 700; }
 
 /* --- Табы: сегментированный скроллящийся ряд --- */
-.admin-tabs {
-    display: flex !important;
-    gap: 6px !important;
-    padding: 10px 14px !important;
-    background: var(--surface) !important;
-    border-bottom: 1px solid var(--border-color) !important;
-    overflow-x: auto !important;
-    flex-shrink: 0;
-    scrollbar-width: none;
-}
+.admin-tabs { display: flex !important; gap: 6px !important; margin-bottom: 20px; border-bottom: 1px solid var(--border-color) !important; padding-bottom: 10px; overflow-x: auto !important; padding: 10px 14px !important; background: var(--surface) !important; flex-shrink: 0; scrollbar-width: none; }
 .admin-tabs::-webkit-scrollbar { display: none; }
 
-.admin-tab-btn {
-    display: flex !important;
-    align-items: center;
-    gap: 7px;
-    white-space: nowrap !important;
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    color: var(--text-secondary) !important;
-    padding: 9px 14px !important;
-    cursor: pointer;
-    font-weight: 700 !important;
-    font-size: 0.85em !important;
-    border-radius: 10px !important;
-    transition: background 0.2s, color 0.2s, border-color 0.2s;
-    flex-shrink: 0;
-}
+.admin-tab-btn { white-space: nowrap !important; background: transparent !important; border: 1px solid transparent !important; color: var(--text-secondary) !important; padding: 9px 14px !important; cursor: pointer; font-weight: 700 !important; border-radius: 10px !important; transition: background 0.2s, color 0.2s, border-color 0.2s; display: flex !important; align-items: center; gap: 7px; font-size: 0.85em !important; flex-shrink: 0; }
 .admin-tab-btn i { font-size: 0.95em; }
 .admin-tab-btn:hover { background: var(--surface-light) !important; color: var(--text-primary) !important; }
-.admin-tab-btn.active {
-    background: var(--primary) !important;
-    border-color: var(--primary) !important;
-    color: #fff !important;
-    box-shadow: 0 4px 10px -2px rgba(16, 185, 129, 0.5);
-}
+.admin-tab-btn.active { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; box-shadow: 0 4px 10px -2px rgba(16, 185, 129, 0.5); }
 .admin-tab-btn .badge-mini { margin-left: 2px; }
 
-.badge-mini {
-    background: #fff;
-    color: var(--error);
-    border-radius: 20px;
-    padding: 1px 7px;
-    font-size: 0.72em;
-    font-weight: 800;
-    min-width: 16px;
-    text-align: center;
-    display: inline-block;
-}
+.badge-mini { background: #fff; color: var(--error); border-radius: 20px; padding: 1px 7px; font-size: 0.72em; margin-left: 5px; font-weight: 800; min-width: 16px; text-align: center; display: inline-block; }
 .admin-tab-btn:not(.active) .badge-mini { background: var(--error); color: #fff; }
 
 .admin-shell-body {
@@ -6640,27 +6282,11 @@ adsgram-task {
 .admin-tab-content.admin-tab-content { animation: fadeIn 0.25s ease; }
 
 /* --- Дашборд: KPI --- */
-.admin-stats-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 18px;
-}
+.admin-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
 @media (max-width: 480px) {
     .admin-stats-row { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 }
-.admin-stat-widget {
-    background: var(--surface);
-    padding: 14px;
-    border-radius: 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border-color);
-    transition: transform 0.2s;
-}
+.admin-stat-widget { background: var(--surface); padding: 14px; border-radius: 14px; display: flex; align-items: flex-start; gap: 10px; box-shadow: var(--shadow); border: 1px solid var(--border-color); flex-direction: column; transition: transform 0.2s; }
 .admin-stat-widget:hover { transform: translateY(-2px); }
 .admin-stat-widget .stat-icon {
     width: 38px; height: 38px; border-radius: 10px;
@@ -6670,35 +6296,16 @@ adsgram-task {
 .admin-stat-widget .stat-val { font-size: 1.5em; font-weight: 800; color: var(--text-primary); line-height: 1; }
 .admin-stat-widget .stat-lbl { font-size: 0.72em; color: var(--text-secondary); margin-top: 3px; }
 
-.admin-panel-card {
-    background: var(--surface);
-    border-radius: 16px;
-    padding: 18px;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border-color);
-}
+.admin-panel-card { background: var(--surface); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); border: 1px solid var(--border-color); }
 .admin-panel-card-spaced { margin-top: 18px; }
-.admin-panel-card h5 {
-    margin: 0 0 14px 0;
-    color: var(--primary);
-    font-size: 1em;
-    display: flex; align-items: center; gap: 8px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
-}
+.admin-panel-card h5 { margin-bottom: 15px; color: var(--primary); font-size: 1em; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin: 0 0 14px 0; display: flex; align-items: center; gap: 8px; }
 
 .server-state-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
 }
-.server-state-btn {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--surface-light);
-    border: 2px solid transparent;
-    padding: 12px; border-radius: 13px;
-    cursor: pointer; transition: 0.2s; position: relative;
-}
+.server-state-btn { display: flex; align-items: center; gap: 10px; background: var(--surface-light); border: 2px solid transparent; padding: 12px; border-radius: 13px; cursor: pointer; transition: 0.2s; position: relative; }
 .server-state-btn:hover { transform: translateY(-2px); background: var(--surface-lighter); }
 .server-state-btn.active { border-color: var(--primary); background: rgba(16, 185, 129, 0.1); }
 .server-state-btn .state-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -6754,21 +6361,8 @@ adsgram-task {
     .admin-search-box input { width: 100%; }
 }
 
-.small-action-btn {
-    width: 38px; height: 38px;
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-    background: var(--surface);
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    transition: 0.2s;
-    padding: 0 12px;
-    width: auto;
-    font-weight: 600;
-    font-size: 0.85em;
-}
-.small-action-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(16, 185, 129, 0.08); }
+.small-action-btn { padding: 0 12px; background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.85em; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; width: auto; height: 38px; justify-content: center; }
+.small-action-btn:hover { background: rgba(16, 185, 129, 0.08); color: var(--primary); border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
 .small-action-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(16, 185, 129, 0.12); }
 .small-action-btn.danger-outline { color: var(--error); border-color: rgba(239, 68, 68, 0.35); margin-bottom: 12px; }
 .small-action-btn.danger-outline:hover { background: rgba(239, 68, 68, 0.1); border-color: var(--error); }
@@ -6781,13 +6375,7 @@ adsgram-task {
     overflow: hidden;
 }
 .admin-table { width: 100%; border-collapse: collapse; }
-.admin-table th {
-    text-align: left; padding: 12px 14px;
-    color: var(--text-secondary); font-size: 0.72em;
-    text-transform: uppercase; letter-spacing: 0.4px;
-    background: var(--surface-light);
-    font-weight: 700;
-}
+.admin-table th { text-align: left; padding: 12px 14px; color: var(--text-secondary); font-size: 0.72em; background: var(--surface-light); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
 .admin-table th.text-right { text-align: right; }
 .admin-table td { padding: 10px 14px; border-bottom: 1px solid var(--border-color); font-size: 0.88em; vertical-align: middle; }
 .admin-table tr:last-child td { border-bottom: none; }
@@ -6835,21 +6423,9 @@ adsgram-task {
 
 /* --- Очередь модерации --- */
 .grid-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.pending-card {
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    border-radius: 14px;
-    padding: 12px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    transition: 0.2s;
-}
+.pending-card { background: var(--surface); border: 1px solid var(--border-color); border-radius: 14px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; transition: 0.2s; }
 .pending-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow); }
-.pending-card img {
-    width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 12px; flex-shrink: 0;
-}
+.pending-card img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 12px; flex-shrink: 0; }
 .pending-card .btn-sm {
     padding: 7px 12px; font-size: 0.78em; border-radius: 9px; border: none; cursor: pointer;
     font-weight: 700; transition: 0.2s;
@@ -6938,11 +6514,7 @@ adsgram-task {
 .tools-section-header.warning { color: var(--warning); }
 .tools-section-header.danger { color: var(--error); }
 
-.admin-tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
-}
+.admin-tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding-bottom: 20px; }
 .tool-card.tool-card {
     background: var(--surface);
     border: 1px solid var(--border-color);
@@ -6983,42 +6555,19 @@ adsgram-task {
 .tool-card.info:hover .tool-card-icon { background: rgba(59, 130, 246, 0.15); }
 .tool-card.warning:hover { border-color: var(--warning); box-shadow: 0 12px 20px -8px rgba(245, 158, 11, 0.3); }
 .tool-card.warning:hover .tool-card-icon { background: rgba(245, 158, 11, 0.15); }
-.tool-card.danger:hover { border-color: var(--error); box-shadow: 0 12px 20px -8px rgba(239, 68, 68, 0.3); }
+.tool-card.danger:hover { border-color: var(--error); background: rgba(255, 68, 68, 0.1); box-shadow: 0 12px 20px -8px rgba(239, 68, 68, 0.3); }
 .tool-card.danger:hover .tool-card-icon { background: rgba(239, 68, 68, 0.15); }
 .tool-card.tool-card:hover .tool-card-icon:not([class*="info"]):not([class*="warning"]):not([class*="danger"]) { color: var(--primary); }
 .tool-card h4 { font-size: 0.88em; font-weight: 700; margin: 0; color: var(--text-primary); }
 .tool-card p { font-size: 0.72em; color: var(--text-secondary); margin: 0; line-height: 1.3; }
 
-.console-log {
-    background: #0d1117;
-    color: #3ddc84;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-    padding: 14px 16px;
-    border-radius: 12px;
-    height: 150px;
-    overflow-y: auto;
-    font-size: 0.82em;
-    border: 1px solid #22272e;
-}
+.console-log { background: #0d1117; color: #3ddc84; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; padding: 14px 16px; border-radius: 12px; height: 150px; overflow-y: auto; font-size: 0.82em; border: 1px solid #22272e; }
 .console-log .log-line { margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .console-log .log-line:last-child { border-bottom: none; margin-bottom: 0; }
 
 /* --- Аналитика --- */
-.stats-grid-mega {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 10px;
-    max-height: 60vh;
-    overflow-y: auto;
-    padding-right: 4px;
-}
-.stat-micro-card {
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    padding: 12px;
-    border-radius: 13px;
-    transition: transform 0.2s, border-color 0.2s;
-}
+.stats-grid-mega { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+.stat-micro-card { background: var(--surface); border: 1px solid var(--border-color); padding: 12px; border-radius: 13px; display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s, border-color 0.2s; }
 .stat-micro-card:hover { transform: translateY(-2px); border-color: var(--primary); }
 
 /* --- Дочерние модалки (проверка рецепта / карточка юзера / фидбек) --- */
@@ -7043,7 +6592,7 @@ adsgram-task {
     position: relative;
 }
 .conversion-meter-circle::before {
-    content: ''; position: absolute; inset: 9px;
+    content: ""; position: absolute; inset: 9px;
     background: var(--surface); border-radius: 50%;
 }
 .conversion-meter-circle span {

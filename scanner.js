@@ -1,5 +1,9 @@
-/** 
-*       3) Barcode Spider    — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
+/**
+ *  Сканер штрих-кода товара — единая точка входа.
+ *  Источники поиска по коду (по порядку, первый успешный ответ побеждает):
+ *       1) Open Food Facts   — всегда бесплатно, без ключа
+ *       2) UPCitemdb         — бесплатный trial-эндпоинт, без ключа, лимит ~100/день
+ *       3) Barcode Spider    — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
  *       4) EAN-Search        — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
  * -----------------------------------------------------------------------
  */
@@ -31,6 +35,14 @@
 
     // Категории формы add-product-modal (см. index.html)
     const CATEGORIES = ['Dairy', 'Meat', 'Vegetables', 'Fruits', 'Bakery', 'Other'];
+
+    // Единицы измерения формы add-product-modal (см. index.html, select#product-unit)
+    const UNITS = ['шт', 'г', 'кг', 'мл', 'л'];
+
+    // На сколько дней вперёд ставить срок годности-заглушку, если источник
+    // не знает срок годности товара (это единственное поле формы, без
+    // которого нельзя сохранить продукт — оно required).
+    const PLACEHOLDER_EXPIRY_DAYS = 7;
 
     let html5QrCode = null;
     let scanActive = false;
@@ -227,7 +239,7 @@
     // --- 1) Open Food Facts ------------------------------------------------
     async function lookupOpenFoodFacts(code) {
         const url = 'https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(code) +
-            '.json?fields=product_name,product_name_ru,generic_name,brands,image_front_small_url,image_url,categories_tags';
+            '.json?fields=product_name,product_name_ru,generic_name,brands,quantity,image_front_small_url,image_url,categories_tags';
         const res = await fetch(url);
         if (!res.ok) return null;
         const data = await res.json();
@@ -242,6 +254,7 @@
             brand: p.brands || '',
             image: p.image_front_small_url || p.image_url || '',
             category: mapOpenFoodFactsCategory(p.categories_tags),
+            rawQuantity: p.quantity || '',
             source: 'Open Food Facts'
         };
     }
@@ -262,6 +275,7 @@
             brand: item.brand || '',
             image: (item.images && item.images.length) ? item.images[0] : '',
             category: guessCategoryFromText(item.category || item.title),
+            rawQuantity: item.size || '',
             source: 'UPCitemdb'
         };
     }
@@ -285,6 +299,7 @@
             brand: item.brand || '',
             image: item.image || '',
             category: guessCategoryFromText(item.category || item.title),
+            rawQuantity: '',
             source: 'Barcode Spider'
         };
     }
@@ -305,6 +320,7 @@
             brand: '',
             image: '',
             category: guessCategoryFromText(data[0].categoryName || data[0].name),
+            rawQuantity: '',
             source: 'EAN-Search'
         };
     }
@@ -325,6 +341,29 @@
         return 'Other';
     }
 
+    // Разбирает строки вида "1 л", "500 г", "0.5 kg" — берём первое число +
+    // единицу измерения. Возвращает null, если строка пустая или не распознана
+    // (в этом случае поля формы просто не трогаем и оставляем значения по
+    // умолчанию из разметки).
+    function parseQuantityString(raw) {
+        const str = (raw || '').toString().trim().toLowerCase().replace(',', '.');
+        if (!str) return null;
+
+        const match = str.match(/(\d+(?:\.\d+)?)\s*(кг|kg|г|g|л|l|мл|ml|шт|pcs)?/);
+        if (!match || !match[1]) return null;
+
+        const qty = parseFloat(match[1]);
+        if (!qty || qty <= 0) return null;
+
+        const unitMap = {
+            kg: 'кг', g: 'г', l: 'л', ml: 'мл', pcs: 'шт',
+            кг: 'кг', г: 'г', л: 'л', мл: 'мл', шт: 'шт'
+        };
+        const unit = unitMap[match[2] || ''] || 'шт';
+
+        return { qty: qty, unit: unit };
+    }
+
     function handleProductFound(product, code) {
         window.closeBarcodeScanner();
 
@@ -338,8 +377,33 @@
             categorySelect.value = product.category;
         }
 
+        // Количество/единица — если источник знает (пока умеет только
+        // Open Food Facts через поле quantity), проставляем в форму.
+        // Если нет — оставляем значения по умолчанию из разметки (1 шт).
+        const parsedQty = parseQuantityString(product.rawQuantity);
+        if (parsedQty) {
+            const qtyInput = document.getElementById('product-qty');
+            if (qtyInput) qtyInput.value = parsedQty.qty;
+
+            const unitSelect = document.getElementById('product-unit');
+            if (unitSelect && UNITS.includes(parsedQty.unit)) {
+                unitSelect.value = parsedQty.unit;
+            }
+        }
+
         if (product.image) {
             applyScannedImage(product.image);
+        }
+
+        // Срок годности ни одна из баз не знает — если поле ещё не
+        // заполнено пользователем, ставим ориентировочную дату (+7 дней),
+        // чтобы не блокировать обязательное поле формы; пользователь может
+        // поправить дату вручную перед сохранением.
+        const expiryInput = document.getElementById('product-expiry');
+        if (expiryInput && !expiryInput.value) {
+            const d = new Date();
+            d.setDate(d.getDate() + PLACEHOLDER_EXPIRY_DAYS);
+            expiryInput.value = d.toISOString().split('T')[0];
         }
 
         if (typeof window.showModal === 'function') {
