@@ -16746,7 +16746,7 @@ async function runTest(type) {
                 Я проанализирую ваш инвентарь и предложу рецепт из того, что есть.
             </p>
             
-            <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:15px;">
+            <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px;">
                 <span style="color:var(--text-secondary); font-size:0.9em;">Сколько вариантов:</span>
                 <select id="ai-chef-count" class="styled-select" style="width:70px;">
                     <option value="1" selected>1</option>
@@ -16756,6 +16756,33 @@ async function runTest(type) {
                     <option value="5">5</option>
                 </select>
             </div>
+
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <div style="flex:1;">
+                    <label style="display:block; font-size:0.78em; color:var(--text-secondary); margin-bottom:4px;"><i class="far fa-clock"></i> Время</label>
+                    <select id="ai-chef-max-time" class="styled-select" style="width:100%;">
+                        <option value="any" selected>Любое</option>
+                        <option value="15">До 15 мин</option>
+                        <option value="30">До 30 мин</option>
+                        <option value="45">До 45 мин</option>
+                        <option value="60">До 60 мин</option>
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-size:0.78em; color:var(--text-secondary); margin-bottom:4px;"><i class="fas fa-signal"></i> Сложность</label>
+                    <select id="ai-chef-difficulty" class="styled-select" style="width:100%;">
+                        <option value="any" selected>Любая</option>
+                        <option value="Легко">Легко</option>
+                        <option value="Средне">Средне</option>
+                        <option value="Сложно">Сложно</option>
+                    </select>
+                </div>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:15px; font-size:0.85em; color:var(--text-secondary); cursor:pointer;">
+                <input type="checkbox" id="ai-chef-use-expiring" checked style="width:16px; height:16px;">
+                <span><i class="fas fa-hourglass-half" style="color:var(--warning);"></i> В первую очередь использовать продукты, которые скоро испортятся</span>
+            </label>
 
             <button class="btn btn-primary" onclick="generateAIRecipe()" style="width: 100%; margin-bottom: 20px;">
                 <i class="fas fa-magic"></i> Придумать рецепт
