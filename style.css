@@ -434,7 +434,7 @@
     display: flex;
     overflow-x: auto;
     gap: 10px;
-    padding-bottom: 10px;
+    padding: 0 25px 10px;
     margin-bottom: 15px;
     scroll-behavior: smooth;
     /* Тонкий премиальный скроллбар */
@@ -462,6 +462,7 @@
 .gallery-img.active {
     border-color: var(--primary);
     transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
 }
 
 /* --- Стили для 3-х кнопок рекламы в ряд --- */
@@ -499,14 +500,29 @@
 .btn-green  { background: linear-gradient(135deg, #10B981, #059669); }
 .btn-orange { background: linear-gradient(135deg, #F59E0B, #EA580C); }
 
-/* Главное большое изображение в модалке */
+/* Главное большое изображение в модалке — обёртка с плавным затемнением снизу,
+   чтобы фото красиво переходило в контент, а не обрывалось резкой линией. */
+.recipe-hero-wrap {
+    position: relative;
+    width: 100%;
+    height: 280px;
+    overflow: hidden;
+    border-radius: 0 0 26px 26px;
+    margin-bottom: 15px;
+    background: var(--surface-light);
+}
 .recipe-hero-img {
     width: 100%;
-    height: 250px;
+    height: 100%;
     object-fit: cover;
-    border-radius: 0 0 20px 20px;
-    margin-bottom: 15px;
+    display: block;
     transition: opacity 0.3s ease;
+}
+.recipe-hero-scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 32%, rgba(0,0,0,0) 62%, var(--surface) 100%);
 }
 
 
@@ -1269,7 +1285,10 @@
     gap: 15px;
     border: 1px solid transparent;
     transition: 0.2s;
+    cursor: pointer; /* Показывает, что по карточке можно нажать и открыть пояснение */
 }
+.mastery-card:active { transform: scale(0.98); background: var(--surface-lighter); }
+.mastery-chevron { color: var(--text-secondary); font-size: 0.85em; flex-shrink: 0; opacity: 0.6; }
 
 /* --- Styles for Recipe Creator --- */
 .cr-row {
@@ -2133,6 +2152,26 @@
         radial-gradient(circle at 82% 22%, rgba(80,90,45,0.45) 0 10%, transparent 11%);
     mix-blend-mode: multiply;
 }
+
+/* Срок годности не указан: товар не "портится" визуально, просто мягко
+   приглушен и помечен пунктирной рамкой + иконкой вопроса, чтобы обратить
+   внимание пользователя и подтолкнуть указать срок (см. renderMoreInventoryItems). */
+.decay-visual.decay-unknown .inventory-img,
+.decay-visual.decay-unknown .item-icon {
+    filter: grayscale(15%) opacity(0.85);
+}
+.decay-visual.decay-unknown {
+    border-radius: 10px;
+    outline: 2px dashed var(--border-color);
+    outline-offset: 2px;
+}
+.expiry-unknown-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+}
+.expiry-unknown-badge i { font-size: 0.9em; }
 
 
 /* --- Кнопка раскрытия подсказок --- */
@@ -3766,6 +3805,48 @@
             font-size: 1.05em;
             padding: 14px;
         }
+        .purchase-history-list {
+            max-height: 60vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .purchase-history-item {
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: var(--surface-light);
+            border: 1px solid var(--border-color);
+        }
+        .purchase-history-date {
+            font-weight: 700;
+            font-size: 0.95em;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .purchase-history-count {
+            font-weight: 500;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+        .purchase-history-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .purchase-history-tag {
+            font-size: 0.82em;
+            color: var(--text-secondary);
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 3px 8px;
+        }
         .fridge-transfer-confirm-btn:disabled,
         .fridge-transfer-confirm-btn.disabled {
             opacity: 0.5;
@@ -3939,7 +4020,40 @@
 
         /* Recipes - Enhanced */
         .recipe-card { flex-direction: column; align-items: flex-start; padding: 0; overflow: hidden; cursor: pointer; }
-        .recipe-image { width: 100%; height: 160px; object-fit: cover; background: var(--surface-light); }
+        .recipe-card:active { transform: scale(0.985); }
+
+        /* Обёртка картинки: затемнение снизу + "стеклянные" бейджи поверх фото —
+           вместо плоской картинки со служебной информацией отдельной строкой ниже. */
+        .recipe-image-wrap { position: relative; width: 100%; height: 190px; overflow: hidden; background: var(--surface-light); }
+        .recipe-image {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+            transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .recipe-card:hover .recipe-image,
+        .recipe-card:active .recipe-image { transform: scale(1.06); }
+
+        .recipe-image-scrim {
+            position: absolute; inset: 0; pointer-events: none;
+            background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.55) 100%);
+        }
+        .recipe-image-badge {
+            position: absolute; top: 10px; right: 10px;
+            display: flex; align-items: center; gap: 5px;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            color: #fff; font-size: 0.78em; font-weight: 700;
+            padding: 5px 10px; border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.14);
+        }
+        .recipe-image-can-make {
+            position: absolute; top: 10px; left: 10px;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: rgba(16, 185, 129, 0.9); color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8em; box-shadow: 0 3px 10px rgba(16, 185, 129, 0.45);
+            border: 1px solid rgba(255,255,255,0.25);
+        }
+
         .recipe-content { padding: 15px; width: 100%; }
         
         .recipe-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -4281,8 +4395,11 @@
         .action-btn:hover { background: var(--surface-light); }
         .action-btn.like-btn.active { color: #EF4444; }
         .action-btn.like-btn.active i { font-weight: 900; transform: scale(1.1); }
-        .action-btn.dislike-btn.active { color: var(--text-secondary); opacity: 0.6; }
+        /* Рецепт уже скрыт (в дизлайках) — кнопка меняет вид на "восстановить",
+           чтобы было явно видно, что повторный клик вернет рецепт в ленту */
+        .action-btn.dislike-btn.active { color: var(--success); opacity: 1; background: rgba(16, 185, 129, 0.12); }
         .action-btn.dislike-btn.active i { font-weight: 900; }
+        .action-btn.dislike-btn.active:hover { background: rgba(16, 185, 129, 0.22); }
 
 #auth-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; background: var(--background); z-index: 2000; transition: opacity 0.5s; overflow-y: auto; }
 
@@ -5662,6 +5779,13 @@ adsgram-task { --adsgram-task-background-color: var(--surface-light); --adsgram-
 .fridge-item-manage { color: var(--text-secondary); padding: 6px; flex-shrink: 0; }
 .fridge-item-manage:hover { color: var(--text-primary); }
 
+/* Индикация загрузки при переключении холодильника — иначе подгрузка данных
+   происходит незаметно и кажется, что клик не сработал. */
+.fridge-item-spinner { color: var(--primary); font-size: 14px; flex-shrink: 0; }
+#fridge-list-container.is-switching .fridge-item { pointer-events: none; opacity: 0.5; transition: opacity 0.15s ease; }
+#fridge-list-container.is-switching .fridge-item.loading { opacity: 1; }
+#fridge-list-container.is-switching .fridge-item.loading .fridge-item-name { color: var(--primary); }
+
 .fridge-action-row { display: flex; flex-direction: column; gap: 10px; }
 .fridge-action-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
 
@@ -5783,6 +5907,28 @@ adsgram-task { --adsgram-task-background-color: var(--surface-light); --adsgram-
     color: #fff;
     border-color: rgba(255,255,255,0.16);
 }
+.fridge-search-container {
+    margin-bottom: 10px;
+}
+.fridge-search-container input {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-color: rgba(255,255,255,0.16);
+    padding-right: 36px;
+}
+.fridge-search-container input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+.fridge-search-clear {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    left: auto !important;
+    cursor: pointer;
+    color: rgba(255,255,255,0.6);
+}
+.fridge-search-clear:hover { color: #fff; }
 
 .fridge-interior-scroll {
     position: relative;

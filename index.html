@@ -440,6 +440,12 @@
                                 <div class="fridge-close-btn" onclick="toggleFridgeDoor()"><i class="fas fa-times"></i></div>
 
                                 <div class="fridge-controls-bar" id="fridge-controls-bar">
+                                    <div class="search-container fridge-search-container">
+                                        <i class="fas fa-search"></i>
+                                        <input type="text" id="inventory-search-input" class="styled-input" placeholder="Поиск продукта..." oninput="updateInventoryList()">
+                                        <i class="fas fa-times-circle fridge-search-clear" id="inventory-search-clear" onclick="clearInventorySearch()" style="display:none;"></i>
+                                    </div>
+
                                     <div class="category-slider" id="inventory-filters">
                                         <button class="cat-btn active" data-filter="all" onclick="setInventoryFilter('all', this)">
                                             <i class="fas fa-th-large"></i> Все
@@ -452,6 +458,9 @@
                                         </button>
                                         <button class="cat-btn" data-filter="critical" onclick="setInventoryFilter('critical', this)" style="color: var(--error); border-color: rgba(239, 68, 68, 0.3);">
                                             <i class="fas fa-skull"></i> Просрочено
+                                        </button>
+                                        <button class="cat-btn" data-filter="no_expiry" onclick="setInventoryFilter('no_expiry', this)" style="color: var(--text-secondary); border-color: var(--border-color);">
+                                            <i class="fas fa-calendar-plus"></i> Без срока
                                         </button>
                                         <button class="cat-btn" onclick="openExpiryFilterModal()"></i> ⏳ Срок
                                         </button>
@@ -609,6 +618,10 @@
 
         <button class="small-action-btn" onclick="copyShoppingText()">
             <i class="fas fa-copy"></i> Копировать
+        </button>
+
+        <button class="small-action-btn" onclick="openPurchaseHistory()">
+            <i class="fas fa-clock-rotate-left"></i> История
         </button>
     </div>
                     
@@ -1311,7 +1324,7 @@
                     <h4><i class="fas fa-lock"></i> Подтвердите пароль</h4>
                     <span class="modal-close" onclick="cancelAdminReauth()">&times;</span>
                 </div>
-                <p id="admin-reauth-label" style="color:var(--text-secondary); font-size:13px;">Это действие затрагивает много данных сразу. Введите пароль администратора, чтобы продолжить.</p>
+                <p id="admin-reauth-label" style="color:var(--text-secondary); font-size:13px;">Это действие затрагивает много данных сразу. Введите пароль панели, чтобы продолжить.</p>
                 <input type="password" id="admin-reauth-password" class="styled-input" style="width:100%; margin-top:8px;" placeholder="Пароль" autocomplete="current-password" onkeydown="if(event.key === 'Enter') confirmAdminReauth()">
                 <div id="admin-reauth-error" style="color:var(--error); font-size:13px; margin-top:8px; display:none;"></div>
                 <div class="modal-actions">
@@ -2160,6 +2173,7 @@ async function trackStat(type) {
         }
 
         function logout() {
+            if (!confirm("Выйти из аккаунта?")) return;
             auth.signOut().then(() => {
                 userInventory = []; userShopping = []; userAchievements = []; userNotifications = [];
                 userFavorites = []; userDislikes = []; 
@@ -2423,6 +2437,10 @@ async function trackStat(type) {
         checkDailyNotifications();
         checkExpiringProductsPush();
         updateUI();
+        // Снимаем локальную блокировку редактирования с рецептов, по которым
+        // модератор уже принял решение (см. syncModerationStatuses).
+        syncModerationStatuses();
+
         // П.11: если пока пользователя не было в приложении, модератор отклонил
         // его рецепт — показываем причину явно, не дожидаясь, пока он сам
         // откроет колокольчик уведомлений.
@@ -2632,19 +2650,41 @@ async function switchActiveFridge(fridgeId) {
     const target = userFridges.find(f => f.id === fridgeId);
     if (!target) return;
 
+    // Немедленная визуальная обратная связь: без неё загрузка данных нового
+    // холодильника происходит незаметно, и кажется, что клик не сработал.
+    const listEl = document.getElementById('fridge-list-container');
+    setFridgeSwitchLoading(listEl, fridgeId, true);
+
     try {
         if (activeFridgeId) await saveData(); // флашим текущий холодильник перед переключением
         const freshDoc = await db.collection('fridges').doc(fridgeId).get();
         if (!freshDoc.exists) { showToast('Холодильник не найден', 'error'); return; }
         applyActiveFridge({ id: freshDoc.id, ...freshDoc.data() });
-        renderFridgeSelector();
+        renderFridgeSelector(); // перерисует список уже без индикатора загрузки
         updateUI();
         hideModal('fridge-select-modal');
         showToast(`Переключено: ${activeFridgeData.name}`, 'success');
     } catch (e) {
         console.error("Switch fridge error", e);
         showToast('Не удалось переключить холодильник', 'error');
+        // При ошибке renderFridgeSelector() не вызывается, поэтому спиннер
+        // нужно снять вручную, иначе он зависнет на карточке.
+        setFridgeSwitchLoading(listEl, fridgeId, false);
     }
+}
+
+// Показывает/скрывает индикатор загрузки на конкретной карточке холодильника
+// и блокирует остальной список, пока идёт переключение.
+function setFridgeSwitchLoading(listEl, fridgeId, isLoading) {
+    if (!listEl) return;
+    listEl.classList.toggle('is-switching', isLoading);
+    const item = listEl.querySelector(`.fridge-item[data-fridge-id="${fridgeId}"]`);
+    if (!item) return;
+    const spinner = item.querySelector('.fridge-item-spinner');
+    const badge = item.querySelector('.fridge-item-active-badge');
+    if (spinner) spinner.style.display = isLoading ? 'inline-block' : 'none';
+    if (badge) badge.style.display = isLoading ? 'none' : '';
+    item.classList.toggle('loading', isLoading);
 }
 
 function openFridgeSelector() {
@@ -2691,13 +2731,14 @@ function renderFridgeSelector() {
         const isActive = f.id === activeFridgeId;
         const memberCount = (f.members || []).length;
         return `
-        <div class="fridge-item ${isActive ? 'active' : ''}" onclick="switchActiveFridge('${f.id}')">
+        <div class="fridge-item ${isActive ? 'active' : ''}" data-fridge-id="${f.id}" onclick="switchActiveFridge('${f.id}')">
             <div class="fridge-item-icon">${fridgeIconMarkup(f.icon, m.icon, 32)}</div>
             <div class="fridge-item-body">
                 <div class="fridge-item-name">${escapeHtml(f.name)}</div>
                 <div class="fridge-item-meta">${memberCount} ${memberCount === 1 ? 'участник' : 'участников'}</div>
             </div>
-            ${isActive ? '<i class="fas fa-check fridge-item-active-badge"></i>' : ''}
+            <i class="fas fa-spinner fa-spin fridge-item-spinner" style="display:none;"></i>
+            <i class="fas fa-check fridge-item-active-badge" style="display:${isActive ? '' : 'none'};"></i>
             <i class="fas fa-ellipsis-v fridge-item-manage" onclick="event.stopPropagation(); openFridgeManage('${f.id}')"></i>
         </div>`;
     }).join('');
@@ -3436,9 +3477,6 @@ function confirmFridgeTransfer() {
     }
 
     let count = 0;
-    const today = new Date();
-    // Ставим срок годности по умолчанию +7 дней (так как мы не спрашиваем пользователя для каждого товара)
-    const defaultExpiry = new Date(today.setDate(today.getDate() + 7)).toISOString().split('T')[0];
 
     toAdd.forEach(item => {
         // Проверяем, есть ли уже такой продукт в инвентаре, чтобы не плодить дубли
@@ -3453,7 +3491,11 @@ function confirmFridgeTransfer() {
                 qty: item.qty || 1,
                 unit: item.unit || 'шт',
                 category: item.category || 'Other',
-                expiryDate: defaultExpiry,
+                // Срок годности у разных товаров сильно отличается, поэтому не
+                // проставляем дефолтные +7 дней "на глаз" — оставляем пустым,
+                // а в инвентаре показываем плашку "Укажите срок годности"
+                // (см. renderMoreInventoryItems / openProductDetail).
+                expiryDate: null,
                 addedDate: new Date().toISOString().split('T')[0]
             });
         }
@@ -3468,6 +3510,15 @@ function confirmFridgeTransfer() {
     toReturn.forEach(item => {
         const stillThere = userShopping.find(s => s.id === item.id);
         if (stillThere) stillThere.completed = false;
+    });
+
+    // Записываем это как одну покупку в историю — чтобы потом можно было
+    // посмотреть, что и когда реально было куплено (вкладка "История покупок").
+    if (!userHistory) userHistory = [];
+    userHistory.push({
+        type: 'purchase',
+        date: new Date().toISOString(),
+        items: toAdd.map(item => ({ name: item.name, qty: item.qty || 1, unit: item.unit || 'шт' }))
     });
 
     hideModal('fridge-transfer-modal');
@@ -3488,6 +3539,13 @@ function confirmFridgeTransfer() {
 }
 
 function openEditRecipe(id) {
+    // Защита: если рецепт уже отправлен на модерацию, редактирование запрещено
+    // (основная проверка — скрытые кнопки в showRecipeDetail, это подстраховка).
+    const gRecipe = globalRecipes.find(r => r.id == id);
+    if (gRecipe && gRecipe.moderationStatus === 'pending') {
+        return showToast("Рецепт на модерации — редактирование недоступно", "warning");
+    }
+
     const recipe = recipesDB.find(r => r.id === id);
     if(!recipe) return;
 
@@ -3644,7 +3702,8 @@ function prepareShare(type) {
                 let expiryInfo = "";
                 
                 // Красивое отображение срока
-                if (days < 0) expiryInfo = `(☠️ Просрок: ${Math.abs(days)} дн.)`;
+                if (days === null) expiryInfo = `(❔ срок не указан)`;
+                else if (days < 0) expiryInfo = `(☠️ Просрок: ${Math.abs(days)} дн.)`;
                 else if (days === 0) expiryInfo = `(⚠️ Сегодня!)`;
                 else if (days <= 3) expiryInfo = `(⏰ ${days} дн.)`;
                 else expiryInfo = `(до ${new Date(p.expiryDate).toLocaleDateString()})`;
@@ -3781,9 +3840,17 @@ function printShoppingList() {
 }
 
         function getDaysUntilExpiry(dateString) {
+            // Срок годности не указан (см. confirmFridgeTransfer) — считать нечего,
+            // весь код ниже должен явно обрабатывать null, а не падать на NaN.
+            if (!dateString) return null;
             const today = new Date(); const expiry = new Date(dateString);
             today.setHours(0, 0, 0, 0); expiry.setHours(0, 0, 0, 0);
             const diffTime = expiry - today; return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        // Товар без указанного срока годности
+        function hasNoExpiry(dateString) {
+            return !dateString;
         }
 
         // --- ОБНОВЛЕННАЯ ЛОГИКА СРОКОВ (ЗАМЕНИТЬ СТАРЫЕ ФУНКЦИИ) ---
@@ -3791,10 +3858,12 @@ function printShoppingList() {
 // Теперь "Скоро портится" считается, если осталось от 0 до 6 дней включительно
 function isExpiringSoon(dateString) { 
     const days = getDaysUntilExpiry(dateString); 
-    return days >= 0 && days <= 6; 
+    return days !== null && days >= 0 && days <= 6; 
 }
 
 function getExpiryColor(days) {
+    if (days === null) return 'var(--border-color)'; // срок не указан — нейтральный цвет
+
     const isLight = document.body.classList.contains('light-theme');
 
     const darkThemePalette = [
@@ -3836,7 +3905,8 @@ function getExpiryColor(days) {
 
 function getExpiryStatus(dateString) {
     const days = getDaysUntilExpiry(dateString);
-    
+
+    if (days === null) return "Укажите срок годности";
     if (days < 0) {
         return `Просрочено на ${Math.abs(days)} дн.`;
     }
@@ -3855,8 +3925,8 @@ function openExpiryEdit(id) {
     const product = userInventory.find(p => p.id === id);
     if (!product) return;
     
-    // Устанавливаем текущую дату в поле
-    document.getElementById('edit-expiry-input').value = product.expiryDate;
+    // Устанавливаем текущую дату в поле (пусто, если срок еще не указан)
+    document.getElementById('edit-expiry-input').value = product.expiryDate || '';
     showModal('edit-expiry-modal');
 }
 
@@ -4328,7 +4398,8 @@ async function shareStatsCardImage() {
 }
 
 function isExpired(dateString) {
-    return getDaysUntilExpiry(dateString) < 0;
+    const days = getDaysUntilExpiry(dateString);
+    return days !== null && days < 0;
 }
 
 // ============================================================
@@ -4984,6 +5055,7 @@ function openComplexityProfile() {
 // --- "ПОРЧА" ПРОДУКТА: визуальная деградация карточки по мере приближения срока ---
 // fresh: >6 дней, aging: 3-6, soon: 1-2, today: 0, expired: < 0
 function getDecayStage(days) {
+    if (days === null) return 'unknown'; // срок не указан
     if (days < 0) return 'expired';
     if (days === 0) return 'today';
     if (days <= 2) return 'soon';
@@ -4993,6 +5065,14 @@ function getDecayStage(days) {
 
 let isCustomExpiryActive = false; // Флаг активности фильтра
 
+function clearInventorySearch() {
+    const input = document.getElementById('inventory-search-input');
+    if (!input) return;
+    input.value = '';
+    updateInventoryList();
+    input.focus();
+}
+
         // Порядок полок в холодильнике
         const FRIDGE_SHELF_ORDER = ['Dairy', 'Meat', 'Seafood', 'Vegetables', 'Fruits', 'Bakery', 'Cereals', 'Condiments', 'Other'];
 
@@ -5001,6 +5081,14 @@ let isCustomExpiryActive = false; // Флаг активности фильтр�
             if (door) door.classList.toggle('open');
         }
 
+// Постраничная отрисовка инвентаря: при 100+ продуктах рендер сразу всех
+// полок ощутимо тормозит скролл, поэтому рисуем их порциями и подгружаем
+// следующую порцию по мере прокрутки списка.
+const INVENTORY_PAGE_SIZE = 30;
+let inventoryPagedItems = [];
+let inventoryRenderedCount = 0;
+let inventoryAdShown = false;
+
         function updateInventoryList() {
     const list = document.getElementById('inventory-list');
     if (!list) return;
@@ -5008,26 +5096,41 @@ let isCustomExpiryActive = false; // Флаг активности фильтр�
     const activeBtn = document.querySelector('#inventory-filters .cat-btn.active');
     const filter = activeBtn ? activeBtn.dataset.filter : 'all';   
     const sortKey = document.getElementById('inventory-sort').value;
-    
+    const searchInput = document.getElementById('inventory-search-input');
+    const search = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    const searchClearBtn = document.getElementById('inventory-search-clear');
+    if (searchClearBtn) searchClearBtn.style.display = search ? 'block' : 'none';
+
     list.innerHTML = '';
     let items = [...userInventory];
+
+    // Поиск по названию продукта
+    if (search) {
+        items = items.filter(p => p.name.toLowerCase().includes(search));
+    }
 
 // Фильтрация
     if (customExpiryDays !== null) {
     // Логика: Дней до конца >= 0 (не просрочено) И Дней до конца <= выбранного числа
     items = items.filter(p => {
         const d = getDaysUntilExpiry(p.expiryDate);
-        return d >= 0 && d <= customExpiryDays;
+        return d !== null && d >= 0 && d <= customExpiryDays;
     });
 } 
-else if (filter === 'safe') items = items.filter(p => getDaysUntilExpiry(p.expiryDate) > 7);
+else if (filter === 'safe') items = items.filter(p => { const d = getDaysUntilExpiry(p.expiryDate); return d !== null && d > 7; });
 else if (filter === 'warning') items = items.filter(p => isExpiringSoon(p.expiryDate) && !isExpired(p.expiryDate));
 else if (filter === 'critical') items = items.filter(p => isExpired(p.expiryDate));
+else if (filter === 'no_expiry') items = items.filter(p => hasNoExpiry(p.expiryDate));
 else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toLowerCase().includes(filter.toLowerCase()));
 
     // Сортировка
     items.sort((a, b) => {
-        const daysA = getDaysUntilExpiry(a.expiryDate), daysB = getDaysUntilExpiry(b.expiryDate);
+        // Товары без срока — в конец списка при сортировке по сроку, а не в начало
+        // (иначе Infinity/NaN из-за null ломает порядок)
+        const rawA = getDaysUntilExpiry(a.expiryDate), rawB = getDaysUntilExpiry(b.expiryDate);
+        const daysA = rawA === null ? Infinity : rawA;
+        const daysB = rawB === null ? Infinity : rawB;
         if (sortKey === 'name_asc') return a.name.localeCompare(b.name);
         if (sortKey === 'name_desc') return b.name.localeCompare(a.name);
         if (sortKey === 'qty_asc') return a.qty - b.qty;
@@ -5052,6 +5155,7 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
     if (doorAlert) {
         const criticalCount = userInventory.filter(p => isExpired(p.expiryDate)).length;
         const warningCount = userInventory.filter(p => isExpiringSoon(p.expiryDate) && !isExpired(p.expiryDate)).length;
+        const noExpiryCount = userInventory.filter(p => hasNoExpiry(p.expiryDate)).length;
         if (criticalCount > 0) {
             doorAlert.style.display = 'flex';
             doorAlert.style.background = 'var(--error)';
@@ -5060,6 +5164,11 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
             doorAlert.style.display = 'flex';
             doorAlert.style.background = 'var(--warning)';
             doorAlert.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${warningCount}`;
+        } else if (noExpiryCount > 0) {
+            doorAlert.style.display = 'flex';
+            doorAlert.style.background = 'var(--border-color)';
+            doorAlert.title = 'Товары без указанного срока годности';
+            doorAlert.innerHTML = `<i class="fas fa-question"></i> ${noExpiryCount}`;
         } else {
             doorAlert.style.display = 'none';
         }
@@ -5072,27 +5181,47 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
         return;
     }
 
-    // Каждая полка холодильника теперь содержит ровно один товар —
-    // отрисовываем полку под каждый элемент в текущем порядке сортировки/фильтра.
-    let renderedShelves = 0;
-    items.forEach(p => {
+    // Сохраняем отфильтрованный/отсортированный список и рисуем только первую
+    // порцию — остальное подгрузится по мере прокрутки (см. renderMoreInventoryItems).
+    inventoryPagedItems = items;
+    inventoryRenderedCount = 0;
+    inventoryAdShown = false;
+    renderMoreInventoryItems();
+    setupInventoryInfiniteScroll();
+}
+
+// Дорисовывает следующую порцию полок из inventoryPagedItems, начиная с
+// того места, где остановились в прошлый раз.
+function renderMoreInventoryItems() {
+    const list = document.getElementById('inventory-list');
+    if (!list) return;
+
+    const nextBatch = inventoryPagedItems.slice(inventoryRenderedCount, inventoryRenderedCount + INVENTORY_PAGE_SIZE);
+    if (nextBatch.length === 0) return;
+
+    let html = '';
+    nextBatch.forEach((p, i) => {
+        const globalIndex = inventoryRenderedCount + i;
         const days = getDaysUntilExpiry(p.expiryDate);
         const dynamicColor = getExpiryColor(days);
         const statusText = getExpiryStatus(p.expiryDate);
+        const noExpiry = hasNoExpiry(p.expiryDate);
         const categoryIcon = getCategoryIcon(p.category);
         const decayStage = getDecayStage(days);
         const imgHtml = p.image
-            ? `<div class="decay-visual decay-${decayStage}"><img src="${p.image}" class="inventory-img"></div>`
+            ? `<div class="decay-visual decay-${decayStage}"><img src="${p.image}" class="inventory-img" loading="lazy"></div>`
             : `<div class="decay-visual decay-${decayStage}"><div class="item-icon" style="color: ${categoryIcon.color};">${categoryIcon.icon}</div></div>`;
 
-        list.innerHTML += `
+        html += `
             <div class="fridge-shelf fridge-shelf-single">
                 <div class="shelf-product-card" style="border-left: 5px solid ${dynamicColor};" onclick="openProductDetail(${p.id})">
                     ${imgHtml}
                     <div class="item-details">
                         <div class="item-name">${escapeHtml(p.name)}</div>
                         <div class="item-meta" onclick="event.stopPropagation(); openExpiryEdit(${p.id})" style="color: ${dynamicColor}; font-weight: 700; cursor: pointer;">
-                            <span>${statusText}</span> <i class="fas fa-pencil-alt"></i>
+                            ${noExpiry
+                                ? `<span class="expiry-unknown-badge"><i class="fas fa-calendar-plus"></i> ${statusText}</span>`
+                                : `<span>${statusText}</span>`} <i class="fas fa-pencil-alt"></i>
                         </div>
                     </div>
                     <div class="item-actions">
@@ -5108,10 +5237,26 @@ else if (filter !== 'all') items = items.filter(p => (p.category || 'Other').toL
 
         // --- ЛОГИКА РЕКЛАМЫ ---
         // Adsgram: только 1 раз, после второй отрисованной полки, и только в Telegram
-        if (renderedShelves === 1 && isTelegramEnv()) {
-            list.innerHTML += `<div class="fridge-ad-shelf">${getAdsgramRowHTML('inv', p.id)}</div>`;
+        if (globalIndex === 1 && isTelegramEnv() && !inventoryAdShown) {
+            html += `<div class="fridge-ad-shelf">${getAdsgramRowHTML('inv', p.id)}</div>`;
+            inventoryAdShown = true;
         }
-        renderedShelves++;
+    });
+
+    list.insertAdjacentHTML('beforeend', html);
+    inventoryRenderedCount += nextBatch.length;
+}
+
+// Подписываемся на скролл списка холодильника один раз: когда пользователь
+// долистывает почти до конца отрисованных полок, дорисовываем следующую порцию.
+function setupInventoryInfiniteScroll() {
+    const list = document.getElementById('inventory-list');
+    if (!list || list.dataset.infiniteScrollBound) return;
+    list.dataset.infiniteScrollBound = '1';
+    list.addEventListener('scroll', () => {
+        if (list.scrollTop + list.clientHeight >= list.scrollHeight - 250) {
+            renderMoreInventoryItems();
+        }
     });
 }
 
@@ -5126,6 +5271,7 @@ function openProductDetail(id) {
     const days = getDaysUntilExpiry(product.expiryDate);
     const dynamicColor = getExpiryColor(days);
     const statusText = getExpiryStatus(product.expiryDate);
+    const noExpiry = hasNoExpiry(product.expiryDate);
     const catIcon = getCategoryIcon(product.category);
     const catKey = product.category || 'Other';
     const catName = (translations[currentLang] && translations[currentLang]['Category' + catKey + 'Full']) || catKey;
@@ -5140,7 +5286,9 @@ function openProductDetail(id) {
     document.getElementById('pd-name').textContent = product.name;
 
     const pdExpiryText = document.getElementById('pd-expiry-text');
-    pdExpiryText.textContent = statusText;
+    pdExpiryText.innerHTML = noExpiry
+        ? `<i class="fas fa-calendar-plus"></i> ${escapeHtml(statusText)}`
+        : escapeHtml(statusText);
     document.getElementById('pd-expiry').style.color = dynamicColor;
 
     document.getElementById('pd-qty-val').textContent = `${product.qty} ${product.unit}`;
@@ -5264,9 +5412,61 @@ function selectSuggestion(select) {
     saveData(false); 
 }
 
-        function deleteShoppingItem(id) { userShopping = userShopping.filter(s => s.id !== id); saveData(); updateShoppingList(); }
+        function deleteShoppingItem(id) {
+    const item = userShopping.find(s => s.id === id);
+    if (!item) return;
+    if (!confirm(`Удалить "${item.name}" из списка покупок?`)) return;
+    userShopping = userShopping.filter(s => s.id !== id);
+    saveData();
+    updateShoppingList();
+}
         function toggleShoppingItem(id) { const item = userShopping.find(s => s.id === id); if (item) item.completed = !item.completed; saveData(false); updateShoppingList(); }
         function clearCompletedShopping() { userShopping = userShopping.filter(s => !s.completed); saveData(); updateShoppingList(); }
+
+// --- ИСТОРИЯ ПОКУПОК ---
+// Каждый перенос купленного в холодильник (confirmFridgeTransfer) пишет запись
+// в userHistory с type: 'purchase' — здесь мы её просто читаем и рисуем.
+function openPurchaseHistory() {
+    renderPurchaseHistoryList();
+    showModal('purchase-history-modal');
+}
+
+function renderPurchaseHistoryList() {
+    const container = document.getElementById('purchase-history-list');
+    const emptyState = document.getElementById('purchase-history-empty');
+    if (!container) return;
+
+    const purchases = (userHistory || [])
+        .filter(h => h.type === 'purchase')
+        .slice()
+        .reverse(); // сначала свежие
+
+    if (emptyState) emptyState.style.display = purchases.length === 0 ? 'block' : 'none';
+
+    container.innerHTML = purchases.map(entry => {
+        const d = new Date(entry.date);
+        const dateText = isNaN(d) ? '' : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+        const itemsHtml = (entry.items || []).map(i =>
+            `<span class="purchase-history-tag">${escapeHtml(i.name)}${i.qty ? ` · ${i.qty} ${escapeHtml(i.unit || '')}` : ''}</span>`
+        ).join('');
+
+        return `
+            <div class="purchase-history-item">
+                <div class="purchase-history-date"><i class="fas fa-calendar-check"></i> ${dateText} <span class="purchase-history-count">${(entry.items || []).length} товар(ов)</span></div>
+                <div class="purchase-history-tags">${itemsHtml}</div>
+            </div>`;
+    }).join('');
+}
+
+function clearPurchaseHistory() {
+    const hasAny = (userHistory || []).some(h => h.type === 'purchase');
+    if (!hasAny) return;
+    if (!confirm('Удалить всю историю покупок? Это действие нельзя отменить.')) return;
+    userHistory = (userHistory || []).filter(h => h.type !== 'purchase');
+    saveData();
+    renderPurchaseHistoryList();
+    showToast('История покупок очищена', 'info');
+}
 
         function updateShoppingList() {
     const list = document.getElementById('shopping-list');
@@ -5676,11 +5876,100 @@ document.querySelectorAll('input[name="dislike-reason"]').forEach(radio => {
     });
 });
 
+        // ===================== Умный подбор ингредиентов =====================
+        // Раньше "Могу приготовить" сравнивало названия продукта и ингредиента
+        // строго посимвольно, поэтому "Яйцо куриное С0" и "Яйца" считались
+        // разными продуктами. Ниже — лёгкая нормализация/стемминг названий:
+        // сравниваем по смысловому "ядру" слова, а не по точной словоформе.
+
+        // Отбрасываем частые окончания рус. существительных/прилагательных,
+        // чтобы разные словоформы одного слова ("яйцо"/"яйца", "помидор"/
+        // "помидоры") сводились к одному и тому же "корню". Сортировка по
+        // убыванию длины — сначала пробуем более длинные (специфичные) окончания.
+        const RU_STEM_ENDINGS = [
+            'иями', 'ями', 'ами', 'ого', 'его', 'ому', 'ему', 'ыми', 'ими',
+            'ое', 'ая', 'ые', 'ие', 'ой', 'ей', 'ый', 'ий', 'ым', 'им', 'их', 'ых',
+            'ов', 'ев', 'ям', 'ам', 'ом', 'ем',
+            'а', 'я', 'ы', 'и', 'о', 'е', 'й', 'ь', 'у', 'ю'
+        ].sort((a, b) => b.length - a.length);
+
+        // Пары "корней", означающие один и тот же продукт, но с разными корнями
+        // слова, поэтому стемминг их не сближает.
+        const RU_STEM_SYNONYMS = { 'картошк': 'картофел', 'томат': 'помидор', 'томатн': 'помидор' };
+
+        const PRODUCT_NAME_STOPWORDS = new Set(['и', 'с', 'со', 'из', 'для', 'без', 'на', 'по', 'в', 'к', 'до', 'от', 'the', 'a', 'an', 'of']);
+
+        function stemProductWord(word) {
+            let w = word;
+            if (/^[a-z]+$/i.test(w)) {
+                // Простейшее приведение множественного числа для латиницы (eggs -> egg)
+                if (w.length > 4 && w.endsWith('es')) return w.slice(0, -2);
+                if (w.length > 3 && w.endsWith('s')) return w.slice(0, -1);
+                return w;
+            }
+            for (const ending of RU_STEM_ENDINGS) {
+                if (w.length - ending.length >= 3 && w.endsWith(ending)) { w = w.slice(0, -ending.length); break; }
+            }
+            return RU_STEM_SYNONYMS[w] || w;
+        }
+
+        // Превращает название продукта в набор "смысловых" корней слов, отбросив
+        // сорта/категории (С0, С1), проценты жирности, объёмы и прочий шум.
+        function getProductWordStems(rawName) {
+            if (!rawName) return [];
+            let s = String(rawName).toLowerCase().replace(/ё/g, 'е');
+            s = s.replace(/\(.*?\)/g, ' ');             // (бренд, пояснения)
+            s = s.replace(/\d+[.,]?\d*\s*%/g, ' ');      // 2.5%, 3,2 %
+            s = s.replace(/\b[а-яa-z]{1,2}\d\b/gi, ' '); // сортовые коды: С0, С1, В0...
+            s = s.replace(/\b\d+\b/g, ' ');              // одиночные числа
+            s = s.replace(/[^а-яa-z\s-]/gi, ' ');        // прочий мусор/пунктуация
+
+            return s.split(/[\s-]+/)
+                .map(w => w.trim())
+                .filter(w => w.length > 1 && !PRODUCT_NAME_STOPWORDS.has(w))
+                .map(stemProductWord);
+        }
+
+        // Сравнивает два названия продукта: сначала точное совпадение (самое
+        // надёжное), а если не сработало — сравнение по корням значимых слов.
+        // Совпадением считаем случай, когда более короткий (менее детальный)
+        // набор слов целиком содержится в более длинном — так "Яйца" совпадёт
+        // с "Яйцо куриное С0", а "Куриное филе" не спутается с "Куриный бульон".
+        function ingredientNamesMatch(nameA, nameB) {
+            if (!nameA || !nameB) return false;
+            if (String(nameA).trim().toLowerCase() === String(nameB).trim().toLowerCase()) return true;
+
+            const stemsA = getProductWordStems(nameA);
+            const stemsB = getProductWordStems(nameB);
+            if (stemsA.length === 0 || stemsB.length === 0) return false;
+
+            const setA = new Set(stemsA);
+            const setB = new Set(stemsB);
+            const [shorter, longer] = setA.size <= setB.size ? [setA, setB] : [setB, setA];
+
+            for (const stem of shorter) {
+                if (!longer.has(stem)) return false;
+            }
+            return true;
+        }
+
+        // Единая точка поиска продукта в холодильнике по названию ингредиента
+        // рецепта — используется везде, где рецепт сверяется с тем, что есть у
+        // пользователя (фильтр "Могу приготовить", детали рецепта, списание при готовке).
+        function findMatchingInventoryItem(ingredientName) {
+            if (!ingredientName) return null;
+            const target = String(ingredientName).trim().toLowerCase();
+            const exact = userInventory.find(i => i.name.trim().toLowerCase() === target);
+            if (exact) return exact;
+            return userInventory.find(i => ingredientNamesMatch(i.name, ingredientName)) || null;
+        }
+
         function checkIngredients(recipe) {
             let missing = [], canMake = true;
             recipe.ingredients.forEach(req => {
-                const invItem = userInventory.find(i => i.name.toLowerCase().trim() === (req[currentLang] || req.name).toLowerCase().trim());
-                if (!invItem || invItem.qty < req.amount) { canMake = false; missing.push({ name: req[currentLang] || req.name, required: `${req.amount} ${req.unit}` }); }
+                const reqName = req[currentLang] || req.name;
+                const invItem = findMatchingInventoryItem(reqName);
+                if (!invItem || invItem.qty < req.amount) { canMake = false; missing.push({ name: reqName, required: `${req.amount} ${req.unit}` }); }
             });
             return { canMake, missing };
         }
@@ -5927,7 +6216,7 @@ function renderMasteryLevels() {
         const isGold = level >= 4 ? 'gold' : '';
 
         container.innerHTML += `
-            <div class="mastery-card ${isGold}">
+            <div class="mastery-card ${isGold}" onclick="openMasteryDetail('${category}')">
                 <div class="mastery-icon" style="color: ${config.color}">
                     <i class="${config.icon}"></i>
                 </div>
@@ -5941,6 +6230,7 @@ function renderMasteryLevels() {
                         <div class="mastery-progress-fill" style="width: ${progressPercent}%; background-color: ${config.color};"></div>
                     </div>
                 </div>
+                <i class="fas fa-chevron-right mastery-chevron"></i>
             </div>
         `;
     }
@@ -5948,6 +6238,92 @@ function renderMasteryLevels() {
     if (!hasMastery) {
         container.innerHTML = `<div style="text-align:center; font-size:0.9em; color:var(--text-secondary); padding:10px;">Готовьте блюда, чтобы повышать мастерство!</div>`;
     }
+}
+
+// Правильное склонение слова "блюдо" под число
+function pluralDishesRu(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return 'блюд';
+    if (mod10 === 1) return 'блюдо';
+    if (mod10 >= 2 && mod10 <= 4) return 'блюда';
+    return 'блюд';
+}
+
+// Пояснение по нажатию на карточку мастерства: что это за звание, сколько
+// приготовлено, сколько осталось до следующего уровня и полный список званий
+// категории. Переиспользует ту же модалку, что и остальная статистика профиля.
+function openMasteryDetail(category) {
+    const config = MASTERY_CONFIG[category];
+    if (!config) return;
+
+    const counts = {};
+    if (userHistory) {
+        userHistory.forEach(h => {
+            if (h.type === 'cook' && h.category) {
+                let cat = h.category;
+                if (cat === 'Vegetable') cat = 'Vegetables';
+                counts[cat] = (counts[cat] || 0) + 1;
+            }
+        });
+    }
+    const count = counts[category] || 0;
+
+    let level = 0;
+    for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+        if (count >= LEVEL_THRESHOLDS[i]) level = i + 1;
+        else break;
+    }
+    if (level > 5) level = 5;
+    if (level < 1) level = 1;
+
+    const currentThreshold = LEVEL_THRESHOLDS[level - 1];
+    const nextThreshold = LEVEL_THRESHOLDS[level];
+    const rankTitle = config.titles[Math.min(level - 1, config.titles.length - 1)];
+
+    document.getElementById('sd-title').innerHTML = `<i class="${config.icon}" style="color:${config.color}"></i> ${rankTitle}`;
+
+    let progressBlock;
+    if (level < 5) {
+        const remain = nextThreshold - count;
+        const range = nextThreshold - currentThreshold;
+        const pct = Math.min(100, Math.round(((count - currentThreshold) / range) * 100));
+        const nextTitle = config.titles[level];
+        progressBlock = `
+            <div class="sd-bar-row">
+                <span class="sd-bar-label">До след. уровня</span>
+                <div class="sd-bar-track"><div class="sd-bar-fill" style="width:${pct}%; background:${config.color};"></div></div>
+                <span class="sd-bar-val">${remain}</span>
+            </div>
+            <div class="sd-record-row">Приготовьте ещё ${remain} ${pluralDishesRu(remain)}, чтобы получить звание «${nextTitle}»</div>
+        `;
+    } else {
+        progressBlock = `<div class="sd-record-row"><i class="fas fa-crown" style="color:#F59E0B"></i> Максимальный уровень мастерства достигнут!</div>`;
+    }
+
+    const levelsListHtml = config.titles.map((title, idx) => {
+        const lvl = idx + 1;
+        const threshold = LEVEL_THRESHOLDS[idx];
+        const achieved = lvl <= level;
+        return `
+            <div class="sd-record-row" style="opacity:${achieved ? 1 : 0.45};">
+                <i class="fas ${achieved ? 'fa-check-circle' : 'fa-lock'}" style="color:${achieved ? config.color : 'var(--text-secondary)'}"></i>
+                <b>Lvl ${lvl}: ${title}</b> — от ${threshold} блюд
+            </div>`;
+    }).join('');
+
+    document.getElementById('sd-body').innerHTML = `
+        <div class="sd-section-title">📊 Прогресс</div>
+        <div class="sd-record-row">Приготовлено блюд этой категории: <b>${count}</b></div>
+        ${progressBlock}
+
+        <div class="sd-section-title">🏅 Все звания категории</div>
+        ${levelsListHtml}
+
+        <div class="sd-section-title">ℹ️ Как это работает</div>
+        <div class="sd-record-row" style="opacity:0.85;">Мастерство растёт за каждое приготовленное блюдо из этой категории — чем больше готовите, тем выше звание.</div>
+    `;
+
+    showModal('stat-detail-modal');
 }
 
 // Функция переключения главной картинки в галерее рецепта
@@ -5973,8 +6349,7 @@ function checkLimitingIngredient(recipe) {
     let limitingIngUnit = "";
 
     recipe.ingredients.forEach(ing => {
-        const reqName = ing.name.trim().toLowerCase();
-        const userItem = userInventory.find(i => i.name.trim().toLowerCase() === reqName);
+        const userItem = findMatchingInventoryItem(ing.name);
         
         // Если продукт есть, но его меньше чем надо (и это не 0)
         if (userItem && userItem.qty > 0 && userItem.qty < ing.amount) {
@@ -6031,12 +6406,16 @@ function applyLimitingScale() {
 
     const galleryContainer = document.getElementById('recipe-gallery-container');
     if (galleryContainer) {
+        // Полоску миниатюр показываем только если фото несколько — с одним
+        // снимком дублирующая его же превьюшка под большим фото выглядит лишней.
+        const thumbStripHtml = r.images.length > 1 ? `<div class="recipe-gallery">${imagesHtml}</div>` : '';
         galleryContainer.innerHTML = `
-            <div style="position: relative;">
+            <div class="recipe-hero-wrap">
                 <img src="${r.images[0]}" id="recipe-detail-hero" class="recipe-hero-img">
+                <div class="recipe-hero-scrim"></div>
                 <div id="ut-overroll" style="position: absolute; top: 0; left: 0; width: 100%; height: 250px; z-index: 10;"></div>
             </div>
-            <div class="recipe-gallery">${imagesHtml}</div>
+            ${thumbStripHtml}
         `;
     }
 
@@ -6111,28 +6490,44 @@ function applyLimitingScale() {
     // Инициализируем HTML кнопок
     let buttonsHtml = '';
 
-    // Кнопка Редактировать (Только для автора)
-    if (r.authorId === currentUser.uid) {
-         buttonsHtml += `<button class="action-btn" style="border: 1px solid var(--border-color); width:100%; justify-content:center; margin-top:10px;" onclick="openEditRecipe('${r.id}')"><i class="fas fa-edit"></i> Редактировать</button>`;
-    }
+    const isOwnPendingRecipe = r.authorId === currentUser.uid && r.moderationStatus === 'pending';
 
-    // Кнопка Удалить (Для автора и Админа)
-    // Разрешаем удалять, если это автор ИЛИ админ
-    if (r.authorId === currentUser.uid || (currentUser && currentUser.uid === ADMIN_UID)) {
+    if (isOwnPendingRecipe) {
+        // Рецепт уже отправлен на модерацию — редактирование и удаление заблокированы,
+        // пока модератор не примет решение. Даем возможность только отозвать заявку.
         buttonsHtml += `
-            <button class="action-btn" style="border: 1px solid var(--error); color: var(--error); width:100%; justify-content:center; margin-top:10px;" 
-                onclick="deleteRecipeUniversal('${r.id}')">
-                <i class="fas fa-trash"></i> Удалить рецепт
+            <div class="pending-moderation-note" style="border:1px solid var(--warning); color: var(--warning); border-radius:10px; padding:10px; margin-top:10px; font-size:0.9em; display:flex; align-items:center; gap:8px;">
+                <i class="fas fa-hourglass-half"></i>
+                <span>Рецепт на модерации. Редактирование и удаление недоступны, пока модератор не примет решение.</span>
+            </div>
+            <button class="action-btn" style="border: 1px solid var(--error); color: var(--error); width:100%; justify-content:center; margin-top:10px;"
+                onclick="withdrawRecipeFromModeration('${r.id}')">
+                <i class="fas fa-undo"></i> Отозвать с модерации
             </button>`;
-    }
+    } else {
+        // Кнопка Редактировать (Только для автора)
+        if (r.authorId === currentUser.uid) {
+             buttonsHtml += `<button class="action-btn" style="border: 1px solid var(--border-color); width:100%; justify-content:center; margin-top:10px;" onclick="openEditRecipe('${r.id}')"><i class="fas fa-edit"></i> Редактировать</button>`;
+        }
 
-    // Кнопка Опубликовать (Только для автора, если еще не опубликовано)
-    if (r.authorId === currentUser.uid && r.isCustom) {
-         buttonsHtml += `
-            <button class="action-btn" style="border: 1px solid #8B5CF6; color: #8B5CF6; width:100%; justify-content:center; margin-top:10px;" 
-                onclick="publishExistingRecipe('${r.id}')">
-                <i class="fas fa-globe"></i> Опубликовать
-            </button>`;
+        // Кнопка Удалить (Для автора и Админа)
+        // Разрешаем удалять, если это автор ИЛИ админ
+        if (r.authorId === currentUser.uid || (currentUser && currentUser.uid === ADMIN_UID)) {
+            buttonsHtml += `
+                <button class="action-btn" style="border: 1px solid var(--error); color: var(--error); width:100%; justify-content:center; margin-top:10px;" 
+                    onclick="deleteRecipeUniversal('${r.id}')">
+                    <i class="fas fa-trash"></i> Удалить рецепт
+                </button>`;
+        }
+
+        // Кнопка Опубликовать (Только для автора, если еще не опубликовано)
+        if (r.authorId === currentUser.uid && r.isCustom) {
+             buttonsHtml += `
+                <button class="action-btn" style="border: 1px solid #8B5CF6; color: #8B5CF6; width:100%; justify-content:center; margin-top:10px;" 
+                    onclick="publishExistingRecipe('${r.id}')">
+                    <i class="fas fa-globe"></i> Опубликовать
+                </button>`;
+        }
     }
 
     editContainer.innerHTML = buttonsHtml;
@@ -6148,7 +6543,7 @@ function applyLimitingScale() {
         warningDiv.innerHTML = `
             <div class="scale-warning-text">
                 Мало продукта: <b>${limitCheck.limitingIngName}</b>.
-                <br>Нужно: ${r.ingredients.find(i => i.name.toLowerCase().trim() === limitCheck.limitingIngName.toLowerCase().trim())?.amount}.
+                <br>Нужно: ${r.ingredients.find(i => ingredientNamesMatch(i.name, limitCheck.limitingIngName))?.amount}.
             </div>
             <button class="scale-action-btn" onclick="applyLimitingScale()">
                 Пересчитать (x${limitingRatio.toFixed(2)})
@@ -6177,6 +6572,7 @@ function openCreateRecipe() {
     document.getElementById('cr-steps-list').innerHTML = '';
     addCrIngredientRow(); // Добавить одну пустую строку
     addCrStepRow();
+    pendingPreviewRecipe = null;
     
     showModal('create-recipe-modal');
 }
@@ -6213,6 +6609,10 @@ async function publishExistingRecipe(id) {
     const recipe = userEditedRecipes[id];
     if (!recipe) return;
 
+    if (recipe.moderationStatus === 'pending') {
+        return showToast("Рецепт уже на модерации", "warning");
+    }
+
     if (confirm("Отправить этот рецепт на модерацию для публикации?")) {
         try {
             // Копируем, чтобы разорвать связь ссылок
@@ -6220,11 +6620,41 @@ async function publishExistingRecipe(id) {
             toSend.submittedAt = new Date().toISOString(); // для SLA-трекинга в очереди модерации
             const submittedRef = await db.collection('pending_recipes').add(toSend);
             runSpamPreFilter(submittedRef.id, toSend); // не блокируем UI — флаг подтянется в очередь по готовности
+
+            // Помечаем локальную копию как отправленную на модерацию, чтобы
+            // заблокировать её редактирование/удаление до решения модератора
+            // (recipe — это тот же объект, что лежит в globalRecipes, см. submitNewRecipe)
+            recipe.moderationStatus = 'pending';
+            recipe.pendingDocId = submittedRef.id;
+            saveData(false);
+
             showToast("Рецепт отправлен модераторам!", "success");
-            hideModal('recipe-detail-modal');
+            showRecipeDetail(id); // обновляем кнопки в открытой карточке
         } catch(e) {
             showToast("Ошибка: " + e.message, "error");
         }
+    }
+}
+
+// Отзыв рецепта с модерации: снимает заявку из очереди и снова открывает
+// редактирование/удаление для автора.
+async function withdrawRecipeFromModeration(id) {
+    const recipe = userEditedRecipes[id];
+    if (!recipe || recipe.moderationStatus !== 'pending') return;
+
+    if (!confirm("Отозвать рецепт с модерации? Заявка будет удалена из очереди проверки.")) return;
+
+    try {
+        if (recipe.pendingDocId) {
+            await db.collection('pending_recipes').doc(recipe.pendingDocId).delete();
+        }
+        delete recipe.moderationStatus;
+        delete recipe.pendingDocId;
+        saveData(false);
+        showToast("Рецепт отозван с модерации", "success");
+        showRecipeDetail(id);
+    } catch(e) {
+        showToast("Ошибка: " + e.message, "error");
     }
 }
 
@@ -6295,9 +6725,9 @@ function printMealPlan() {
     setTimeout(() => window.print(), 200);
 }
 
-async function submitNewRecipe(isPublic = false) {
-    if (!currentUser) return showToast("Нужна регистрация!", "error");
-
+// Собирает данные из формы создания рецепта и валидирует их.
+// Возвращает объект рецепта или null (с уведомлением), если форма не заполнена.
+function collectNewRecipeFromForm() {
     const name = document.getElementById('cr-name').value;
     const time = document.getElementById('cr-time').value + ' min';
     const difficulty = document.getElementById('cr-difficulty').value;
@@ -6320,10 +6750,11 @@ async function submitNewRecipe(isPublic = false) {
     });
 
     if(!name || ingredients.length === 0 || steps.length === 0) {
-        return showToast("Заполните название, ингредиенты и шаги", "warning");
+        showToast("Заполните название, ингредиенты и шаги", "warning");
+        return null;
     }
 
-    const newRecipe = {
+    return {
         id: Date.now(),
         authorId: currentUser.uid,
         authorName: currentUser.name,
@@ -6338,6 +6769,13 @@ async function submitNewRecipe(isPublic = false) {
         isCustom: true, // Флаг, что это пользовательский рецепт
         submittedAt: new Date().toISOString() // для SLA-трекинга в очереди модерации
     };
+}
+
+async function submitNewRecipe(isPublic = false) {
+    if (!currentUser) return showToast("Нужна регистрация!", "error");
+
+    const newRecipe = collectNewRecipeFromForm();
+    if (!newRecipe) return;
 
     if (isPublic) {
         // ОТПРАВКА НА МОДЕРАЦИЮ
@@ -6346,6 +6784,7 @@ async function submitNewRecipe(isPublic = false) {
             runSpamPreFilter(newRef.id, newRecipe); // не блокируем UI — флаг подтянется в очередь по готовности
             showToast("Рецепт отправлен на модерацию!", "success");
             hideModal('create-recipe-modal');
+            hideModal('recipe-preview-modal');
         } catch(e) {
             console.error(e);
             showToast("Ошибка отправки: " + e.message, "error");
@@ -6365,7 +6804,63 @@ async function submitNewRecipe(isPublic = false) {
         
         updateRecipesList();
         hideModal('create-recipe-modal');
+        hideModal('recipe-preview-modal');
         showToast("Личный рецепт создан!", "success");
+    }
+}
+
+// --- ПРЕДПРОСМОТР ПЕРЕД ПУБЛИКАЦИЕЙ ---
+// Показывает рецепт так, как его увидят другие пользователи, до отправки на модерацию.
+function openRecipePreview() {
+    const recipe = collectNewRecipeFromForm();
+    if (!recipe) return;
+
+    pendingPreviewRecipe = recipe;
+
+    const difficultyText = recipe.difficulty.ru;
+    const ingredientsHtml = recipe.ingredients.map(i =>
+        `<li>${escapeHtml(i.name)} — ${i.amount} ${escapeHtml(i.unit)}</li>`
+    ).join('');
+    const stepsHtml = recipe.steps.ru.map(s => `<li>${escapeHtml(s)}</li>`).join('');
+
+    const body = document.getElementById('recipe-preview-body');
+    body.innerHTML = `
+        <img src="${recipe.images[0]}" style="width:100%; height:180px; object-fit:cover; border-radius:10px; margin-bottom:12px;" onerror="this.style.display='none'">
+        <h3 style="margin:0 0 8px 0;">${escapeHtml(recipe.name.ru)}</h3>
+        <div style="display:flex; gap:15px; color:var(--text-secondary); font-size:0.9em; margin-bottom:15px;">
+            <span><i class="fas fa-clock"></i> ${escapeHtml(recipe.time)}</span>
+            <span><i class="fas fa-hand-sparkles"></i> ${escapeHtml(difficultyText)}</span>
+        </div>
+        <div class="detail-section">
+            <h5>Ингредиенты</h5>
+            <ul style="padding-left:20px; margin:0;">${ingredientsHtml}</ul>
+        </div>
+        <div class="detail-section" style="margin-top:12px;">
+            <h5>Шаги приготовления</h5>
+            <ol style="padding-left:20px; margin:0;">${stepsHtml}</ol>
+        </div>
+    `;
+
+    hideModal('create-recipe-modal');
+    showModal('recipe-preview-modal');
+}
+
+// Отправляет на модерацию тот же рецепт, что был показан в предпросмотре
+// (форма не пересобирается заново, чтобы не разойтись с тем, что видел пользователь).
+async function confirmSubmitFromPreview() {
+    if (!currentUser) return showToast("Нужна регистрация!", "error");
+    if (!pendingPreviewRecipe) return showToast("Сначала откройте предпросмотр", "warning");
+
+    try {
+        const newRef = await db.collection('pending_recipes').add(pendingPreviewRecipe);
+        runSpamPreFilter(newRef.id, pendingPreviewRecipe);
+        showToast("Рецепт отправлен на модерацию!", "success");
+        hideModal('recipe-preview-modal');
+        hideModal('create-recipe-modal');
+        pendingPreviewRecipe = null;
+    } catch(e) {
+        console.error(e);
+        showToast("Ошибка отправки: " + e.message, "error");
     }
 }
 
@@ -7520,7 +8015,7 @@ function exportEmailsCSV() {
         return;
     }
 
-    requireAdminReauth('Экспорт email-адресов и данных всех пользователей в CSV. Введите пароль администратора, чтобы продолжить.', () => {
+    requireAdminReauth('Экспорт email-адресов и данных всех пользователей в CSV. Введите пароль панели, чтобы продолжить.', () => {
         let csvContent = "data:text/csv;charset=utf-8,ID,Name,Email,Telegram,Level,XP,Banned\n";
         allUsersCache.forEach(u => {
             // Экранируем запятые в именах
@@ -7551,24 +8046,9 @@ function exportEmailsCSV() {
 let pendingAdminReauthAction = null;
 
 function requireAdminReauth(label, actionFn) {
-    if (!auth.currentUser) return;
-
-    const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
-    if (!hasPasswordProvider) {
-        // Аккаунт без пароля (вход через Google) — подтверждаем личность тем же
-        // провайдером, паролем спрашивать нечего.
-        auth.currentUser.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider())
-            .then(() => { if (typeof actionFn === 'function') actionFn(); })
-            .catch(e => {
-                console.error('Admin reauth (Google) failed', e);
-                showToast('Не удалось подтвердить личность: ' + describeFirestoreError(e), 'error');
-            });
-        return;
-    }
-
     pendingAdminReauthAction = actionFn;
     const labelEl = document.getElementById('admin-reauth-label');
-    if (labelEl) labelEl.textContent = label || 'Это действие затрагивает много данных сразу. Введите пароль администратора, чтобы продолжить.';
+    if (labelEl) labelEl.textContent = label || 'Это действие затрагивает много данных сразу. Введите пароль панели, чтобы продолжить.';
     const pwInput = document.getElementById('admin-reauth-password');
     if (pwInput) pwInput.value = '';
     const errEl = document.getElementById('admin-reauth-error');
@@ -7592,25 +8072,50 @@ async function confirmAdminReauth() {
         if (errEl) { errEl.textContent = 'Введите пароль'; errEl.style.display = 'block'; }
         return;
     }
-    if (!auth.currentUser) { cancelAdminReauth(); return; }
 
     if (btn) { btn.disabled = true; btn.dataset.oldText = btn.dataset.oldText || btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...'; }
 
     try {
-        const credential = firebase.auth.EmailAuthProvider.credential(auth.currentUser.email, password);
-        await auth.currentUser.reauthenticateWithCredential(credential);
+        // Используем ТОТ ЖЕ пароль панели модератора (admin_security/config) и те же
+        // анти-брутфорс счётчики, что и при входе в панель — не заводим второй,
+        // несвязанный пароль (как было в предыдущей версии через Firebase Auth).
+        const doc = await adminSecurityDocRef().get();
+        const data = doc.exists ? doc.data() : {};
 
-        const action = pendingAdminReauthAction;
-        pendingAdminReauthAction = null;
-        hideModal('admin-reauth-modal');
-        if (typeof action === 'function') action();
+        const lockedUntil = data.lockedUntil ? new Date(data.lockedUntil).getTime() : 0;
+        if (lockedUntil && Date.now() < lockedUntil) {
+            const mins = Math.max(1, Math.ceil((lockedUntil - Date.now()) / 60000));
+            if (errEl) { errEl.textContent = `Слишком много неверных попыток. Попробуйте снова через ${mins} мин.`; errEl.style.display = 'block'; }
+            return;
+        }
+
+        if (!data.passwordHash) {
+            if (errEl) { errEl.textContent = 'Пароль панели ещё не задан — сначала войдите в панель модератора обычным способом.'; errEl.style.display = 'block'; }
+            return;
+        }
+
+        const candidateHash = await sha256Hex((data.salt || '') + password);
+        if (candidateHash === data.passwordHash) {
+            await adminSecurityDocRef().update({ failedAttempts: 0, lockedUntil: null });
+            const action = pendingAdminReauthAction;
+            pendingAdminReauthAction = null;
+            hideModal('admin-reauth-modal');
+            if (typeof action === 'function') action();
+        } else {
+            const attempts = (data.failedAttempts || 0) + 1;
+            if (attempts >= ADMIN_MAX_ATTEMPTS) {
+                const lockUntilTs = Date.now() + ADMIN_LOCKOUT_MS;
+                await adminSecurityDocRef().update({ failedAttempts: 0, lockedUntil: new Date(lockUntilTs).toISOString() });
+                logAdmin(`Панель модератора временно заблокирована на 15 минут после ${ADMIN_MAX_ATTEMPTS} неверных попыток подтверждения действия`, 'security');
+                if (errEl) { errEl.textContent = 'Слишком много неверных попыток. Попробуйте снова через 15 мин.'; errEl.style.display = 'block'; }
+            } else {
+                await adminSecurityDocRef().update({ failedAttempts: attempts });
+                if (errEl) { errEl.textContent = `Неверный пароль. Осталось попыток: ${ADMIN_MAX_ATTEMPTS - attempts}.`; errEl.style.display = 'block'; }
+            }
+        }
     } catch (e) {
         console.error('Admin reauth failed', e);
-        if (errEl) {
-            const wrongPasswordCodes = ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials'];
-            errEl.textContent = wrongPasswordCodes.includes(e.code) ? 'Неверный пароль' : describeFirestoreError(e);
-            errEl.style.display = 'block';
-        }
+        if (errEl) { errEl.textContent = describeFirestoreError(e); errEl.style.display = 'block'; }
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.oldText || 'Подтвердить'; }
     }
@@ -9578,7 +10083,10 @@ async function approveRecipe(docId, recipeData) {
                     message: `Ваш рецепт "${recipeData.name.ru || recipeData.name}" опубликован! 🎉`,
                     icon: 'fas fa-check-circle',
                     date: new Date().toISOString(),
-                    read: false
+                    read: false,
+                    // Чтобы у автора локально сняло статус "на модерации" (см. syncModerationStatuses)
+                    notifKind: 'recipe_approved',
+                    recipeId: recipeData.id
                 });
                 await userRef.update({ notifications: notifs });
             }
@@ -9642,7 +10150,8 @@ async function rejectRecipeWithReason(docId, reason) {
                     // всплывающее окно с причиной автору (см. checkRejectedRecipesPopup)
                     notifKind: 'recipe_rejected',
                     recipeName: (r.name && (r.name.ru || r.name)) || 'Рецепт',
-                    reason: reason
+                    reason: reason,
+                    recipeId: r.id
                 });
                 await userRef.update({ notifications: notifs });
             }
@@ -9686,6 +10195,13 @@ async function rejectRecipeWithReason(docId, reason) {
     updateHeader();
     showToast(`Добавлено ${addedCount} продуктов в список`, "success");
 }
+
+// Постраничная отрисовка рецептов — та же проблема, что и с холодильником:
+// сразу все карточки рендерить дорого. Рисуем порциями и подгружаем по скроллу.
+const RECIPES_PAGE_SIZE = 20;
+let recipesPagedItems = [];
+let recipesRenderedCount = 0;
+let recipesAdShown = false;
 
         function updateRecipesList() {
     const list = document.getElementById('recipes-list');
@@ -9752,11 +10268,30 @@ async function rejectRecipeWithReason(docId, reason) {
 
     const emptyState = document.getElementById('recipes-empty');
     if (emptyState) emptyState.style.display = items.length === 0 ? 'block' : 'none';
-    
-    // Цикл отрисовки
-    items.forEach((r, index) => {
+
+    // Сохраняем отфильтрованный/отсортированный список и рисуем только первую
+    // порцию — остальные карточки подгрузятся по мере прокрутки.
+    recipesPagedItems = items;
+    recipesRenderedCount = 0;
+    recipesAdShown = false;
+    renderMoreRecipeItems();
+    setupRecipesInfiniteScroll();
+}
+
+// Дорисовывает следующую порцию карточек рецептов из recipesPagedItems.
+function renderMoreRecipeItems() {
+    const list = document.getElementById('recipes-list');
+    if (!list) return;
+
+    const nextBatch = recipesPagedItems.slice(recipesRenderedCount, recipesRenderedCount + RECIPES_PAGE_SIZE);
+    if (nextBatch.length === 0) return;
+
+    let html = '';
+    nextBatch.forEach((r, i) => {
+        const globalIndex = recipesRenderedCount + i;
         const check = checkIngredients(r); 
         const isLiked = userFavorites.includes(r.id); 
+        const isDisliked = userDislikes.some(d => d.id === r.id);
         const mainImage = r.images[0];
         
         // Популярность (огонек)
@@ -9765,29 +10300,53 @@ async function rejectRecipeWithReason(docId, reason) {
         let popScore = basePopularity + (timesCooked * 5) + (isLiked ? 10 : 0);
         let fireColor = popScore > 20 ? "#EF4444" : (popScore > 5 ? "#F59E0B" : "#94A3B8");
 
-        list.innerHTML += `
+        html += `
         <div class="recipe-card" onclick="showRecipeDetail(${r.id})">
-            <img src="${mainImage}" class="recipe-image" loading="lazy">
+            <div class="recipe-image-wrap">
+                <img src="${mainImage}" class="recipe-image" loading="lazy" alt="">
+                <div class="recipe-image-scrim"></div>
+                ${check.canMake ? '<div class="recipe-image-can-make"><i class="fas fa-check"></i></div>' : ''}
+                <div class="recipe-image-badge"><i class="fas fa-clock"></i> ${escapeHtml(r.time)}${popScore > 5 ? ` <i class="fas fa-fire" style="color:${fireColor}"></i>` : ''}</div>
+            </div>
             <div class="recipe-content">
                 <div class="recipe-header">
                     <div class="recipe-title">${escapeHtml(r.name[currentLang]||r.name.ru)}</div>
-                    <div class="recipe-time"><i class="fas fa-clock"></i> ${escapeHtml(r.time)} <i class="fas fa-fire" style="margin-left:5px; color:${fireColor}"></i></div>
                 </div>
                 <div class="recipe-ingredients-preview">${check.missing.slice(0,3).map(m=>`<span class="ingredient-tag missing">${escapeHtml(m.name)}</span>`).join('')}</div>
                 <div class="recipe-actions-bar" onclick="event.stopPropagation()">
                     <div style="display:flex; gap:5px;">
                         <button class="action-btn like-btn ${isLiked ? 'active' : ''}" onclick="toggleRecipeStatus(${r.id}, 'like')"><i class="${isLiked ? 'fas' : 'far'} fa-heart"></i></button>
-                        <button class="action-btn dislike-btn" onclick="toggleRecipeStatus(${r.id}, 'dislike')"><i class="far fa-thumbs-down"></i></button>
+                        <button class="action-btn dislike-btn ${isDisliked ? 'active' : ''}" onclick="toggleRecipeStatus(${r.id}, 'dislike')" title="${isDisliked ? 'Вернуть рецепт' : 'Скрыть рецепт'}"><i class="${isDisliked ? 'fas fa-trash-restore' : 'far fa-thumbs-down'}"></i></button>
                     </div>
                     <button class="recipe-btn ${check.canMake?'cook':'shop'}" onclick="showRecipeDetail(${r.id})">${check.canMake?translations[currentLang].CookButton:translations[currentLang].ShopMissingButton}</button>
                 </div>
             </div>
         </div>`;
 
-        // --- ЛОГИКА РЕКЛАМЫ (ИСПРАВЛЕНА) ---
-        // Adsgram (TG): после 2-го (index 1)
-        if (index === 1 && isTelegramEnv()) {
-            list.innerHTML += getAdsgramRowHTML('rec', r.id);
+        // --- ЛОГИКА РЕКЛАМЫ ---
+        // Adsgram (TG): один раз, после 2-го рецепта (глобальный индекс 1)
+        if (globalIndex === 1 && isTelegramEnv() && !recipesAdShown) {
+            html += getAdsgramRowHTML('rec', r.id);
+            recipesAdShown = true;
+        }
+    });
+
+    list.insertAdjacentHTML('beforeend', html);
+    recipesRenderedCount += nextBatch.length;
+}
+
+// Список рецептов сам не скроллится — скроллится общий .main-content.
+// Подписываемся один раз и подгружаем следующую порцию, когда пользователь
+// долистывает почти до низа, но только пока открыта вкладка рецептов.
+function setupRecipesInfiniteScroll() {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent || mainContent.dataset.recipesInfiniteScrollBound) return;
+    mainContent.dataset.recipesInfiniteScrollBound = '1';
+    mainContent.addEventListener('scroll', () => {
+        const recipesSection = document.getElementById('recipes-section');
+        if (!recipesSection || !recipesSection.classList.contains('active')) return;
+        if (mainContent.scrollTop + mainContent.clientHeight >= mainContent.scrollHeight - 300) {
+            renderMoreRecipeItems();
         }
     });
 }
@@ -10960,6 +11519,28 @@ function checkDailyNotifications() {
 // Теперь при входе в приложение, если есть новые решения по рецептам
 // (notifKind === 'recipe_rejected'), сразу показываем модалку с явной
 // причиной — тем самым текстом из чипов, которые модератор выбрал в админке.
+// Снимает локальный статус "на модерации" с рецептов автора после решения
+// модератора (одобрено/отклонено), чтобы редактирование/удаление снова стало
+// доступно. Работает по уведомлениям с notifKind recipe_approved/recipe_rejected,
+// которые несут исходный id рецепта (см. approveRecipe/rejectRecipeWithReason).
+function syncModerationStatuses() {
+    if (!Array.isArray(userNotifications) || !userEditedRecipes) return;
+
+    let changed = false;
+    userNotifications.forEach(n => {
+        if ((n.notifKind === 'recipe_approved' || n.notifKind === 'recipe_rejected') && n.recipeId != null) {
+            const recipe = userEditedRecipes[n.recipeId];
+            if (recipe && recipe.moderationStatus === 'pending') {
+                delete recipe.moderationStatus;
+                delete recipe.pendingDocId;
+                changed = true;
+            }
+        }
+    });
+
+    if (changed) saveData(false);
+}
+
 function checkRejectedRecipesPopup() {
     if (!Array.isArray(userNotifications)) return;
 
@@ -11834,6 +12415,9 @@ let activeTimerInterval = null;
 let remainingTime = 0;
 let totalTimerDuration = 0;
 let activeTimerBtn = null;
+let timerEndTimestamp = null; // абсолютное системное время окончания таймера (Date.now() + duration) —
+                               // именно от него, а не от счетчика тиков, считаем оставшееся время,
+                               // чтобы таймер не отставал/не опережал при троттлинге фоновой вкладки
 
 // 1. ЗАПУСК РЕЖИМА ГОТОВКИ
 function startCookingMode(id) {
@@ -11902,6 +12486,13 @@ function startStepTimer(seconds, btnEl, label) {
 
     remainingTime = seconds;
     totalTimerDuration = seconds;
+    // Считаем от системных часов, а не от количества сработавших тиков —
+    // setInterval тормозится или полностью замирает в фоновой/свернутой
+    // вкладке, поэтому декремент "remainingTime--" на каждый тик отставал
+    // от реального времени. Абсолютная метка окончания не зависит от того,
+    // сколько тиков реально произошло.
+    timerEndTimestamp = Date.now() + seconds * 1000;
+
     activeTimerBtn = btnEl || null;
     if (activeTimerBtn) activeTimerBtn.classList.add('timer-active');
 
@@ -11910,32 +12501,54 @@ function startStepTimer(seconds, btnEl, label) {
     bar.classList.add('visible');
     document.getElementById('cooking-timer-label').textContent = label ? `Таймер · ${label}` : 'Таймер шага';
 
+    tickStepTimer();
+
+    activeTimerInterval = setInterval(tickStepTimer, 1000);
+}
+
+// Один "тик" таймера: всегда пересчитывает оставшееся время из разницы между
+// системными часами и абсолютной меткой окончания (timerEndTimestamp), а не
+// декрементирует счетчик. Благодаря этому таймер сам "догоняет" системное
+// время после троттлинга/паузы в фоне — его можно звать когда угодно
+// (из setInterval, из обработчика visibilitychange при возврате на вкладку
+// и т.п.) и он всегда покажет верное значение.
+function tickStepTimer() {
+    if (timerEndTimestamp === null) return;
+
+    remainingTime = Math.round((timerEndTimestamp - Date.now()) / 1000);
     updateTimerDisplay();
     updateTimerRing();
 
-    activeTimerInterval = setInterval(() => {
-        remainingTime--;
-        updateTimerDisplay();
-        updateTimerRing();
-
-        if (remainingTime <= 0) {
-            clearInterval(activeTimerInterval);
-            activeTimerInterval = null;
-            if (activeTimerBtn) activeTimerBtn.classList.remove('timer-active');
-            document.getElementById('cooking-timer-bar').classList.add('ringing');
-            document.getElementById('cooking-timer-label').textContent = 'Время вышло!';
-            playNotificationSound();
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            showToast('⏰ Таймер сработал: время вышло!', 'success');
-        }
-    }, 1000);
+    if (remainingTime <= 0) {
+        clearInterval(activeTimerInterval);
+        activeTimerInterval = null;
+        timerEndTimestamp = null;
+        if (activeTimerBtn) activeTimerBtn.classList.remove('timer-active');
+        document.getElementById('cooking-timer-bar').classList.add('ringing');
+        document.getElementById('cooking-timer-label').textContent = 'Время вышло!';
+        playNotificationSound();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        showToast('⏰ Таймер сработал: время вышло!', 'success');
+    }
 }
+
+// Пока вкладка свернута/в фоне, браузер троттлит или вовсе останавливает
+// setInterval — на мобильных таймер может не тикать вообще, пока приложение
+// не на экране. При возврате пересчитываем оставшееся время сразу же (а не
+// ждем следующего тика раз в секунду), чтобы дисплей мгновенно показал
+// актуальное значение и, если время уже вышло, сразу сработало уведомление.
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && timerEndTimestamp !== null) {
+        tickStepTimer();
+    }
+});
 
 function cancelStepTimer() {
     if (activeTimerInterval) clearInterval(activeTimerInterval);
     activeTimerInterval = null;
     remainingTime = 0;
     totalTimerDuration = 0;
+    timerEndTimestamp = null;
     if (activeTimerBtn) activeTimerBtn.classList.remove('timer-active');
     activeTimerBtn = null;
     const bar = document.getElementById('cooking-timer-bar');
@@ -12059,8 +12672,7 @@ function finishCooking() {
         let ingredientsDetailed = [];
         let dishCO2 = 0;
         recipe.ingredients.forEach(ing => {
-            const reqName = ing.name.trim().toLowerCase();
-            const product = userInventory.find(p => p.name.trim().toLowerCase() === reqName);
+            const product = findMatchingInventoryItem(ing.name);
 
             const ingCategory = (product && product.category) || 'Other';
             const ingUnit = ing.unit || (product && product.unit) || 'шт';
@@ -12361,6 +12973,7 @@ function releaseWakeLock() {
 // --- 2. ПОРЦИИ ---
 let currentPortions = 1;
 let currentDetailRecipeId = null; // ID рецепта открытого в модалке
+let pendingPreviewRecipe = null; // Рецепт, собранный из формы и показанный в предпросмотре перед отправкой на модерацию
 
 function changePortions(delta) {
     const newPortions = currentPortions + delta;
@@ -12388,8 +13001,7 @@ function renderRecipeIngredientsWithMultiplier(id) {
         const totalAmount = (ing.amount * currentPortions).toFixed(1).replace('.0', '');
         
         // Проверка наличия (с учетом умножения)
-        const reqName = ing.name.trim().toLowerCase();
-        const userItem = userInventory.find(i => i.name.trim().toLowerCase() === reqName);
+        const userItem = findMatchingInventoryItem(ing.name);
         const hasEnough = userItem && userItem.qty >= (ing.amount * currentPortions);
         
         const li = document.createElement('li');
@@ -13323,7 +13935,7 @@ async function bulkApproveSelected() {
     if (ids.length === 0) return;
     if (!confirm(`Одобрить ${ids.length} рецепт(ов)?`)) return;
 
-    requireAdminReauth(`Массовое одобрение ${ids.length} рецепт(ов). Введите пароль администратора, чтобы продолжить.`, async () => {
+    requireAdminReauth(`Массовое одобрение ${ids.length} рецепт(ов). Введите пароль панели, чтобы продолжить.`, async () => {
         for (const id of ids) {
             const r = window.pendingRecipesCache[id];
             if (r) await approveRecipe(id, r);
@@ -13339,7 +13951,7 @@ async function bulkRejectSelected() {
     const reason = prompt('Причина отклонения для всех выбранных:', 'Не соответствует правилам');
     if (reason === null) return;
 
-    requireAdminReauth(`Массовое отклонение ${ids.length} рецепт(ов). Введите пароль администратора, чтобы продолжить.`, async () => {
+    requireAdminReauth(`Массовое отклонение ${ids.length} рецепт(ов). Введите пароль панели, чтобы продолжить.`, async () => {
         for (const id of ids) {
             await rejectRecipeWithReason(id, reason);
         }
@@ -13831,6 +14443,13 @@ async function saveAdminEdit() {
 
 /* --- ФУНКЦИЯ УДАЛЕНИЯ РЕЦЕПТА (УНИВЕРСАЛЬНАЯ) --- */
 async function deleteRecipeUniversal(id) {
+    // Защита: если рецепт уже отправлен на модерацию, удаление запрещено
+    // (основная проверка — скрытые кнопки в showRecipeDetail, это подстраховка).
+    const gRecipe = globalRecipes.find(r => r.id == id);
+    if (gRecipe && gRecipe.moderationStatus === 'pending' && !(currentUser && currentUser.uid === ADMIN_UID)) {
+        return showToast("Рецепт на модерации — удаление недоступно", "warning");
+    }
+
     if(!confirm("Вы уверены, что хотите удалить этот рецепт навсегда?")) return;
 
     const idStr = String(id);
@@ -16601,11 +17220,32 @@ function fallbackCopy(text) {
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button type="button" class="btn btn-primary" onclick="submitNewRecipe(false)">Сохранить для себя</button>
                 
-                <button type="button" class="btn btn-secondary" onclick="submitNewRecipe(true)" style="background: #8B5CF6; color: white;">
-                    <i class="fas fa-paper-plane"></i> Отправить на модерацию
+                <button type="button" class="btn btn-secondary" onclick="openRecipePreview()" style="background: #8B5CF6; color: white;">
+                    <i class="fas fa-eye"></i> Предпросмотр и отправка
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="recipe-preview-modal" class="modal" onclick="if(event.target.id === 'recipe-preview-modal') hideModal('recipe-preview-modal')">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-eye"></i> Предпросмотр рецепта</h4>
+            <span class="modal-close" onclick="hideModal('recipe-preview-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <p style="color:var(--text-secondary); font-size:0.85em; margin-bottom:12px;">
+            <i class="fas fa-circle-info"></i> Так рецепт увидят другие пользователи после одобрения модератором.
+        </p>
+        <div id="recipe-preview-body"></div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="hideModal('recipe-preview-modal'); showModal('create-recipe-modal');">
+                <i class="fas fa-arrow-left"></i> Назад к редактированию
+            </button>
+            <button type="button" class="btn btn-primary" style="background: #8B5CF6; color: white;" onclick="confirmSubmitFromPreview()">
+                <i class="fas fa-paper-plane"></i> Отправить на модерацию
+            </button>
+        </div>
     </div>
 </div>
 
@@ -17995,6 +18635,26 @@ function fallbackCopy(text) {
 
         <button class="btn btn-primary fridge-transfer-confirm-btn" onclick="confirmFridgeTransfer()" id="fridge-transfer-confirm-btn">
             <i class="fas fa-check"></i> Все привезли, добавить!
+        </button>
+    </div>
+</div>
+
+<div id="purchase-history-modal" class="modal" onclick="if(event.target.id === 'purchase-history-modal') hideModal('purchase-history-modal')">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h4><i class="fas fa-clock-rotate-left"></i> История покупок</h4>
+            <span class="modal-close" onclick="hideModal('purchase-history-modal')"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div id="purchase-history-list" class="purchase-history-list"></div>
+
+        <div id="purchase-history-empty" style="text-align: center; margin-top: 20px; display: none;">
+            <i class="fas fa-receipt" style="font-size: 3em; color: var(--text-secondary); opacity: 0.5; margin-bottom: 10px;"></i>
+            <p>Здесь появится история ваших покупок, перенесённых в холодильник.</p>
+        </div>
+
+        <button class="small-action-btn" style="width:100%; justify-content:center; margin-top:15px; color:var(--error); border-color:var(--error);" onclick="clearPurchaseHistory()">
+            <i class="fas fa-trash"></i> Очистить историю
         </button>
     </div>
 </div>
