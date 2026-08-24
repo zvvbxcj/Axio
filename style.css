@@ -7012,9 +7012,14 @@
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
         .level-stat { flex: 0 0 45%; min-width: 0; margin-top: 0; margin-left: 0; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.36em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.32em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+.xp-text {
+    font-size: 0.6em;   /* или 0.5em, 0.4em — подберите на свой вкус */
+    opacity: 0.7;       /* опционально: можно слегка приглушить цвет */
+}
 
         @media (max-width: 360px) {
             .fridge-level-row {
