@@ -3505,37 +3505,17 @@
         .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
-        .level-stat { flex: 0 0 45%; min-width: 0; margin-top: 0; margin-left: 0; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.32em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-stat { flex: 1 1 45%; min-width: 0; margin-top: 0; margin-left: 0; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.36em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
-.xp-text {
-    font-size: 0.6em;   /* или 0.5em, 0.4em — подберите на свой вкус */
-    opacity: 0.7;       /* опционально: можно слегка приглушить цвет */
-}
-
         @media (max-width: 360px) {
-            .fridge-level-row {
-                flex-wrap: nowrap;
-                display: flex;
-                align-items: center;
-                justify-content: space-between; /* разносим элементы по краям */
-                margin-top: 8px;
-                gap: 0;
-            }
-            .fridge-level-row .fridge-selector-btn {
-                flex: 0 1 auto;   /* не растягивается, но может сжиматься */
-                max-width: 55%;   /* не шире 55% от родителя */
-                min-width: 0;
-                margin: 0;
-            }
-            .level-stat {
-                flex: 0 0 45%;
-                min-width: 0;
-                margin-top: 0;
-                margin-left: 0;
-            }
+            /* На очень узких экранах название холодильника не должно выталкивать уровень за пределы строки */
+            .fridge-level-row { flex-wrap: wrap; }
+            .fridge-level-row .fridge-selector-btn { max-width: 100%; }
+            .level-stat { flex-basis: 100%; margin-left: 0; margin-top: 6px; }
+        }
 
         /* --- Main Content --- */
         #app-content { display: none; flex-direction: column; height: 100%; }
@@ -7643,161 +7623,3 @@ adsgram-task { --adsgram-task-background-color: var(--surface-light); --adsgram-
     line-height: 1.35;
 }
 .submission-reason-box i { margin-top: 2px; }
-/* ==================================================================
-   AI ШЕФ — премиальное модальное окно
-   ================================================================== */
-
-#ai-chef-modal.modal { background: rgba(0, 0, 0, 0.82); }
-
-#ai-chef-modal .modal-content {
-    max-width: 520px;
-    border: 1px solid rgba(139, 92, 246, 0.28);
-    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.65), 0 0 45px -10px rgba(139, 92, 246, 0.35);
-    position: relative;
-    overflow: hidden;
-}
-#ai-chef-modal .modal-content::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 4px;
-    background: linear-gradient(90deg, var(--accent), var(--primary), var(--secondary), var(--accent));
-    background-size: 300% 100%;
-    animation: aiChefGradientMove 6s linear infinite;
-}
-@keyframes aiChefGradientMove {
-    0% { background-position: 0% 0; }
-    100% { background-position: 300% 0; }
-}
-
-.ai-chef-modal-premium .modal-header {
-    display: flex; align-items: center; gap: 12px;
-    border-bottom: none; margin-bottom: 4px; padding-bottom: 0;
-}
-.ai-chef-header-icon {
-    width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-size: 1.25em;
-    background: linear-gradient(135deg, var(--accent), #6D28D9);
-    color: #fff;
-    box-shadow: 0 8px 20px -6px rgba(139, 92, 246, 0.6);
-}
-.ai-chef-modal-premium .modal-header h4 {
-    flex: 1; margin: 0; font-size: 1.35em; font-weight: 800;
-    display: flex; align-items: center; gap: 8px;
-}
-.ai-chef-modal-premium .modal-header h4 i { color: var(--accent); font-size: 0.8em; }
-.ai-chef-modal-premium .modal-close { position: static; }
-
-.ai-chef-subtitle {
-    text-align: center; color: var(--text-secondary); font-size: 0.92em;
-    line-height: 1.5; margin: 14px 0 12px;
-}
-
-.ai-chef-match-pill {
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 7px 14px; border-radius: 20px; margin: 0 auto 16px; width: fit-content;
-    background: rgba(16, 185, 129, 0.12); color: var(--success);
-    font-size: 0.78em; font-weight: 700;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-}
-.ai-chef-match-pill i { font-size: 0.95em; }
-
-.ai-chef-options-panel {
-    background: var(--surface-light);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 16px;
-    padding: 14px 14px 6px;
-    margin-bottom: 16px;
-}
-.ai-chef-option-row { display: flex; align-items: center; margin-bottom: 12px; }
-.ai-chef-option-row-count { justify-content: space-between; }
-.ai-chef-option-label {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 0.82em; color: var(--text-secondary); font-weight: 600;
-}
-.ai-chef-toggle-row {
-    display: flex; align-items: center; gap: 8px; padding-bottom: 12px;
-    font-size: 0.85em; color: var(--text-secondary); cursor: pointer;
-}
-.ai-chef-toggle-row input { width: 16px; height: 16px; accent-color: var(--accent); }
-
-#ai-chef-modal .btn-primary {
-    background: linear-gradient(135deg, var(--accent) 0%, #6D28D9 100%);
-    box-shadow: 0 8px 20px -6px rgba(139, 92, 246, 0.6);
-    font-weight: 700; letter-spacing: 0.3px;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-#ai-chef-modal .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -6px rgba(139, 92, 246, 0.7); }
-#ai-chef-modal .btn-primary:active { transform: translateY(0); }
-#ai-chef-modal .btn-primary:disabled { opacity: 0.7; transform: none; cursor: default; }
-
-/* --- Карточки рецептов AI Шефа --- */
-.ai-recipe-card {
-    position: relative;
-    border: 1px solid rgba(139, 92, 246, 0.25) !important;
-    background: linear-gradient(160deg, var(--surface-light) 0%, var(--surface) 100%) !important;
-    padding: 18px !important;
-    border-radius: 16px !important;
-    margin-bottom: 15px !important;
-    box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.45);
-    animation: aiCardIn 0.35s ease-out;
-    overflow: hidden;
-}
-@keyframes aiCardIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.ai-recipe-card-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(16, 185, 129, 0.14); color: var(--success);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    padding: 4px 10px; border-radius: 20px; font-size: 0.72em; font-weight: 700;
-    margin-bottom: 10px;
-}
-
-.ai-recipe-card h3 {
-    margin: 0 0 10px; font-size: 1.3em; font-weight: 800;
-    background: linear-gradient(135deg, var(--primary-light), var(--primary));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-
-.ai-recipe-meta {
-    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
-    color: var(--text-secondary); font-size: 0.85em;
-}
-.ai-recipe-meta span { display: flex; align-items: center; gap: 5px; }
-
-.ai-expiring-pill {
-    color: var(--warning) !important; background: rgba(245, 158, 11, 0.12);
-    padding: 2px 8px; border-radius: 12px; font-weight: 600;
-}
-
-.ai-recipe-section { margin-bottom: 14px; }
-.ai-recipe-section-title {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 0.82em; font-weight: 700; color: var(--text-primary);
-    margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.85;
-}
-.ai-recipe-section-title i { color: var(--accent); }
-
-.ai-ing-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.ai-ing-row {
-    display: flex; align-items: center; gap: 8px;
-    background: rgba(16, 185, 129, 0.06);
-    border: 1px solid rgba(16, 185, 129, 0.15);
-    padding: 6px 10px; border-radius: 10px; font-size: 0.88em;
-}
-.ai-ing-check { color: var(--success); flex-shrink: 0; font-size: 0.85em; }
-.ai-ing-name { flex: 1; color: var(--text-primary); }
-.ai-ing-amount { color: var(--text-secondary); font-size: 0.85em; white-space: nowrap; }
-.ai-ing-tag { flex-shrink: 0; opacity: 0.75; font-size: 0.85em; }
-.ai-ing-expiring { color: var(--warning); }
-
-.ai-steps-list { padding-left: 20px; margin: 0; color: var(--text-secondary); display: flex; flex-direction: column; gap: 8px; }
-.ai-steps-list li { line-height: 1.5; }
-.ai-steps-list li::marker { color: var(--accent); font-weight: 700; }
-
-.ai-recipe-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-
-@media (max-width: 420px) {
-    .ai-recipe-actions .btn { min-width: 100% !important; }
-}
