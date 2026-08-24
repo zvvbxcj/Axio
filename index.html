@@ -16798,42 +16798,44 @@ async function runTest(type) {
             </p>
 
             <div class="ai-chef-options-panel">
-                <div class="ai-chef-option-row ai-chef-option-row-count">
+                <div class="ai-chef-option-block">
                     <span class="ai-chef-option-label"><i class="fas fa-layer-group"></i> Сколько вариантов</span>
-                    <select id="ai-chef-count" class="styled-select" style="width:70px;">
-                        <option value="1" selected>1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                    </select>
-                </div>
-
-                <div class="ai-chef-option-row" style="gap:10px;">
-                    <div style="flex:1;">
-                        <label class="ai-chef-option-label" style="margin-bottom:6px;"><i class="far fa-clock"></i> Время</label>
-                        <select id="ai-chef-max-time" class="styled-select" style="width:100%;">
-                            <option value="any" selected>Любое</option>
-                            <option value="15">До 15 мин</option>
-                            <option value="30">До 30 мин</option>
-                            <option value="45">До 45 мин</option>
-                            <option value="60">До 60 мин</option>
-                        </select>
-                    </div>
-                    <div style="flex:1;">
-                        <label class="ai-chef-option-label" style="margin-bottom:6px;"><i class="fas fa-signal"></i> Сложность</label>
-                        <select id="ai-chef-difficulty" class="styled-select" style="width:100%;">
-                            <option value="any" selected>Любая</option>
-                            <option value="Легко">Легко</option>
-                            <option value="Средне">Средне</option>
-                            <option value="Сложно">Сложно</option>
-                        </select>
+                    <div class="ai-chip-group ai-chef-count-chips" id="ai-chef-count-group" data-value="1">
+                        <button type="button" class="ai-chip active" data-value="1">1</button>
+                        <button type="button" class="ai-chip" data-value="2">2</button>
+                        <button type="button" class="ai-chip" data-value="3">3</button>
+                        <button type="button" class="ai-chip" data-value="4">4</button>
+                        <button type="button" class="ai-chip" data-value="5">5</button>
                     </div>
                 </div>
 
-                <label class="ai-chef-toggle-row">
-                    <input type="checkbox" id="ai-chef-use-expiring" checked>
+                <div class="ai-chef-option-block">
+                    <span class="ai-chef-option-label"><i class="far fa-clock"></i> Время приготовления</span>
+                    <div class="ai-chip-group ai-chip-group-wrap ai-chef-time-chips" id="ai-chef-time-group" data-value="any">
+                        <button type="button" class="ai-chip active" data-value="any">Любое</button>
+                        <button type="button" class="ai-chip" data-value="15">До 15 мин</button>
+                        <button type="button" class="ai-chip" data-value="30">До 30 мин</button>
+                        <button type="button" class="ai-chip" data-value="45">До 45 мин</button>
+                        <button type="button" class="ai-chip" data-value="60">До 60 мин</button>
+                    </div>
+                </div>
+
+                <div class="ai-chef-option-block">
+                    <span class="ai-chef-option-label"><i class="fas fa-signal"></i> Сложность</span>
+                    <div class="ai-chip-group ai-chef-diff-chips" id="ai-chef-difficulty-group" data-value="any">
+                        <button type="button" class="ai-chip active" data-value="any">Любая</button>
+                        <button type="button" class="ai-chip" data-value="Легко">Легко</button>
+                        <button type="button" class="ai-chip" data-value="Средне">Средне</button>
+                        <button type="button" class="ai-chip" data-value="Сложно">Сложно</button>
+                    </div>
+                </div>
+
+                <label class="ai-chef-switch-row">
                     <span><i class="fas fa-hourglass-half" style="color:var(--warning);"></i> В первую очередь использовать продукты, которые скоро испортятся</span>
+                    <span class="ai-switch">
+                        <input type="checkbox" id="ai-chef-use-expiring" checked>
+                        <span class="ai-switch-slider"></span>
+                    </span>
                 </label>
             </div>
 
