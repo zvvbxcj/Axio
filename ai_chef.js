@@ -10,6 +10,33 @@ window.__aiChefRecipes = window.__aiChefRecipes || [];
 // Снимок продуктов, которые скоро испортятся, на момент последней генерации —
 // нужен, чтобы подсветить в карточке, какие ингредиенты "спасает" рецепт.
 window.__aiChefPriority = window.__aiChefPriority || [];
+// История чата "доработать рецепт" по индексу карточки: { role: 'user'|'ai', text }[]
+window.__aiChefRefineHistory = window.__aiChefRefineHistory || {};
+
+// --- Чипы вместо <select> для количества/времени/сложности ---
+function aiChefGetChipValue(groupId, fallback) {
+    const el = document.getElementById(groupId);
+    return el ? (el.dataset.value || fallback) : fallback;
+}
+
+function initAiChefChipGroups() {
+    document.querySelectorAll('#ai-chef-modal .ai-chip-group').forEach(group => {
+        if (group.dataset.__bound) return;
+        group.dataset.__bound = '1';
+        group.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ai-chip');
+            if (!btn || !group.contains(btn)) return;
+            group.querySelectorAll('.ai-chip').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            group.dataset.value = btn.dataset.value;
+        });
+    });
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAiChefChipGroups);
+} else {
+    initAiChefChipGroups();
+}
 
 const AI_CHEF_KNOWN_CATEGORIES = ['breakfast', 'soup', 'main', 'salad', 'pasta', 'dessert', 'baking', 'snacks', 'vegetarian', 'drinks'];
 const AI_CHEF_DIFFICULTY_EN = { 'Легко': 'Easy', 'Средне': 'Medium', 'Сложно': 'Hard' };
@@ -140,9 +167,8 @@ async function generateAIRecipe(count) {
         return;
     }
 
-    const countSelect = document.getElementById('ai-chef-count');
     if (typeof count !== 'number') {
-        count = countSelect ? parseInt(countSelect.value, 10) : 1;
+        count = parseInt(aiChefGetChipValue('ai-chef-count-group', '1'), 10);
     }
     if (!count || count < 1) count = 1;
     if (count > 5) count = 5;
@@ -163,11 +189,11 @@ async function generateAIRecipe(count) {
 
     const preferences = getUserPreferenceSignals();
 
-    const timeSelect = document.getElementById('ai-chef-max-time');
-    const maxTime = (timeSelect && timeSelect.value !== 'any') ? parseInt(timeSelect.value, 10) : null;
+    const timeVal = aiChefGetChipValue('ai-chef-time-group', 'any');
+    const maxTime = (timeVal !== 'any') ? parseInt(timeVal, 10) : null;
 
-    const diffSelect = document.getElementById('ai-chef-difficulty');
-    const difficulty = (diffSelect && diffSelect.value !== 'any') ? diffSelect.value : null;
+    const diffVal = aiChefGetChipValue('ai-chef-difficulty-group', 'any');
+    const difficulty = (diffVal !== 'any') ? diffVal : null;
 
     if (btn) {
         btn.disabled = true;
@@ -189,11 +215,15 @@ async function generateAIRecipe(count) {
         let matched = [];
         let hadDiscarded = false;
         let attempts = 0;
-        const maxAttempts = 4; // защита от бесконечного цикла, если модель никак не попадает в холодильник
+        const maxAttempts = 5; // защита от бесконечного цикла, если модель никак не попадает в холодильник
 
         while (matched.length < count && attempts < maxAttempts) {
             attempts++;
-            const toFetch = Math.min(count - matched.length, 5);
+            // Запрашиваем с запасом (минимум 3 за раз), даже если пользователю нужен всего 1
+            // вариант — иначе при жёстком фильтре "всё есть в холодильнике" шанс получить
+            // хоть один подходящий рецепт с первого клика был слишком низким, и приходилось
+            // нажимать кнопку повторно.
+            const toFetch = Math.min(Math.max(count - matched.length, 3), 5);
 
             // Подтверждаем серверу, что запрос идёт от реального залогиненного
             // пользователя приложения — иначе функция отклонит запрос (401).
@@ -249,6 +279,7 @@ async function generateAIRecipe(count) {
 
         window.__aiChefRecipes = matched;
         window.__aiChefPriority = priorityIngredients;
+        window.__aiChefRefineHistory = {};
 
         if (content) {
             if (matched.length === 0) {
@@ -399,6 +430,10 @@ function renderAIRecipeCard(recipe, index) {
     const difficultyIcons = { 'Легко': '●○○', 'Средне': '●●○', 'Сложно': '●●●' };
     const difficultyDots = difficultyIcons[normalizeAIDifficulty(recipe.difficulty)] || '●●○';
 
+    const refineHistory = (window.__aiChefRefineHistory && window.__aiChefRefineHistory[index]) || [];
+    const refineMessagesHtml = refineHistory.map(m => `<div class="ai-refine-msg ai-refine-msg-${m.role === 'user' ? 'user' : 'ai'}">${escapeHtml(m.text)}</div>`).join('');
+    const refineOpen = refineHistory.length > 0;
+
     return `
         <div class="recipe-card ai-recipe-card" id="ai-recipe-card-${index}" style="cursor: default;">
             <div class="ai-recipe-card-badge"><i class="fas fa-check-circle"></i> Всё есть в холодильнике</div>
@@ -430,6 +465,22 @@ function renderAIRecipeCard(recipe, index) {
                 <button class="btn btn-secondary" style="flex:0 0 auto; margin-bottom:0; padding:0 14px;" title="Предложить другой вариант этого блюда" onclick="aiChefRegenerateOne(${index})">
                     <i class="fas fa-shuffle"></i>
                 </button>
+            </div>
+            <div class="ai-refine-block" id="ai-refine-block-${index}">
+                <button type="button" class="ai-refine-toggle" onclick="aiChefToggleRefine(${index})">
+                    <i class="fas fa-comment-dots"></i> Доработать рецепт
+                </button>
+                <div class="ai-refine-panel" id="ai-refine-panel-${index}" style="display:${refineOpen ? 'block' : 'none'};">
+                    <div class="ai-refine-messages" id="ai-refine-messages-${index}">${refineMessagesHtml}</div>
+                    <div class="ai-refine-input-row">
+                        <input type="text" class="ai-refine-input" id="ai-refine-input-${index}"
+                               placeholder="Например: замени кефир на молоко"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault(); aiChefRefineRecipe(${index});}">
+                        <button type="button" class="ai-refine-send" onclick="aiChefRefineRecipe(${index})" title="Отправить">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -489,16 +540,16 @@ async function aiChefRegenerateOne(index) {
         const priorityIngredients = window.__aiChefPriority || [];
         const preferences = getUserPreferenceSignals();
 
-        const timeSelect = document.getElementById('ai-chef-max-time');
-        const maxTime = (timeSelect && timeSelect.value !== 'any') ? parseInt(timeSelect.value, 10) : null;
-        const diffSelect = document.getElementById('ai-chef-difficulty');
-        const difficulty = (diffSelect && diffSelect.value !== 'any') ? diffSelect.value : null;
+        const timeVal = aiChefGetChipValue('ai-chef-time-group', 'any');
+        const maxTime = (timeVal !== 'any') ? parseInt(timeVal, 10) : null;
+        const diffVal = aiChefGetChipValue('ai-chef-difficulty-group', 'any');
+        const difficulty = (diffVal !== 'any') ? diffVal : null;
 
         const activeAllergyKeys = getActiveAllergyKeys();
         const avoid = [...aiChefShownTitles];
         let newRecipe = null;
         let attempts = 0;
-        const maxAttempts = 4;
+        const maxAttempts = 5;
 
         while (!newRecipe && attempts < maxAttempts) {
             attempts++;
@@ -509,7 +560,7 @@ async function aiChefRegenerateOne(index) {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                 body: JSON.stringify({
                     ingredients,
-                    count: 1,
+                    count: 3, // запас с одного запроса — быстрее находим годный вариант
                     avoidTitles: avoid,
                     allergies,
                     priorityIngredients,
@@ -524,19 +575,21 @@ async function aiChefRegenerateOne(index) {
 
             let recipes = data.recipes;
             if (!Array.isArray(recipes)) recipes = [recipes];
-            const candidate = recipes[0];
-            if (!candidate) continue;
 
-            if (candidate.title) avoid.push(candidate.title);
+            for (const candidate of recipes) {
+                if (!candidate) continue;
+                if (candidate.title) avoid.push(candidate.title);
 
-            if (activeAllergyKeys.length && aiRecipeMatchesActiveAllergies(candidate, activeAllergyKeys)) {
-                continue;
+                if (activeAllergyKeys.length && aiRecipeMatchesActiveAllergies(candidate, activeAllergyKeys)) {
+                    continue;
+                }
+                if (aiRecipeMissingCount(candidate) > 0) {
+                    continue;
+                }
+
+                newRecipe = candidate;
+                break;
             }
-            if (aiRecipeMissingCount(candidate) > 0) {
-                continue;
-            }
-
-            newRecipe = candidate;
         }
 
         if (!newRecipe) {
@@ -546,6 +599,7 @@ async function aiChefRegenerateOne(index) {
         aiChefShownTitles = avoid.slice(-25);
 
         window.__aiChefRecipes[index] = newRecipe;
+        if (window.__aiChefRefineHistory) window.__aiChefRefineHistory[index] = [];
         if (card) card.outerHTML = renderAIRecipeCard(newRecipe, index);
 
     } catch (error) {
@@ -559,5 +613,111 @@ async function aiChefRegenerateOne(index) {
                     <br><button class="btn btn-secondary" style="margin-top:10px;" onclick="aiChefRegenerateOne(${index})"><i class="fas fa-redo"></i> Ещё раз</button>
                 </div>`;
         }
+    }
+}
+
+// --- "Доработать рецепт": мини-чат уточнений внутри карточки ---
+// Позволяет попросить AI пересобрать уже предложенный рецепт с конкретной правкой
+// ("замени кефир на молоко", "сделай острее", "убери грибы") без повторного поиска с нуля.
+
+function aiChefToggleRefine(index) {
+    const panel = document.getElementById(`ai-refine-panel-${index}`);
+    if (!panel) return;
+    const isHidden = !panel.style.display || panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+        const box = document.getElementById(`ai-refine-messages-${index}`);
+        if (box) box.scrollTop = box.scrollHeight;
+        const input = document.getElementById(`ai-refine-input-${index}`);
+        if (input) input.focus();
+    }
+}
+
+async function aiChefRefineRecipe(index) {
+    const input = document.getElementById(`ai-refine-input-${index}`);
+    const sendBtn = document.querySelector(`#ai-refine-block-${index} .ai-refine-send`);
+    const box = document.getElementById(`ai-refine-messages-${index}`);
+    const recipe = (window.__aiChefRecipes || [])[index];
+    if (!input || !recipe) return;
+
+    const message = input.value.trim();
+    if (!message) return;
+
+    if (!window.__aiChefRefineHistory) window.__aiChefRefineHistory = {};
+    if (!window.__aiChefRefineHistory[index]) window.__aiChefRefineHistory[index] = [];
+    const history = window.__aiChefRefineHistory[index];
+
+    history.push({ role: 'user', text: message });
+    if (box) {
+        box.insertAdjacentHTML('beforeend', `<div class="ai-refine-msg ai-refine-msg-user">${escapeHtml(message)}</div>`);
+        box.scrollTop = box.scrollHeight;
+    }
+    input.value = '';
+    input.disabled = true;
+    if (sendBtn) sendBtn.disabled = true;
+
+    const typingId = `ai-refine-typing-${index}`;
+    if (box) {
+        box.insertAdjacentHTML('beforeend', `<div class="ai-refine-msg ai-refine-msg-ai" id="${typingId}"><i class="fas fa-spinner fa-spin"></i> Шеф дорабатывает рецепт...</div>`);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    try {
+        if (typeof auth === 'undefined' || !auth.currentUser) throw new Error('Нужно войти в аккаунт');
+
+        const ingredientsStr = (typeof userInventory !== 'undefined' && userInventory) ? userInventory.map(i => i.name).join(', ') : '';
+        const allergies = getActiveAllergyLabels();
+        const activeAllergyKeys = getActiveAllergyKeys();
+        const idToken = await auth.currentUser.getIdToken();
+
+        const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+            body: JSON.stringify({
+                action: 'refine',
+                recipe: {
+                    title: recipe.title,
+                    category: recipe.category,
+                    time: recipe.time,
+                    difficulty: recipe.difficulty,
+                    ingredients: recipe.ingredients,
+                    steps: recipe.steps || recipe.instructions
+                },
+                message,
+                history: history.slice(0, -1),
+                ingredients: ingredientsStr,
+                allergies
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Ошибка ${response.status}`);
+
+        const updated = data.recipe;
+        if (!updated || !updated.title) throw new Error('Не удалось обновить рецепт');
+
+        if (activeAllergyKeys.length && aiRecipeMatchesActiveAllergies(updated, activeAllergyKeys)) {
+            throw new Error('Обновлённый вариант нарушает ваши пищевые ограничения — попробуйте сформулировать иначе');
+        }
+
+        history.push({ role: 'ai', text: (data.summary && String(data.summary).trim()) || `Готово: «${updated.title}»` });
+
+        window.__aiChefRecipes[index] = updated;
+
+        const card = document.getElementById(`ai-recipe-card-${index}`);
+        if (card) card.outerHTML = renderAIRecipeCard(updated, index);
+
+    } catch (error) {
+        console.error('AI Chef refine error:', error);
+        const typingEl = document.getElementById(typingId);
+        if (typingEl) typingEl.remove();
+        if (box) {
+            box.insertAdjacentHTML('beforeend', `<div class="ai-refine-msg ai-refine-msg-error">Не получилось: ${escapeHtml(error.message)}</div>`);
+            box.scrollTop = box.scrollHeight;
+        }
+        const input2 = document.getElementById(`ai-refine-input-${index}`);
+        if (input2) input2.disabled = false;
+        const sendBtn2 = document.querySelector(`#ai-refine-block-${index} .ai-refine-send`);
+        if (sendBtn2) sendBtn2.disabled = false;
     }
 }
