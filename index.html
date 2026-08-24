@@ -648,7 +648,11 @@
     <i class="fas fa-cart-shopping"></i> Заказать всю корзину
 </button>
 
-    <button id="finish-shopping-btn" class="btn btn-primary" onclick="openFridgeTransferModal()" style="width: 100%; margin-bottom: 10px; background-color: var(--success); display:none;">
+    <button id="delivery-active-btn" class="btn btn-primary" onclick="openFridgeTransferModal()" style="width: 100%; margin-bottom: 10px; background-color: var(--secondary); display:none;">
+    <i class="fas fa-truck-fast"></i> Доставка
+</button>
+
+    <button id="finish-shopping-btn" class="btn btn-primary" onclick="transferManualPurchases()" style="width: 100%; margin-bottom: 10px; background-color: var(--success); display:none;">
     <i class="fas fa-box-open"></i> Перенести купленное в холодильник
 </button>
 
@@ -3406,11 +3410,14 @@ let fridgeTransferChecked = {};
 // галочками, прежде чем реально перенести их в холодильник — курьер мог
 // не довезти часть позиций, и лучше дать это поправить за 3 секунды, чем
 // автоматически считать, что приехало абсолютно всё.
+// Сверка нужна только для доставки: только у неё есть курьер, который может
+// что-то не довезти. Обычная покупка (галочка вручную, без доставки) едет
+// в холодильник напрямую через transferManualPurchases(), без этого экрана.
 function openFridgeTransferModal() {
-    fridgeTransferItems = userShopping.filter(s => s.completed);
+    fridgeTransferItems = userShopping.filter(s => s.completed && s.delivery);
 
     if (fridgeTransferItems.length === 0) {
-        showToast("Сначала закажите или отметьте купленные товары", "warning");
+        showToast("Нет активной доставки, ожидающей сверки", "warning");
         return;
     }
 
@@ -3466,18 +3473,14 @@ function updateFridgeTransferConfirmBtn() {
     btn.classList.toggle('disabled', checkedCount === 0);
 }
 
-function confirmFridgeTransfer() {
-    const toAdd = fridgeTransferItems.filter(item => fridgeTransferChecked[item.id]);
-    const toReturn = fridgeTransferItems.filter(item => !fridgeTransferChecked[item.id]);
-
-    if (toAdd.length === 0) {
-        showToast("Отметьте хотя бы один товар", "warning");
-        return;
-    }
-
+// Общая часть переноса купленного в холодильник: добавляет товары в инвентарь
+// (или суммирует с уже существующим продуктом) и пишет одну запись в историю
+// покупок. Используется и для сверки после доставки (confirmFridgeTransfer),
+// и для прямого переноса обычных покупок (transferManualPurchases).
+function pushPurchaseToInventory(items) {
     let count = 0;
 
-    toAdd.forEach(item => {
+    items.forEach(item => {
         // Проверяем, есть ли уже такой продукт в инвентаре, чтобы не плодить дубли
         const existingInvItem = userInventory.find(p => p.name.toLowerCase() === item.name.toLowerCase());
 
@@ -3501,6 +3504,29 @@ function confirmFridgeTransfer() {
         count++;
     });
 
+    // Записываем это как одну покупку в историю — чтобы потом можно было
+    // посмотреть, что и когда реально было куплено (вкладка "История покупок").
+    if (!userHistory) userHistory = [];
+    userHistory.push({
+        type: 'purchase',
+        date: new Date().toISOString(),
+        items: items.map(item => ({ name: item.name, qty: item.qty || 1, unit: item.unit || 'шт' }))
+    });
+
+    return count;
+}
+
+function confirmFridgeTransfer() {
+    const toAdd = fridgeTransferItems.filter(item => fridgeTransferChecked[item.id]);
+    const toReturn = fridgeTransferItems.filter(item => !fridgeTransferChecked[item.id]);
+
+    if (toAdd.length === 0) {
+        showToast("Отметьте хотя бы один товар", "warning");
+        return;
+    }
+
+    const count = pushPurchaseToInventory(toAdd);
+
     // Перенесённые товары убираем из списка покупок полностью.
     // То, чего курьер не довёз, возвращаем в "Активные" — чтобы можно было
     // заказать/докупить ещё раз, вместо того чтобы молча считать купленным.
@@ -3508,16 +3534,7 @@ function confirmFridgeTransfer() {
     userShopping = userShopping.filter(s => !addedIds.has(s.id));
     toReturn.forEach(item => {
         const stillThere = userShopping.find(s => s.id === item.id);
-        if (stillThere) stillThere.completed = false;
-    });
-
-    // Записываем это как одну покупку в историю — чтобы потом можно было
-    // посмотреть, что и когда реально было куплено (вкладка "История покупок").
-    if (!userHistory) userHistory = [];
-    userHistory.push({
-        type: 'purchase',
-        date: new Date().toISOString(),
-        items: toAdd.map(item => ({ name: item.name, qty: item.qty || 1, unit: item.unit || 'шт' }))
+        if (stillThere) { stillThere.completed = false; stillThere.delivery = false; }
     });
 
     hideModal('fridge-transfer-modal');
@@ -3534,6 +3551,33 @@ function confirmFridgeTransfer() {
     } else {
         showToast(`Перенесено ${count} продуктов в холодильник!`, "success");
     }
+    checkInterstitialAd();
+}
+
+// Обычная покупка отмечается галочкой вручную (без доставки) — курьера нет,
+// поэтому спрашивать "всё ли привезли" незачем: сразу переносим в холодильник.
+function transferManualPurchases() {
+    const toAdd = userShopping.filter(s => s.completed && !s.delivery);
+
+    if (toAdd.length === 0) {
+        showToast("Сначала отметьте купленные товары", "warning");
+        return;
+    }
+
+    const count = pushPurchaseToInventory(toAdd);
+
+    const addedIds = new Set(toAdd.map(i => i.id));
+    userShopping = userShopping.filter(s => !addedIds.has(s.id));
+
+    updateShoppingList();
+    updateInventoryList();
+    updateHeader();
+    saveData(false);
+
+    checkAchievements('add');
+    checkAchievements('count');
+
+    showToast(`Перенесено ${count} продуктов в холодильник!`, "success");
     checkInterstitialAd();
 }
 
@@ -5419,7 +5463,7 @@ function selectSuggestion(select) {
     saveData();
     updateShoppingList();
 }
-        function toggleShoppingItem(id) { const item = userShopping.find(s => s.id === id); if (item) item.completed = !item.completed; saveData(false); updateShoppingList(); }
+        function toggleShoppingItem(id) { const item = userShopping.find(s => s.id === id); if (item) { item.completed = !item.completed; if (!item.completed) item.delivery = false; } saveData(false); updateShoppingList(); }
         function clearCompletedShopping() { userShopping = userShopping.filter(s => !s.completed); saveData(); updateShoppingList(); }
 
 // --- ИСТОРИЯ ПОКУПОК ---
@@ -5444,7 +5488,7 @@ function renderPurchaseHistoryList() {
 
     container.innerHTML = purchases.map(entry => {
         const d = new Date(entry.date);
-        const dateText = isNaN(d) ? '' : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+        const dateText = isNaN(d) ? '' : `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}, ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
         const itemsHtml = (entry.items || []).map(i =>
             `<span class="purchase-history-tag">${escapeHtml(i.name)}${i.qty ? ` · ${i.qty} ${escapeHtml(i.unit || '')}` : ''}</span>`
         ).join('');
@@ -5475,8 +5519,14 @@ function clearPurchaseHistory() {
 
     const orderAllBtn = document.getElementById('order-all-shopping-btn');
     const finishBtn = document.getElementById('finish-shopping-btn');
+    const deliveryBtn = document.getElementById('delivery-active-btn');
+    // Кнопка "Доставка" (сверка) — только когда есть активный заказ с курьером.
+    // "Перенести купленное" — только для товаров, отмеченных вручную (без доставки).
+    const hasActiveDelivery = userShopping.some(s => s.completed && s.delivery);
+    const hasManualPurchases = userShopping.some(s => s.completed && !s.delivery);
     if (orderAllBtn) orderAllBtn.style.display = filter === 'pending' ? '' : 'none';
-    if (finishBtn) finishBtn.style.display = filter === 'completed' ? '' : 'none';
+    if (deliveryBtn) deliveryBtn.style.display = (filter === 'completed' && hasActiveDelivery) ? '' : 'none';
+    if (finishBtn) finishBtn.style.display = (filter === 'completed' && hasManualPurchases) ? '' : 'none';
 
     list.innerHTML = ''; 
     let items = userShopping.filter(s => filter === 'pending' ? !s.completed : s.completed);
@@ -5712,8 +5762,9 @@ function orderAllShopping() {
 
     // Шаг 1 сценария "Сверка перед холодильником": заказ оформлен — товары
     // переходят в промежуточный статус "Заказано" (вкладка "Купленные").
-    // В холодильник они попадут только после сверки, когда курьер их привезёт.
-    activeItems.forEach(item => { item.completed = true; });
+    // Помечаем их delivery:true, чтобы отличить от обычной ручной покупки —
+    // в холодильник они попадут только после сверки, когда курьер их привезёт.
+    activeItems.forEach(item => { item.completed = true; item.delivery = true; });
     saveData(false);
     updateShoppingList();
 
