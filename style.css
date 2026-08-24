@@ -3287,18 +3287,25 @@
         /* --- Auth Screen --- */
         
 
-        .auth-logo { font-size: 5em; color: var(--primary); margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.4)); animation: float 3s ease-in-out infinite; }
+        .auth-logo {
+            width: 88px; height: 88px; margin: 0 auto 14px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            box-shadow: 0 10px 24px -8px rgba(16, 185, 129, 0.55);
+            animation: float 3s ease-in-out infinite;
+        }
+        .auth-logo i { font-size: 2.3em; color: #fff; }
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
         
         .auth-container {
-            width: 100%; background-color: var(--surface); padding: 30px; border-radius: var(--radius); box-shadow: var(--shadow);
+            width: 100%; background-color: var(--surface); padding: 24px; border-radius: var(--radius); box-shadow: var(--shadow);
             animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .auth-header h1 { color: var(--text-primary); margin-bottom: 5px; text-align: center; }
-        .auth-header p { color: var(--text-secondary); margin-bottom: 25px; text-align: center; font-size: 0.9em; }
+        .auth-header p { color: var(--text-secondary); margin-bottom: 14px; text-align: center; font-size: 0.9em; }
 
-        .auth-input-group { margin-bottom: 15px; }
+        .auth-input-group { margin-bottom: 10px; }
         .auth-input-group label { display: block; margin-bottom: 8px; font-size: 0.9em; color: var(--text-secondary); font-weight: 500; }
         .auth-input-group input {
             width: 100%; padding: 14px; border: 1px solid var(--border-color); border-radius: 10px;
@@ -3315,7 +3322,7 @@
 
 /* Добавляем отступ под секцией с кнопкой Google */
 #social-auth-section {
-    margin-bottom: 20px;
+    margin-bottom: 8px;
 }
 
         /* --- Social Auth Buttons --- */
@@ -3326,8 +3333,8 @@
     align-items: center; 
     justify-content: center; 
     gap: 10px; 
-    margin-top: 10px; 
-    margin-bottom: 12px;
+    margin-top: 8px; 
+    margin-bottom: 8px;
     padding: 14px;
     border: none;
     border-radius: 10px;
@@ -3349,11 +3356,11 @@
     box-shadow: 0 4px 10px rgba(255, 255, 255, 0.2);
 }
         
-        .auth-divider { display: flex; align-items: center; margin: 20px 0; color: var(--text-secondary); font-size: 0.8em; }
+        .auth-divider { display: flex; align-items: center; margin: 12px 0; color: var(--text-secondary); font-size: 0.8em; }
         .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-color); }
         .auth-divider span { padding: 0 10px; }
 
-        .auth-switch { text-align: center; margin-top: 25px; font-size: 0.9em; color: var(--text-secondary); }
+        .auth-switch { text-align: center; margin-top: 14px; font-size: 0.9em; color: var(--text-secondary); }
         .auth-switch a { color: var(--primary); text-decoration: none; cursor: pointer; font-weight: bold; }
         .auth-switch a:hover { text-decoration: underline; }
 
@@ -3479,7 +3486,7 @@
         }
 
         /* Строка 1: холодильник + уровень в одну строку */
-        .fridge-level-row { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+        .fridge-level-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 8px; }
         .fridge-level-row .fridge-selector-btn { margin: 0; flex: 0 1 auto; min-width: 0; max-width: 55%; }
 
         /* Строка 2: компактная статистика на всю ширину */
@@ -3505,14 +3512,14 @@
         .stat-item .label { font-size: 0.62em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; white-space: nowrap; }
 
         /* Level Bar — теперь компактно живёт рядом с кнопкой холодильника */
-        .level-stat { flex: 0 0 45%; min-width: 0; margin-top: 0; margin-left: 0; }
-        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.32em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+        .level-stat { flex: 0 1 45%; min-width: 0; margin-top: 0; margin-left: 0; }
+        .level-info { display: flex; justify-content: space-between; gap: 6px; font-size: 0.72em; margin-bottom: 3px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
         .level-progress-bar-container { height: 3px; background-color: var(--surface-lighter); border-radius: 3px; overflow: hidden; }
         .level-progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
 
 .xp-text {
-    font-size: 0.6em;   /* или 0.5em, 0.4em — подберите на свой вкус */
-    opacity: 0.7;       /* опционально: можно слегка приглушить цвет */
+    font-size: 1em;     /* раньше 0.6em — накладывалось поверх уже уменьшенного .level-info и XP становился нечитаемым (~0.19em от базового) */
+    opacity: 0.75;
 }
 
         @media (max-width: 360px) {
