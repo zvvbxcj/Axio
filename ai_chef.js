@@ -14,6 +14,34 @@ window.__aiChefPriority = window.__aiChefPriority || [];
 const AI_CHEF_KNOWN_CATEGORIES = ['breakfast', 'soup', 'main', 'salad', 'pasta', 'dessert', 'baking', 'snacks', 'vegetarian', 'drinks'];
 const AI_CHEF_DIFFICULTY_EN = { 'Легко': 'Easy', 'Средне': 'Medium', 'Сложно': 'Hard' };
 
+// Базовые продукты, которые считаются "всегда под рукой" и не требуют совпадения
+// с инвентарём (соль, перец, вода, масло и т.п.) — иначе ни один рецепт не прошёл
+// бы проверку "полное соответствие холодильнику".
+const AI_CHEF_BASE_PANTRY = [
+    'соль', 'перец', 'вода', 'масло', 'сахар', 'специи', 'приправ',
+    'уксус', 'сода', 'разрыхлитель', 'ванилин', 'ваниль', 'лавровый лист'
+];
+
+function aiIngredientIsBasePantry(name) {
+    const n = String(name || '').toLowerCase();
+    return AI_CHEF_BASE_PANTRY.some(base => n.includes(base));
+}
+
+// Считает, сколько ингредиентов рецепта отсутствуют в холодильнике пользователя
+// (не считая базовых продуктов). Используется, чтобы предлагать только рецепты
+// с полным соответствием — без "не хватает".
+function aiRecipeMissingCount(recipe) {
+    const ingredientsNorm = (recipe.ingredients || []).map(normalizeAIIngredient);
+    let missing = 0;
+    ingredientsNorm.forEach(ing => {
+        if (aiIngredientIsBasePantry(ing.name)) return;
+        const invItem = (typeof findMatchingInventoryItem === 'function') ? findMatchingInventoryItem(ing.name) : null;
+        const has = !!(invItem && (!ing.amount || invItem.qty >= ing.amount));
+        if (!has) missing++;
+    });
+    return missing;
+}
+
 function getInventorySignature() {
     if (typeof userInventory === 'undefined' || !userInventory) return '';
     return userInventory.map(item => item.name).sort().join('|');
@@ -156,70 +184,86 @@ async function generateAIRecipe(count) {
             throw new Error('Нужно войти в аккаунт, чтобы пользоваться AI-шефом');
         }
 
-        // Подтверждаем серверу, что запрос идёт от реального залогиненного
-        // пользователя приложения — иначе функция отклонит запрос (401).
-        const idToken = await auth.currentUser.getIdToken();
-
-        const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({
-                ingredients,
-                count,
-                avoidTitles: aiChefShownTitles,
-                allergies,
-                priorityIngredients,
-                preferences,
-                maxTime,
-                difficulty
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || `Ошибка ${response.status}`);
-        }
-
-        let recipes = data.recipes;
-        if (!Array.isArray(recipes)) recipes = [recipes];
-
-        // Доп. защита на клиенте: если модель всё же промахнулась мимо аллергии — вырезаем.
         const activeAllergyKeys = getActiveAllergyKeys();
-        if (activeAllergyKeys.length) {
-            const before = recipes.length;
-            recipes = recipes.filter(r => !aiRecipeMatchesActiveAllergies(r, activeAllergyKeys));
-            if (recipes.length < before && typeof showToast === 'function') {
-                showToast('Часть вариантов скрыта из-за ваших пищевых ограничений', 'info');
+        const avoid = [...aiChefShownTitles];
+        let matched = [];
+        let hadDiscarded = false;
+        let attempts = 0;
+        const maxAttempts = 4; // защита от бесконечного цикла, если модель никак не попадает в холодильник
+
+        while (matched.length < count && attempts < maxAttempts) {
+            attempts++;
+            const toFetch = Math.min(count - matched.length, 5);
+
+            // Подтверждаем серверу, что запрос идёт от реального залогиненного
+            // пользователя приложения — иначе функция отклонит запрос (401).
+            const idToken = await auth.currentUser.getIdToken();
+
+            const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({
+                    ingredients,
+                    count: toFetch,
+                    avoidTitles: avoid,
+                    allergies,
+                    priorityIngredients,
+                    preferences,
+                    maxTime,
+                    difficulty
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `Ошибка ${response.status}`);
             }
+
+            let batch = data.recipes;
+            if (!Array.isArray(batch)) batch = [batch];
+
+            batch.forEach(r => { if (r && r.title) avoid.push(r.title); });
+
+            // Доп. защита на клиенте: если модель всё же промахнулась мимо аллергии — вырезаем.
+            if (activeAllergyKeys.length) {
+                const before = batch.length;
+                batch = batch.filter(r => !aiRecipeMatchesActiveAllergies(r, activeAllergyKeys));
+                if (batch.length < before) hadDiscarded = true;
+            }
+
+            // Оставляем только рецепты, которые на 100% собираются из холодильника —
+            // без единого недостающего продукта (кроме базовых: соль, масло и т.п.).
+            const before = batch.length;
+            const fullMatch = batch.filter(r => aiRecipeMissingCount(r) === 0);
+            if (fullMatch.length < before) hadDiscarded = true;
+
+            matched.push(...fullMatch);
         }
 
-        recipes.forEach(r => {
-            if (r && r.title) aiChefShownTitles.push(r.title);
-        });
-        if (aiChefShownTitles.length > 25) {
-            aiChefShownTitles = aiChefShownTitles.slice(-25);
-        }
+        matched = matched.slice(0, count);
 
-        window.__aiChefRecipes = recipes;
+        aiChefShownTitles = avoid.slice(-25);
+
+        window.__aiChefRecipes = matched;
         window.__aiChefPriority = priorityIngredients;
 
         if (content) {
-            if (recipes.length === 0) {
+            if (matched.length === 0) {
                 content.innerHTML = `
                     <div style="text-align:center; color:var(--warning); padding:20px;">
-                        Все предложенные варианты попали под ваши пищевые ограничения.<br>Попробуйте ещё раз.
+                        Не получилось подобрать рецепт, который полностью собирается из ваших продуктов${activeAllergyKeys.length ? ' и не нарушает пищевые ограничения' : ''}.<br>Попробуйте ещё раз или добавьте продуктов в холодильник.
                     </div>
                     <button class="btn btn-secondary" onclick="generateAIRecipe()" style="width:100%; margin-top:5px;">
                         <i class="fas fa-redo"></i> Попробовать снова
                     </button>`;
             } else {
                 content.innerHTML =
-                    recipes.map((r, i) => renderAIRecipeCard(r, i)).join('') +
-                    `<button class="btn btn-secondary" onclick="generateAIRecipe()" style="width:100%; margin-top:5px;">
+                    matched.map((r, i) => renderAIRecipeCard(r, i)).join('') +
+                    (hadDiscarded ? `<div style="text-align:center; color:var(--text-secondary); font-size:0.8em; margin-top:2px;">Часть вариантов от AI была скрыта — не хватало продуктов или были нарушены ограничения.</div>` : '') +
+                    `<button class="btn btn-secondary" onclick="generateAIRecipe()" style="width:100%; margin-top:10px;">
                         <i class="fas fa-redo"></i> Предложить другие варианты
                     </button>`;
             }
@@ -333,58 +377,53 @@ function renderAIRecipeCard(recipe, index) {
     const ingredientsNorm = (recipe.ingredients || []).map(normalizeAIIngredient);
     const priority = window.__aiChefPriority || [];
 
-    let missingCount = 0;
     let usesExpiringCount = 0;
 
+    // На этом этапе рецепт уже гарантированно на 100% собирается из холодильника
+    // (см. фильтрацию в generateAIRecipe/aiChefRegenerateOne) — здесь только рисуем.
     const ingredientRows = ingredientsNorm.map(ing => {
-        const invItem = (typeof findMatchingInventoryItem === 'function') ? findMatchingInventoryItem(ing.name) : null;
-        const has = !!(invItem && (!ing.amount || invItem.qty >= ing.amount));
-        if (!has) missingCount++;
-
-        const isExpiringUse = priority.some(p => aiIngredientMatchesName(p, ing.name));
+        const isBase = aiIngredientIsBasePantry(ing.name);
+        const isExpiringUse = !isBase && priority.some(p => aiIngredientMatchesName(p, ing.name));
         if (isExpiringUse) usesExpiringCount++;
 
-        return `<li style="color:${has ? 'var(--success)' : 'var(--error)'};">
-            <i class="fas ${has ? 'fa-check' : 'fa-xmark'}"></i> ${escapeHtml(ing.name)} — ${ing.amount} ${escapeHtml(ing.unit)}
-            ${isExpiringUse ? ' <span title="Скоро испортится — этот рецепт его спасает" style="color:var(--warning);">⏳</span>' : ''}
+        return `<li class="ai-ing-row">
+            <span class="ai-ing-check"><i class="fas fa-check"></i></span>
+            <span class="ai-ing-name">${escapeHtml(ing.name)}</span>
+            <span class="ai-ing-amount">${escapeHtml(String(ing.amount))} ${escapeHtml(ing.unit)}</span>
+            ${isBase ? ' <span class="ai-ing-tag" title="Базовый продукт — всегда под рукой"><i class="fas fa-mortar-pestle"></i></span>' : ''}
+            ${isExpiringUse ? ' <span class="ai-ing-tag ai-ing-expiring" title="Скоро испортится — этот рецепт его спасает">⏳</span>' : ''}
         </li>`;
     }).join('');
 
-    const statusBadge = missingCount === 0
-        ? `<span style="color:var(--success); font-weight:600;"><i class="fas fa-check-circle"></i> Все продукты есть</span>`
-        : `<span style="color:var(--warning); font-weight:600;"><i class="fas fa-cart-plus"></i> Не хватает: ${missingCount}</span>`;
-
     const steps = recipe.steps || recipe.instructions || [];
+    const difficultyIcons = { 'Легко': '●○○', 'Средне': '●●○', 'Сложно': '●●●' };
+    const difficultyDots = difficultyIcons[normalizeAIDifficulty(recipe.difficulty)] || '●●○';
 
     return `
-        <div class="recipe-card ai-recipe-card" id="ai-recipe-card-${index}" style="cursor: default; border: 2px solid var(--accent); padding: 15px; border-radius: 12px; background: var(--surface-light); margin-bottom: 15px;">
-            <h3 style="margin-top:0; color:var(--primary); font-size: 1.4em;">${escapeHtml(recipe.title || '')}</h3>
-            <div class="recipe-meta" style="margin-bottom: 10px; display: flex; gap: 15px; flex-wrap:wrap; color: var(--text-secondary); font-size: 0.9em;">
+        <div class="recipe-card ai-recipe-card" id="ai-recipe-card-${index}" style="cursor: default;">
+            <div class="ai-recipe-card-badge"><i class="fas fa-check-circle"></i> Всё есть в холодильнике</div>
+            <h3>${escapeHtml(recipe.title || '')}</h3>
+            <div class="recipe-meta ai-recipe-meta">
                 <span><i class="far fa-clock"></i> ${escapeHtml(String(recipe.time || ''))}</span>
-                <span><i class="fas fa-signal"></i> ${escapeHtml(String(recipe.difficulty || ''))}</span>
-                ${usesExpiringCount > 0 ? `<span style="color:var(--warning);"><i class="fas fa-hourglass-half"></i> Спасает ${usesExpiringCount} скоропорт.</span>` : ''}
+                <span><i class="fas fa-signal"></i> ${escapeHtml(String(recipe.difficulty || ''))} <small style="opacity:0.7;">${difficultyDots}</small></span>
+                ${usesExpiringCount > 0 ? `<span class="ai-expiring-pill"><i class="fas fa-hourglass-half"></i> Спасает ${usesExpiringCount} скоропорт.</span>` : ''}
             </div>
-            <div style="margin-bottom: 12px;">${statusBadge}</div>
-            <div class="recipe-ingredients" style="margin-bottom: 15px;">
-                <strong style="color: var(--text-primary);">Ингредиенты:</strong>
-                <ul style="padding-left: 20px; margin-top: 5px; list-style:none;">
+            <div class="ai-recipe-section">
+                <div class="ai-recipe-section-title"><i class="fas fa-carrot"></i> Ингредиенты</div>
+                <ul class="ai-ing-list">
                     ${ingredientRows}
                 </ul>
             </div>
-            <div class="recipe-instructions">
-                <strong style="color: var(--text-primary);">Приготовление:</strong>
-                <ol style="padding-left: 20px; margin-top: 5px; color: var(--text-secondary);">
-                    ${steps.map(i => `<li style="margin-bottom: 8px;">${escapeHtml(i)}</li>`).join('')}
+            <div class="ai-recipe-section">
+                <div class="ai-recipe-section-title"><i class="fas fa-list-ol"></i> Приготовление</div>
+                <ol class="ai-steps-list">
+                    ${steps.map(i => `<li>${escapeHtml(i)}</li>`).join('')}
                 </ol>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+            <div class="ai-recipe-actions">
                 <button class="btn btn-primary" style="flex:1; min-width:120px; margin-bottom:0;" onclick="aiChefCook(${index})">
                     <i class="fas fa-play"></i> Готовить
                 </button>
-                ${missingCount > 0 ? `
-                <button class="btn btn-secondary" style="flex:1; min-width:120px; margin-bottom:0;" onclick="aiChefBuyMissing(${index})">
-                    <i class="fas fa-cart-plus"></i> Купить недостающее
-                </button>` : ''}
                 <button class="btn btn-secondary" id="ai-save-btn-${index}" style="flex:1; min-width:120px; margin-bottom:0;" onclick="aiChefSaveRecipe(${index})">
                     <i class="far fa-bookmark"></i> Сохранить
                 </button>
@@ -444,7 +483,6 @@ async function aiChefRegenerateOne(index) {
 
     try {
         if (typeof auth === 'undefined' || !auth.currentUser) throw new Error('Нужно войти в аккаунт');
-        const idToken = await auth.currentUser.getIdToken();
 
         const ingredients = (typeof userInventory !== 'undefined' && userInventory) ? userInventory.map(i => i.name).join(', ') : '';
         const allergies = getActiveAllergyLabels();
@@ -456,38 +494,56 @@ async function aiChefRegenerateOne(index) {
         const diffSelect = document.getElementById('ai-chef-difficulty');
         const difficulty = (diffSelect && diffSelect.value !== 'any') ? diffSelect.value : null;
 
-        const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-            body: JSON.stringify({
-                ingredients,
-                count: 1,
-                avoidTitles: aiChefShownTitles,
-                allergies,
-                priorityIngredients,
-                preferences,
-                maxTime,
-                difficulty
-            })
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `Ошибка ${response.status}`);
-
-        let recipes = data.recipes;
-        if (!Array.isArray(recipes)) recipes = [recipes];
-        const newRecipe = recipes[0];
-        if (!newRecipe) throw new Error('Пустой ответ от модели');
-
         const activeAllergyKeys = getActiveAllergyKeys();
-        if (activeAllergyKeys.length && aiRecipeMatchesActiveAllergies(newRecipe, activeAllergyKeys)) {
-            throw new Error('Вариант не прошёл проверку на аллергены, попробуйте ещё раз');
+        const avoid = [...aiChefShownTitles];
+        let newRecipe = null;
+        let attempts = 0;
+        const maxAttempts = 4;
+
+        while (!newRecipe && attempts < maxAttempts) {
+            attempts++;
+            const idToken = await auth.currentUser.getIdToken();
+
+            const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                body: JSON.stringify({
+                    ingredients,
+                    count: 1,
+                    avoidTitles: avoid,
+                    allergies,
+                    priorityIngredients,
+                    preferences,
+                    maxTime,
+                    difficulty
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `Ошибка ${response.status}`);
+
+            let recipes = data.recipes;
+            if (!Array.isArray(recipes)) recipes = [recipes];
+            const candidate = recipes[0];
+            if (!candidate) continue;
+
+            if (candidate.title) avoid.push(candidate.title);
+
+            if (activeAllergyKeys.length && aiRecipeMatchesActiveAllergies(candidate, activeAllergyKeys)) {
+                continue;
+            }
+            if (aiRecipeMissingCount(candidate) > 0) {
+                continue;
+            }
+
+            newRecipe = candidate;
         }
 
-        if (newRecipe.title) {
-            aiChefShownTitles.push(newRecipe.title);
-            if (aiChefShownTitles.length > 25) aiChefShownTitles = aiChefShownTitles.slice(-25);
+        if (!newRecipe) {
+            throw new Error('Не получилось подобрать вариант, полностью собирающийся из холодильника, попробуйте ещё раз');
         }
+
+        aiChefShownTitles = avoid.slice(-25);
 
         window.__aiChefRecipes[index] = newRecipe;
         if (card) card.outerHTML = renderAIRecipeCard(newRecipe, index);

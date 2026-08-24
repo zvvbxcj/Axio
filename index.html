@@ -16733,60 +16733,67 @@ async function runTest(type) {
     </div>
 </div>
 
-<div id="ai-chef-modal" class="modal" onclick="if(event.target.id === 'ai-chef-modal') hideModal('ai-chef-modal')">
+<div id="ai-chef-modal" class="modal ai-chef-modal-premium" onclick="if(event.target.id === 'ai-chef-modal') hideModal('ai-chef-modal')">
     <div class="modal-content">
         <div class="modal-header">
-            <h4><i class="fas fa-hat-wizard"></i> AI Шеф</h4>
+            <div class="ai-chef-header-icon"><i class="fas fa-hat-wizard"></i></div>
+            <h4><i class="fas fa-wand-magic-sparkles"></i> AI Шеф</h4>
             <span class="modal-close" onclick="hideModal('ai-chef-modal')"><i class="fas fa-times"></i></span>
         </div>
-        
+
         <div class="modal-body">
-            <p style="margin-bottom:15px; color:var(--text-secondary); text-align: center;">
-                Я проанализирую ваш инвентарь и предложу рецепт из того, что есть.
+            <p class="ai-chef-subtitle">
+                Я проанализирую ваш холодильник и подберу рецепты, которые можно приготовить прямо сейчас —
+                без похода в магазин.
             </p>
-            
-            <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px;">
-                <span style="color:var(--text-secondary); font-size:0.9em;">Сколько вариантов:</span>
-                <select id="ai-chef-count" class="styled-select" style="width:70px;">
-                    <option value="1" selected>1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                </select>
+            <div class="ai-chef-match-pill ai-chef-match-pill-static">
+                <i class="fas fa-circle-check"></i> Только рецепты, где есть абсолютно всё
             </div>
 
-            <div style="display:flex; gap:8px; margin-bottom:12px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-size:0.78em; color:var(--text-secondary); margin-bottom:4px;"><i class="far fa-clock"></i> Время</label>
-                    <select id="ai-chef-max-time" class="styled-select" style="width:100%;">
-                        <option value="any" selected>Любое</option>
-                        <option value="15">До 15 мин</option>
-                        <option value="30">До 30 мин</option>
-                        <option value="45">До 45 мин</option>
-                        <option value="60">До 60 мин</option>
+            <div class="ai-chef-options-panel">
+                <div class="ai-chef-option-row ai-chef-option-row-count">
+                    <span class="ai-chef-option-label"><i class="fas fa-layer-group"></i> Сколько вариантов</span>
+                    <select id="ai-chef-count" class="styled-select" style="width:70px;">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
                     </select>
                 </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-size:0.78em; color:var(--text-secondary); margin-bottom:4px;"><i class="fas fa-signal"></i> Сложность</label>
-                    <select id="ai-chef-difficulty" class="styled-select" style="width:100%;">
-                        <option value="any" selected>Любая</option>
-                        <option value="Легко">Легко</option>
-                        <option value="Средне">Средне</option>
-                        <option value="Сложно">Сложно</option>
-                    </select>
-                </div>
-            </div>
 
-            <label style="display:flex; align-items:center; gap:8px; margin-bottom:15px; font-size:0.85em; color:var(--text-secondary); cursor:pointer;">
-                <input type="checkbox" id="ai-chef-use-expiring" checked style="width:16px; height:16px;">
-                <span><i class="fas fa-hourglass-half" style="color:var(--warning);"></i> В первую очередь использовать продукты, которые скоро испортятся</span>
-            </label>
+                <div class="ai-chef-option-row" style="gap:10px;">
+                    <div style="flex:1;">
+                        <label class="ai-chef-option-label" style="margin-bottom:6px;"><i class="far fa-clock"></i> Время</label>
+                        <select id="ai-chef-max-time" class="styled-select" style="width:100%;">
+                            <option value="any" selected>Любое</option>
+                            <option value="15">До 15 мин</option>
+                            <option value="30">До 30 мин</option>
+                            <option value="45">До 45 мин</option>
+                            <option value="60">До 60 мин</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="ai-chef-option-label" style="margin-bottom:6px;"><i class="fas fa-signal"></i> Сложность</label>
+                        <select id="ai-chef-difficulty" class="styled-select" style="width:100%;">
+                            <option value="any" selected>Любая</option>
+                            <option value="Легко">Легко</option>
+                            <option value="Средне">Средне</option>
+                            <option value="Сложно">Сложно</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="ai-chef-toggle-row">
+                    <input type="checkbox" id="ai-chef-use-expiring" checked>
+                    <span><i class="fas fa-hourglass-half" style="color:var(--warning);"></i> В первую очередь использовать продукты, которые скоро испортятся</span>
+                </label>
+            </div>
 
             <button class="btn btn-primary" onclick="generateAIRecipe()" style="width: 100%; margin-bottom: 20px;">
-                <i class="fas fa-magic"></i> Придумать рецепт
+                <i class="fas fa-wand-magic-sparkles"></i> Придумать рецепт
             </button>
-            
+
             <div id="ai-recipe-content"></div>
         </div>
     </div>
