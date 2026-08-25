@@ -422,6 +422,10 @@
                     </div>
                 </div>
 
+                <button type="button" id="header-collapse-toggle" class="header-collapse-toggle" onclick="toggleHeaderCollapse()" title="Свернуть/развернуть панель">
+                    <i class="fas fa-chevron-up" id="header-collapse-icon"></i>
+                </button>
+
             </div>
 
             <div class="main-content">
@@ -437,44 +441,52 @@
                     <div class="fridge-wrap" id="fridge-wrap-el">
                         <div class="fridge-unit">
                             <div class="fridge-interior">
-                                <div class="fridge-close-btn" onclick="toggleFridgeDoor()"><i class="fas fa-times"></i></div>
-
                                 <div class="fridge-controls-bar" id="fridge-controls-bar">
-                                    <div class="search-container fridge-search-container">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" id="inventory-search-input" class="styled-input" placeholder="Поиск продукта..." oninput="updateInventoryList()">
-                                        <i class="fas fa-times-circle fridge-search-clear" id="inventory-search-clear" onclick="clearInventorySearch()" style="display:none;"></i>
-                                    </div>
-
-                                    <div class="category-slider" id="inventory-filters">
-                                        <button class="cat-btn active" data-filter="all" onclick="setInventoryFilter('all', this)">
-                                            <i class="fas fa-th-large"></i> Все
-                                        </button>
-                                        <button class="cat-btn" data-filter="safe" onclick="setInventoryFilter('safe', this)" style="color: var(--success); border-color: rgba(16, 185, 129, 0.3);">
-                                            <i class="fas fa-leaf"></i> Свежие
-                                        </button>
-                                        <button class="cat-btn" data-filter="warning" onclick="setInventoryFilter('warning', this)" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
-                                            <i class="fas fa-exclamation-circle"></i> Скоро портятся
-                                        </button>
-                                        <button class="cat-btn" data-filter="critical" onclick="setInventoryFilter('critical', this)" style="color: var(--error); border-color: rgba(239, 68, 68, 0.3);">
-                                            <i class="fas fa-skull"></i> Просрочено
-                                        </button>
-                                        <button class="cat-btn" data-filter="no_expiry" onclick="setInventoryFilter('no_expiry', this)" style="color: var(--text-secondary); border-color: var(--border-color);">
-                                            <i class="fas fa-calendar-plus"></i> Без срока
-                                        </button>
-                                        <button class="cat-btn" onclick="openExpiryFilterModal()"></i> ⏳ Срок
+                                    <div class="fridge-search-row">
+                                        <div class="search-container fridge-search-container">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" id="inventory-search-input" class="styled-input" placeholder="Поиск продукта..." oninput="updateInventoryList()">
+                                            <i class="fas fa-times-circle fridge-search-clear" id="inventory-search-clear" onclick="clearInventorySearch()" style="display:none;"></i>
+                                        </div>
+                                        <button type="button" id="fridge-filter-toggle" class="fridge-filter-toggle" onclick="toggleFridgeFilters()" title="Фильтры и сортировка">
+                                            <i class="fas fa-sliders-h"></i>
+                                            <span class="fridge-filter-toggle-dot" id="fridge-filter-toggle-dot"></span>
                                         </button>
                                     </div>
 
-                                    <select id="inventory-sort" class="styled-select" onchange="updateInventoryList()">
-                                        <option value="expiry_asc" data-translate="SortExpiryAsc">Срок: Сначала самые скорые</option>
-                                        <option value="expiry_desc" data-translate="SortExpiryDesc">Срок: Сначала самые долгие</option>
-                                        <option value="name_asc" data-translate="SortNameAsc">Имя: А-Я</option>
-                                        <option value="name_desc" data-translate="SortNameDesc">Имя: Я-А</option>
-                                        <option value="qty_asc" data-translate="SortQtyAsc">Кол-во: ↑</option>
-                                        <option value="qty_desc" data-translate="SortQtyDesc">Кол-во: ↓</option>
-                                        <option value="date_added_new" data-translate="SortDateAddedNew">Дата добавления: Новые</option>
-                                    </select>
+                                    <div class="fridge-filters-panel" id="fridge-filters-panel">
+                                        <div class="fridge-filters-panel-inner">
+                                            <div class="category-slider" id="inventory-filters">
+                                                <button class="cat-btn active" data-filter="all" onclick="setInventoryFilter('all', this)">
+                                                    <i class="fas fa-th-large"></i> Все
+                                                </button>
+                                                <button class="cat-btn" data-filter="safe" onclick="setInventoryFilter('safe', this)" style="color: var(--success); border-color: rgba(16, 185, 129, 0.3);">
+                                                    <i class="fas fa-leaf"></i> Свежие
+                                                </button>
+                                                <button class="cat-btn" data-filter="warning" onclick="setInventoryFilter('warning', this)" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
+                                                    <i class="fas fa-exclamation-circle"></i> Скоро портятся
+                                                </button>
+                                                <button class="cat-btn" data-filter="critical" onclick="setInventoryFilter('critical', this)" style="color: var(--error); border-color: rgba(239, 68, 68, 0.3);">
+                                                    <i class="fas fa-skull"></i> Просрочено
+                                                </button>
+                                                <button class="cat-btn" data-filter="no_expiry" onclick="setInventoryFilter('no_expiry', this)" style="color: var(--text-secondary); border-color: var(--border-color);">
+                                                    <i class="fas fa-calendar-plus"></i> Без срока
+                                                </button>
+                                                <button class="cat-btn" onclick="openExpiryFilterModal()"></i> ⏳ Срок
+                                                </button>
+                                            </div>
+
+                                            <select id="inventory-sort" class="styled-select" onchange="updateInventoryList()">
+                                                <option value="expiry_asc" data-translate="SortExpiryAsc">Срок: Сначала самые скорые</option>
+                                                <option value="expiry_desc" data-translate="SortExpiryDesc">Срок: Сначала самые долгие</option>
+                                                <option value="name_asc" data-translate="SortNameAsc">Имя: А-Я</option>
+                                                <option value="name_desc" data-translate="SortNameDesc">Имя: Я-А</option>
+                                                <option value="qty_asc" data-translate="SortQtyAsc">Кол-во: ↑</option>
+                                                <option value="qty_desc" data-translate="SortQtyDesc">Кол-во: ↓</option>
+                                                <option value="date_added_new" data-translate="SortDateAddedNew">Дата добавления: Новые</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="fridge-interior-scroll" id="inventory-list"></div>
@@ -5124,6 +5136,43 @@ function clearInventorySearch() {
             if (door) door.classList.toggle('open');
         }
 
+        // Сворачивание верхней панели: остаётся только самая верхняя строка
+        // (имя, добавить продукты/покупки, уведомления, настройки).
+        function toggleHeaderCollapse(forceState) {
+            const header = document.querySelector('.header');
+            if (!header) return;
+            const shouldCollapse = typeof forceState === 'boolean' ? forceState : !header.classList.contains('collapsed');
+            header.classList.toggle('collapsed', shouldCollapse);
+            try { localStorage.setItem('axio_header_collapsed', shouldCollapse ? '1' : '0'); } catch (e) { /* localStorage недоступен — не критично */ }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                if (localStorage.getItem('axio_header_collapsed') === '1') toggleHeaderCollapse(true);
+            } catch (e) { /* localStorage недоступен — не критично */ }
+        });
+
+        // Премиальная сворачиваемая панель фильтров/сортировки холодильника
+        function toggleFridgeFilters(forceOpen) {
+            const panel = document.getElementById('fridge-filters-panel');
+            const toggleBtn = document.getElementById('fridge-filter-toggle');
+            if (!panel || !toggleBtn) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !panel.classList.contains('open');
+            panel.classList.toggle('open', shouldOpen);
+            toggleBtn.classList.toggle('active', shouldOpen);
+        }
+
+        function updateFridgeFilterBadge() {
+            const dot = document.getElementById('fridge-filter-toggle-dot');
+            if (!dot) return;
+            const activeBtn = document.querySelector('#inventory-filters .cat-btn.active');
+            const activeFilter = activeBtn ? activeBtn.dataset.filter : 'all';
+            const sortEl = document.getElementById('inventory-sort');
+            const sortKey = sortEl ? sortEl.value : 'expiry_asc';
+            const hasActiveFilters = (activeFilter && activeFilter !== 'all') || isCustomExpiryActive || (sortKey && sortKey !== 'expiry_asc');
+            dot.classList.toggle('show', !!hasActiveFilters);
+        }
+
 // Постраничная отрисовка инвентаря: при 100+ продуктах рендер сразу всех
 // полок ощутимо тормозит скролл, поэтому рисуем их порциями и подгружаем
 // следующую порцию по мере прокрутки списка.
@@ -5135,6 +5184,8 @@ let inventoryAdShown = false;
         function updateInventoryList() {
     const list = document.getElementById('inventory-list');
     if (!list) return;
+
+    updateFridgeFilterBadge();
 
     const activeBtn = document.querySelector('#inventory-filters .cat-btn.active');
     const filter = activeBtn ? activeBtn.dataset.filter : 'all';   
@@ -17439,7 +17490,7 @@ function fallbackCopy(text) {
             </div>
             <div>
                 <h4>Центр Управления Axio</h4>
-                <div class="admin-shell-sub">Версия ядра: 3.5. · Админ: <span id="admin-username-display">Вы</span></div>
+                <div class="admin-shell-sub">Версия ядра: 3.5.2 · Админ: <span id="admin-username-display">Вы</span></div>
             </div>
         </div>
         <div class="admin-shell-header-actions">
