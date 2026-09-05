@@ -1,0 +1,84 @@
+User-agent: *
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Googlebot
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Yandex
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Bingbot
+Allow: /
+Disallow: /*?join=*
+
+# AI-ассистенты и поисковые LLM-краулеры — разрешены для видимости в AI-поиске
+User-agent: GPTBot
+Allow: /
+Disallow: /*?join=*
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /*?join=*
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /*?join=*
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Claude-User
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /*?join=*
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /*?join=*
+
+User-agent: GoogleOther
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Bingbot-Extended
+Allow: /
+Disallow: /*?join=*
+
+User-agent: Meta-ExternalAgent
+Allow: /
+Disallow: /*?join=*
+
+User-agent: YandexGPT
+Allow: /
+Disallow: /*?join=*
+
+# AI-краулеры для датасетов — отключены (не служат видимости пользователей, только сбор для обучения)
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+Sitemap: https://axioaxio.ru/sitemap.xml

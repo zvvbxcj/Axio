@@ -3,17 +3,8 @@ const AXIO_AI_CHEF_ENDPOINT = 'https://ai-gemini.axioaxio.workers.dev';
 let aiChefShownTitles = [];
 let aiChefLastInventorySignature = '';
 
-// Хранилище "сырых" рецептов из последнего ответа AI (по индексу карточки) —
-// используется обработчиками кнопок (Готовить/Купить/Сохранить/Другой вариант),
-// чтобы не пихать огромные JSON в inline-onclick атрибуты.
-window.__aiChefRecipes = window.__aiChefRecipes || [];
-// Снимок продуктов, которые скоро испортятся, на момент последней генерации —
-// нужен, чтобы подсветить в карточке, какие ингредиенты "спасает" рецепт.
-window.__aiChefPriority = window.__aiChefPriority || [];
-// История чата "доработать рецепт" по индексу карточки: { role: 'user'|'ai', text }[]
 window.__aiChefRefineHistory = window.__aiChefRefineHistory || {};
 
-// --- Чипы вместо <select> для количества/времени/сложности ---
 function aiChefGetChipValue(groupId, fallback) {
     const el = document.getElementById(groupId);
     return el ? (el.dataset.value || fallback) : fallback;
@@ -41,9 +32,6 @@ if (document.readyState === 'loading') {
 const AI_CHEF_KNOWN_CATEGORIES = ['breakfast', 'soup', 'main', 'salad', 'pasta', 'dessert', 'baking', 'snacks', 'vegetarian', 'drinks'];
 const AI_CHEF_DIFFICULTY_EN = { 'Легко': 'Easy', 'Средне': 'Medium', 'Сложно': 'Hard' };
 
-// Базовые продукты, которые считаются "всегда под рукой" и не требуют совпадения
-// с инвентарём (соль, перец, вода, масло и т.п.) — иначе ни один рецепт не прошёл
-// бы проверку "полное соответствие холодильнику".
 const AI_CHEF_BASE_PANTRY = [
     'соль', 'перец', 'вода', 'масло', 'сахар', 'специи', 'приправ',
     'уксус', 'сода', 'разрыхлитель', 'ванилин', 'ваниль', 'лавровый лист'
@@ -54,9 +42,7 @@ function aiIngredientIsBasePantry(name) {
     return AI_CHEF_BASE_PANTRY.some(base => n.includes(base));
 }
 
-// Считает, сколько ингредиентов рецепта отсутствуют в холодильнике пользователя
-// (не считая базовых продуктов). Используется, чтобы предлагать только рецепты
-// с полным соответствием — без "не хватает".
+
 function aiRecipeMissingCount(recipe) {
     const ingredientsNorm = (recipe.ingredients || []).map(normalizeAIIngredient);
     let missing = 0;
@@ -74,7 +60,6 @@ function getInventorySignature() {
     return userInventory.map(item => item.name).sort().join('|');
 }
 
-// --- Аллергены: читаем те же настройки, что использует основной список рецептов ---
 function getActiveAllergyKeys() {
     try {
         const settings = JSON.parse(localStorage.getItem('userSettings')) || {};
@@ -91,7 +76,6 @@ function getActiveAllergyLabels() {
     return keys.map(k => (ALLERGY_UI[k] && ALLERGY_UI[k].label) || k);
 }
 
-// Доп. защита на клиенте (даже если модель ошиблась и не учла аллергию сама)
 function aiRecipeMatchesActiveAllergies(recipe, activeAllergyKeys) {
     if (!activeAllergyKeys || !activeAllergyKeys.length) return false;
     const text = (recipe.ingredients || [])
@@ -104,7 +88,6 @@ function aiRecipeMatchesActiveAllergies(recipe, activeAllergyKeys) {
     });
 }
 
-// --- Приоритет по сроку годности: продукты, которые скоро испортятся ---
 function getPriorityExpiringIngredients(limit) {
     if (typeof userInventory === 'undefined' || !userInventory) return [];
     return userInventory
@@ -115,7 +98,6 @@ function getPriorityExpiringIngredients(limit) {
         .map(p => p.name);
 }
 
-// --- Персонализация: что пользователь реально готовил/лайкал/дизлайкал ---
 function getUserPreferenceSignals() {
     let liked = [];
     let cookedTitles = [];
@@ -215,20 +197,12 @@ async function generateAIRecipe(count) {
         let matched = [];
         let hadDiscarded = false;
         let attempts = 0;
-        const maxAttempts = 5; // защита от бесконечного цикла, если модель никак не попадает в холодильник
+        const maxAttempts = 5;
 
         while (matched.length < count && attempts < maxAttempts) {
             attempts++;
-            // Запрашиваем с запасом (минимум 3 за раз), даже если пользователю нужен всего 1
-            // вариант — иначе при жёстком фильтре "всё есть в холодильнике" шанс получить
-            // хоть один подходящий рецепт с первого клика был слишком низким, и приходилось
-            // нажимать кнопку повторно.
             const toFetch = Math.min(Math.max(count - matched.length, 3), 5);
-
-            // Подтверждаем серверу, что запрос идёт от реального залогиненного
-            // пользователя приложения — иначе функция отклонит запрос (401).
             const idToken = await auth.currentUser.getIdToken();
-
             const response = await fetch(AXIO_AI_CHEF_ENDPOINT, {
                 method: 'POST',
                 headers: {
@@ -256,16 +230,11 @@ async function generateAIRecipe(count) {
             if (!Array.isArray(batch)) batch = [batch];
 
             batch.forEach(r => { if (r && r.title) avoid.push(r.title); });
-
-            // Доп. защита на клиенте: если модель всё же промахнулась мимо аллергии — вырезаем.
             if (activeAllergyKeys.length) {
                 const before = batch.length;
                 batch = batch.filter(r => !aiRecipeMatchesActiveAllergies(r, activeAllergyKeys));
                 if (batch.length < before) hadDiscarded = true;
             }
-
-            // Оставляем только рецепты, которые на 100% собираются из холодильника —
-            // без единого недостающего продукта (кроме базовых: соль, масло и т.п.).
             const before = batch.length;
             const fullMatch = batch.filter(r => aiRecipeMissingCount(r) === 0);
             if (fullMatch.length < before) hadDiscarded = true;
@@ -319,9 +288,6 @@ async function generateAIRecipe(count) {
     }
 }
 
-// Приводит ингредиент из ответа AI к формату приложения {name, amount, unit}.
-// Поддерживает и новый структурированный формат, и старый (строка вида "3 яйца") —
-// на случай, если воркер на Cloudflare ещё не обновлён.
 function normalizeAIIngredient(ing) {
     if (ing && typeof ing === 'object' && ing.name) {
         return {
@@ -355,18 +321,11 @@ function normalizeAICategory(c) {
     return AI_CHEF_KNOWN_CATEGORIES.includes(c) ? c : 'main';
 }
 
-// Проверяет ингредиент AI-рецепта на совпадение с чем-то из списка (используется
-// для подсветки "спасает скоропортящееся" в карточке).
 function aiIngredientMatchesName(ingName, targetName) {
     if (typeof ingredientNamesMatch === 'function') return ingredientNamesMatch(ingName, targetName);
     return String(ingName || '').toLowerCase() === String(targetName || '').toLowerCase();
 }
 
-// Превращает "сырой" рецепт от AI в объект в формате приложения (как у обычных
-// рецептов из recipesDB) и добавляет его и в globalRecipes (чтобы работали карточки,
-// фильтры, "Могу приготовить"), и в recipesDB (чтобы работал интерактивный режим
-// готовки startCookingMode/finishCooking — он ищет рецепт именно в recipesDB).
-// Повторный вызов для того же объекта recipe возвращает уже созданный id.
 function materializeAIRecipe(recipe) {
     if (recipe.__appId && typeof globalRecipes !== 'undefined' && globalRecipes.some(r => r.id === recipe.__appId)) {
         return recipe.__appId;
@@ -397,8 +356,6 @@ function materializeAIRecipe(recipe) {
     recipe.__appId = id;
 
     if (typeof globalRecipes !== 'undefined') globalRecipes.push(appRecipe);
-    // recipesDB нужен отдельно: интерактивный режим готовки (таймеры, списание
-    // ингредиентов, XP, ачивки) ищет рецепт именно там, а не в globalRecipes.
     if (typeof recipesDB !== 'undefined' && recipesDB) recipesDB.push(appRecipe);
 
     return id;
@@ -410,8 +367,6 @@ function renderAIRecipeCard(recipe, index) {
 
     let usesExpiringCount = 0;
 
-    // На этом этапе рецепт уже гарантированно на 100% собирается из холодильника
-    // (см. фильтрацию в generateAIRecipe/aiChefRegenerateOne) — здесь только рисуем.
     const ingredientRows = ingredientsNorm.map(ing => {
         const isBase = aiIngredientIsBasePantry(ing.name);
         const isExpiringUse = !isBase && priority.some(p => aiIngredientMatchesName(p, ing.name));
@@ -486,22 +441,12 @@ function renderAIRecipeCard(recipe, index) {
     `;
 }
 
-// --- Обработчики кнопок карточки ---
-
 function aiChefCook(index) {
     const recipe = (window.__aiChefRecipes || [])[index];
     if (!recipe) return;
     const id = materializeAIRecipe(recipe);
     hideModal('ai-chef-modal');
     showRecipeDetail(id);
-}
-
-function aiChefBuyMissing(index) {
-    const recipe = (window.__aiChefRecipes || [])[index];
-    if (!recipe) return;
-    const id = materializeAIRecipe(recipe);
-    const appRecipe = (typeof globalRecipes !== 'undefined') ? globalRecipes.find(r => r.id === id) : null;
-    if (appRecipe && typeof addMissingToShopping === 'function') addMissingToShopping(appRecipe);
 }
 
 function aiChefSaveRecipe(index) {
@@ -560,7 +505,7 @@ async function aiChefRegenerateOne(index) {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                 body: JSON.stringify({
                     ingredients,
-                    count: 3, // запас с одного запроса — быстрее находим годный вариант
+                    count: 3,
                     avoidTitles: avoid,
                     allergies,
                     priorityIngredients,
@@ -615,10 +560,6 @@ async function aiChefRegenerateOne(index) {
         }
     }
 }
-
-// --- "Доработать рецепт": мини-чат уточнений внутри карточки ---
-// Позволяет попросить AI пересобрать уже предложенный рецепт с конкретной правкой
-// ("замени кефир на молоко", "сделай острее", "убери грибы") без повторного поиска с нуля.
 
 function aiChefToggleRefine(index) {
     const panel = document.getElementById(`ai-refine-panel-${index}`);

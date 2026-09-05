@@ -1,0 +1,1099 @@
+<!--
+  АДМИН-ПАНЕЛЬ AXIO — вынесенная разметка (HTML)
+  Загружается в #admin-panel-root только для администратора
+  (см. loadAdminBundle() в index.html). Логика — в admin.js.
+-->
+<div id="admin-reauth-modal" class="modal" style="z-index: 10090;" onclick="if(event.target.id === 'admin-reauth-modal') cancelAdminReauth()">
+            <div class="modal-content" style="max-width: 380px;">
+                <div class="modal-header">
+                    <h4><i class="fas fa-lock"></i> Подтвердите пароль</h4>
+                    <span class="modal-close" onclick="cancelAdminReauth()">&times;</span>
+                </div>
+                <p id="admin-reauth-label" style="color:var(--text-secondary); font-size:13px;">Это действие затрагивает много данных сразу. Введите пароль панели, чтобы продолжить.</p>
+                <input type="password" id="admin-reauth-password" class="styled-input" style="width:100%; margin-top:8px;" placeholder="Пароль" autocomplete="current-password" onkeydown="if(event.key === 'Enter') confirmAdminReauth()">
+                <div id="admin-reauth-error" style="color:var(--error); font-size:13px; margin-top:8px; display:none;"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="cancelAdminReauth()">Отмена</button>
+                    <button class="btn btn-primary" id="admin-reauth-confirm-btn" onclick="confirmAdminReauth()">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+
+<div id="admin-modal" class="modal admin-modal-root">
+    <div class="modal-content admin-shell">
+
+    <div class="admin-shell-header">
+        <div class="admin-shell-brand">
+            <div class="admin-shell-logo">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <div>
+                <h4>Центр Управления Axio</h4>
+                <div class="admin-shell-sub">Версия ядра: 3.5.2 · Админ: <span id="admin-username-display">Вы</span></div>
+            </div>
+        </div>
+        <div class="admin-shell-header-actions">
+            <button class="admin-cmdk-trigger" onclick="openChangeAdminPassword()" title="Сменить пароль панели">
+                <i class="fas fa-key"></i> <span>Пароль</span>
+            </button>
+            <button class="admin-cmdk-trigger" onclick="openAdminCommandPalette()" title="Быстрый поиск">
+                <i class="fas fa-magnifying-glass"></i> <span>Поиск</span>
+            </button>
+            <span class="modal-close" onclick="hideModal('admin-modal')"><i class="fas fa-times"></i></span>
+        </div>
+    </div>
+
+    <div class="admin-tabs">
+        <button class="admin-tab-btn active" onclick="switchAdminTab('dashboard')"><i class="fas fa-tachometer-alt"></i> Главная</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('users')"><i class="fas fa-users"></i> Пользователи</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('pending')"><i class="fas fa-gavel"></i> Модерация <span id="pending-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('trustsafety')"><i class="fas fa-shield-halved"></i> Trust & Safety <span id="appeals-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('contentmgr')"><i class="fas fa-file-circle-xmark"></i> Менеджер Контента</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('feedback')"><i class="fas fa-comment-dots"></i> Обратная связь <span id="feedback-count-badge" class="badge-mini" style="display:none">0</span></button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('push')"><i class="fas fa-bell"></i> Пуш-Уведомления</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('content')"><i class="fas fa-tools"></i> Инструменты</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('stats')"><i class="fas fa-chart-pie"></i> Статистика</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('journal')"><i class="fas fa-clock-rotate-left"></i> Журнал</button>
+    </div>
+
+    <div class="admin-shell-body">
+        
+        <div id="admin-tab-dashboard" class="admin-tab-content">
+            <div class="admin-stats-row">
+                <div class="admin-stat-widget">
+                    <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-users"></i></div>
+                    <div><div class="stat-val" id="dash-total-users">0</div><div class="stat-lbl">Всего юзеров</div></div>
+                </div>
+                <div class="admin-stat-widget">
+                    <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-book"></i></div>
+                    <div><div class="stat-val" id="dash-total-recipes">0</div><div class="stat-lbl">Рецептов в базе</div></div>
+                </div>
+                <div class="admin-stat-widget">
+                    <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-hourglass-half"></i></div>
+                    <div><div class="stat-val" id="dash-pending-count">0</div><div class="stat-lbl">Ждут проверки</div></div>
+                </div>
+                <div class="admin-stat-widget">
+                    <div class="stat-icon" style="background:rgba(20, 184, 166, 0.12); color:#14B8A6"><i class="fas fa-kitchen-set"></i></div>
+                    <div><div class="stat-val" id="dash-total-fridges">0</div><div class="stat-lbl">Холодильников</div></div>
+                </div>
+                <div class="admin-stat-widget" title="Среднее время от подачи заявки до решения (одобрение/отклонение), по последним заявкам">
+                    <div class="stat-icon" style="background:rgba(239, 68, 68, 0.12); color:#EF4444"><i class="fas fa-stopwatch"></i></div>
+                    <div><div class="stat-val" id="dash-avg-mod-time">—</div><div class="stat-lbl">Ср. время до решения</div></div>
+                </div>
+            </div>
+
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <h5><i class="fas fa-server"></i> Состояние сервера</h5>
+
+                <div class="server-state-grid">
+                    <label class="server-state-btn" id="state-btn-online" onclick="updateServerStatus('online')">
+                        <div class="state-dot" style="background:#10B981; box-shadow: 0 0 8px #10B981;"></div>
+                        <div class="state-info">
+                            <strong>Штатный режим</strong>
+                            <span>Все системы активны</span>
+                        </div>
+                        <i class="fas fa-check-circle state-check"></i>
+                    </label>
+
+                    <label class="server-state-btn" id="state-btn-premium_only" onclick="updateServerStatus('premium_only')">
+                        <div class="state-dot" style="background:#F59E0B; box-shadow: 0 0 8px #F59E0B;"></div>
+                        <div class="state-info">
+                            <strong>Только Premium</strong>
+                            <span>Доступ только у Premium</span>
+                        </div>
+                        <i class="fas fa-check-circle state-check"></i>
+                    </label>
+
+                    <label class="server-state-btn" id="state-btn-maintenance" onclick="updateServerStatus('maintenance')">
+                        <div class="state-dot" style="background:#EF4444; box-shadow: 0 0 8px #EF4444;"></div>
+                        <div class="state-info">
+                            <strong>Тех. работы</strong>
+                            <span>Доступ закрыт для всех</span>
+                        </div>
+                        <i class="fas fa-check-circle state-check"></i>
+                    </label>
+                </div>
+
+                <div class="admin-maint-message">
+                    <label>Сообщение для пользователей (на экране блокировки):</label>
+                    <div class="admin-maint-message-row">
+                        <input type="text" id="maint-message-input" placeholder="Например: Обновляем базу, вернемся через 15 минут..." class="styled-input">
+                        <button class="btn btn-primary" onclick="updateMaintMessage()">Сохранить</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel-card admin-panel-card-spaced">
+                <h5><i class="fas fa-bolt"></i> Последняя активность</h5>
+                <div id="dashboard-activity-feed" class="dashboard-activity-feed">
+                    <div class="admin-empty-state" style="padding:20px;"><i class="fas fa-inbox"></i><p>Пока нет действий в этой сессии</p></div>
+                </div>
+                <button class="small-action-btn" style="margin-top:10px;" onclick="switchAdminTab('journal')"><i class="fas fa-clock-rotate-left"></i> Весь журнал</button>
+            </div>
+        </div>
+
+        <div id="admin-tab-users" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5>База пользователей</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="admin-user-search" placeholder="Поиск (email, имя)..." onkeyup="filterAdminUsers()">
+                    </div>
+                    <button class="small-action-btn" onclick="loadAllUsers(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Пользователь</th>
+                            <th>Прогресс</th>
+                            <th>Статус</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adm-users-list">
+                        <tr><td colspan="4" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="admin-tab-fridges" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5>Совместные холодильники</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="admin-fridge-search" placeholder="Поиск (название, владелец)..." onkeyup="filterAdminFridges()">
+                    </div>
+                    <button class="small-action-btn" onclick="loadAdminFridges(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Холодильник</th>
+                            <th>Владелец</th>
+                            <th>Участники</th>
+                            <th>Товары</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adm-fridges-list">
+                        <tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="admin-tab-pending" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5>Очередь рецептов</h5>
+                <div class="admin-toolbar-actions">
+                    <button class="small-action-btn" id="pending-flag-filter-btn" style="display:none;" onclick="togglePendingFlagFilter()"><i class="fas fa-flag"></i> Только подозрительные</button>
+                    <button class="small-action-btn" id="pending-sort-toggle-btn" onclick="togglePendingSortOrder()"><i class="fas fa-arrow-down-wide-short"></i> Сначала старые</button>
+                    <button class="small-action-btn" id="pending-select-all-btn" onclick="toggleSelectAllPending()"><i class="fas fa-square-check"></i> Выбрать все</button>
+                    <button class="small-action-btn" onclick="loadPendingRecipes()"><i class="fas fa-sync"></i> Обновить</button>
+                </div>
+            </div>
+
+            <div id="pending-flagged-hint" class="pending-flagged-hint" style="display:none;">
+                <i class="fas fa-flag"></i>
+                <span></span>
+            </div>
+
+            <div id="pending-overdue-hint" class="pending-overdue-hint" style="display:none;">
+                <i class="fas fa-fire"></i>
+                <span></span>
+            </div>
+
+            <div id="pending-bulk-bar" class="pending-bulk-bar" style="display:none;">
+                <span id="pending-bulk-count">Выбрано: 0</span>
+                <div class="pending-bulk-actions">
+                    <button class="btn-sm bulk-approve-btn" onclick="bulkApproveSelected()"><i class="fas fa-check-double"></i> Одобрить выбранные</button>
+                    <button class="btn-sm bulk-reject-btn" onclick="bulkRejectSelected()"><i class="fas fa-ban"></i> Отклонить выбранные</button>
+                </div>
+            </div>
+
+            <div id="admin-pending-list" class="grid-list"></div>
+            <div id="admin-pending-empty" class="admin-empty-state" style="display:none;">
+                <i class="fas fa-check-circle"></i>
+                <p>Все чисто! Заявок на публикацию нет.</p>
+            </div>
+        </div>
+
+        <div id="admin-tab-trustsafety" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-shield-halved"></i> Trust & Safety</h5>
+                <button class="small-action-btn" onclick="runSuspiciousActivityScan(); refreshBanHistoryStats(); refreshBanAppeals();"><i class="fas fa-sync"></i> Обновить всё</button>
+            </div>
+
+            <div class="analytics-hub-nav">
+                <a href="#ts-suspicious" class="analytics-hub-pill"><i class="fas fa-satellite-dish"></i> Подозрительная активность</a>
+                <a href="#ts-bans" class="analytics-hub-pill"><i class="fas fa-gavel"></i> История банов</a>
+                <a href="#ts-appeals" class="analytics-hub-pill"><i class="fas fa-scale-balanced"></i> Апелляции <span id="appeals-count-badge-inline" class="badge-mini" style="display:none">0</span></a>
+            </div>
+
+            <!-- ============ 1. ПОДОЗРИТЕЛЬНАЯ АКТИВНОСТЬ ============ -->
+            <div id="ts-suspicious" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-satellite-dish"></i> Подозрительная активность</div>
+
+                <div class="admin-stats-row">
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-user-group"></i></div>
+                        <div><div class="stat-val" id="dash-ts-multiacc">0</div><div class="stat-lbl">Мультирегистрации</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-bolt"></i></div>
+                        <div><div class="stat-val" id="dash-ts-xpfarm">0</div><div class="stat-lbl">Аномальный фарм XP</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(239, 68, 68, 0.12); color:#EF4444"><i class="fas fa-layer-group"></i></div>
+                        <div><div class="stat-val" id="dash-ts-recipeburst">0</div><div class="stat-lbl">Всплески публикаций</div></div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-list-check"></i> На проверку</h5>
+                    <div id="suspicious-activity-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Простые правила по уже собираемым данным: одинаковый отпечаток устройства у нескольких аккаунтов,
+                        подозрительно быстрый набор опыта в первые сутки после регистрации, и всплеск публикаций рецептов
+                        от одного автора (5+ за час). Список только для проверки — бан или предупреждение всегда решает модератор.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============ 2. ИСТОРИЯ БАНОВ ============ -->
+            <div id="ts-bans" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-gavel"></i> История банов</div>
+
+                <div class="admin-stats-row">
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(239, 68, 68, 0.12); color:#EF4444"><i class="fas fa-ban"></i></div>
+                        <div><div class="stat-val" id="dash-ts-total-bans">0</div><div class="stat-lbl">Всего банов</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(245, 158, 11, 0.12); color:#F59E0B"><i class="fas fa-rotate"></i></div>
+                        <div><div class="stat-val" id="dash-ts-recidivists">0</div><div class="stat-lbl">Рецидивистов</div></div>
+                    </div>
+                    <div class="admin-stat-widget">
+                        <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-user-lock"></i></div>
+                        <div><div class="stat-val" id="dash-ts-active-bans">0</div><div class="stat-lbl">Сейчас забанено</div></div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-chart-simple"></i> Причины банов</h5>
+                    <div id="ban-reasons-container" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-clock-rotate-left"></i> Последние баны</h5>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Пользователь</th>
+                                    <th>Категория</th>
+                                    <th>Причина</th>
+                                    <th>Модератор</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ban-history-list">
+                                <tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. АПЕЛЛЯЦИИ ============ -->
+            <div id="ts-appeals" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-scale-balanced"></i> Апелляции на баны</div>
+                <div class="admin-panel-card">
+                    <div id="ban-appeals-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Апелляцию пользователь отправляет с экрана блокировки. «Одобрить» сразу снимает бан,
+                        «Отклонить» просто закрывает обращение — пользователь остаётся заблокирован и может подать апелляцию повторно.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div id="admin-tab-contentmgr" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5>Опубликованные рецепты</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="admin-content-search" placeholder="Поиск (название, автор, категория)..." oninput="filterAdminContent()">
+                    </div>
+                    <select id="admin-content-category-filter" class="styled-input" style="width:auto; padding:8px 10px;" onchange="filterAdminContent()">
+                        <option value="">Все категории</option>
+                    </select>
+                    <button class="small-action-btn" onclick="loadAdminContent(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <p style="color:var(--text-secondary); font-size:0.85em; margin:-6px 0 12px;">
+                Список всех рецептов, уже опубликованных в общей базе. «Снять с публикации» — быстрое одношаговое действие: рецепт сразу пропадает из общего доступа, автор получает уведомление, действие фиксируется в журнале.
+            </p>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Рецепт</th>
+                            <th>Автор</th>
+                            <th>Категория</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adm-content-list">
+                        <tr><td colspan="4" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="admin-tab-feedback" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-comment-dots"></i> Обратная связь пользователей</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="feedback-search" placeholder="Поиск по автору или рецепту..." onkeyup="renderFeedbackReports()">
+                    </div>
+                    <button class="small-action-btn" onclick="loadFeedbackReports(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+
+            <p style="color:var(--text-secondary); font-size:0.85em; margin:-4px 0 14px;">
+                Причины скрытия рецептов, указанные пользователями в модалке «Почему не понравилось?» при дизлайке.
+            </p>
+
+            <div class="journal-filters" id="feedback-filters">
+                <button class="journal-filter-chip active" data-filter="all" onclick="setFeedbackFilter('all')">Все</button>
+                <button class="journal-filter-chip" data-filter="taste" onclick="setFeedbackFilter('taste')"><i class="fas fa-utensils"></i> Вкус</button>
+                <button class="journal-filter-chip" data-filter="ingredients" onclick="setFeedbackFilter('ingredients')"><i class="fas fa-carrot"></i> Ингредиенты</button>
+                <button class="journal-filter-chip" data-filter="complexity" onclick="setFeedbackFilter('complexity')"><i class="fas fa-clock"></i> Сложность</button>
+                <button class="journal-filter-chip" data-filter="other" onclick="setFeedbackFilter('other')"><i class="fas fa-ellipsis"></i> Другое</button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Автор</th>
+                            <th>Рецепт</th>
+                            <th>Причина</th>
+                            <th>Комментарий</th>
+                            <th class="text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-feedback-list">
+                        <tr><td colspan="6" class="admin-table-loading">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="admin-feedback-empty" class="admin-empty-state" style="display:none;">
+                <i class="fas fa-check-circle"></i>
+                <p>Жалоб и дизлайков пока нет.</p>
+            </div>
+        </div>
+
+        <div id="admin-tab-push" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-bell"></i> Пуш-Центр</h5>
+            </div>
+
+            <div class="journal-filters" id="push-subnav">
+                <button class="journal-filter-chip active" data-pushview="composer" onclick="switchPushSubTab('composer')"><i class="fas fa-pen-to-square"></i> Конструктор</button>
+                <button class="journal-filter-chip" data-pushview="history" onclick="switchPushSubTab('history')"><i class="fas fa-clock-rotate-left"></i> История</button>
+                <button class="journal-filter-chip" data-pushview="triggers" onclick="switchPushSubTab('triggers')"><i class="fas fa-bolt"></i> Триггеры</button>
+            </div>
+
+            <!-- ===== КОНСТРУКТОР РАССЫЛОК ===== -->
+            <div id="push-view-composer" class="push-subview">
+                <div class="push-composer-grid">
+                    <div class="admin-panel-card">
+                        <div class="form-group">
+                            <label>Заголовок</label>
+                            <input type="text" id="push-title" class="styled-input" placeholder="Например: Новые рецепты недели 🍳" maxlength="65" oninput="updatePushPreview()">
+                        </div>
+                        <div class="form-group">
+                            <label>Текст</label>
+                            <textarea id="push-body" class="styled-input" rows="3" placeholder="Загляните в приложение — мы добавили..." maxlength="180" oninput="updatePushPreview()"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Ссылка / Экран перехода</label>
+                            <select id="push-target-screen" class="styled-select" onchange="handlePushTargetChange()">
+                                <option value="">Без перехода</option>
+                                <option value="recipes">Экран: Рецепты</option>
+                                <option value="inventory">Экран: Холодильник</option>
+                                <option value="shopping">Экран: Список покупок</option>
+                                <option value="achievements">Экран: Достижения</option>
+                                <option value="profile">Экран: Профиль</option>
+                                <option value="custom">Своя ссылка (URL)</option>
+                            </select>
+                            <input type="text" id="push-target-custom" class="styled-input" placeholder="https://..." style="display:none; margin-top:10px;" oninput="updatePushPreview()">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Аудитория</label>
+                            <div class="dislike-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="push-audience" value="all" checked onchange="updatePushAudienceCount()">
+                                    <span class="radio-option-icon"><i class="fas fa-users"></i></span>
+                                    <span class="radio-option-text">Все пользователи</span>
+                                    <span class="radio-option-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="push-audience" value="premium" onchange="updatePushAudienceCount()">
+                                    <span class="radio-option-icon"><i class="fas fa-crown"></i></span>
+                                    <span class="radio-option-text">Только Premium</span>
+                                    <span class="radio-option-check"><i class="fas fa-check"></i></span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="push-audience" value="active_week" onchange="updatePushAudienceCount()">
+                                    <span class="radio-option-icon"><i class="fas fa-bolt"></i></span>
+                                    <span class="radio-option-text">Активные за неделю</span>
+                                    <span class="radio-option-check"><i class="fas fa-check"></i></span>
+                                </label>
+                            </div>
+                            <div id="push-audience-count" class="push-audience-count"><i class="fas fa-circle-notch fa-spin"></i> Считаем аудиторию...</div>
+                        </div>
+
+                        <button id="push-send-btn" class="btn btn-primary" style="width:100%; margin-top:6px;" onclick="sendPushCampaign()">
+                            <i class="fas fa-paper-plane"></i> Отправить рассылку
+                        </button>
+                    </div>
+
+                    <div class="push-preview-wrap">
+                        <div class="push-preview-label">Превью уведомления</div>
+                        <div class="push-preview-card">
+                            <div class="push-preview-header">
+                                <i class="fas fa-utensils"></i> <span>Axio</span> <span class="push-preview-time">сейчас</span>
+                            </div>
+                            <div class="push-preview-title" id="push-preview-title">Заголовок уведомления</div>
+                            <div class="push-preview-body" id="push-preview-body">Текст сообщения появится здесь</div>
+                            <div class="push-preview-link" id="push-preview-link" style="display:none;"><i class="fas fa-link"></i> <span></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ИСТОРИЯ РАССЫЛОК ===== -->
+            <div id="push-view-history" class="push-subview" style="display:none;">
+                <div class="admin-toolbar">
+                    <h5 style="font-size:0.95em;">Прошедшие рассылки</h5>
+                    <button class="small-action-btn" onclick="loadPushHistory(true)" title="Обновить"><i class="fas fa-sync"></i></button>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Заголовок</th>
+                                <th>Доставлено</th>
+                                <th>Клики/Открытия</th>
+                                <th class="text-right">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="push-history-list">
+                            <tr><td colspan="5" class="admin-table-loading">Загрузка данных...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="push-history-empty" class="admin-empty-state" style="display:none;">
+                    <i class="fas fa-inbox"></i>
+                    <p>Рассылок пока не было.</p>
+                </div>
+            </div>
+
+            <!-- ===== ТРИГГЕРНЫЕ АВТО-ПУШИ ===== -->
+            <div id="push-view-triggers" class="push-subview" style="display:none;">
+                <p class="push-triggers-hint">
+                    Автоматические уведомления, которые уходят пользователю по событию — без участия администратора. Отредактируйте текст или отключите ненужный триггер.
+                </p>
+                <div id="push-triggers-list" class="push-triggers-list">
+                    <div class="admin-table-loading">Загрузка настроек...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="admin-tab-content" class="admin-tab-content" style="display:none;">
+    <h5 class="tools-main-title"><i class="fas fa-toolbox"></i> Утилиты системы</h5>
+
+    <div class="tools-section">
+        <div class="tools-section-header info">
+            <i class="fas fa-database"></i> Данные и Бэкапы
+        </div>
+        <div class="admin-tools-grid">
+            <div class="tool-card info" onclick="analyzeAppStats()">
+                <div class="tool-card-icon"><i class="fas fa-chart-line"></i></div>
+                <h4>Полная Аналитика</h4>
+                <p>Тренды, топ блюд, активность</p>
+            </div>
+
+            <div class="tool-card info" onclick="fullDatabaseBackup()">
+                <div class="tool-card-icon"><i class="fas fa-file-download"></i></div>
+                <h4>Полный Бэкап</h4>
+                <p>Скачать JSON всей базы</p>
+            </div>
+
+            <div class="tool-card info" onclick="exportEmailsCSV()">
+                <div class="tool-card-icon"><i class="fas fa-file-csv"></i></div>
+                <h4>Экспорт CSV</h4>
+                <p>База Email для рассылки</p>
+            </div>
+
+            <div class="tool-card info" onclick="checkDataIntegrity()">
+                <div class="tool-card-icon"><i class="fas fa-stethoscope"></i></div>
+                <h4>Проверка Целостности</h4>
+                <p>Поиск битых рецептов/юзеров</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tools-section">
+        <div class="tools-section-header warning">
+            <i class="fas fa-sliders"></i> Настройки и Рассылки
+        </div>
+        <div class="admin-tools-grid">
+            <div class="tool-card warning" onclick="openGlobalConfig()">
+                <div class="tool-card-icon"><i class="fas fa-cogs"></i></div>
+                <h4>Конфиг Сервера</h4>
+                <p>Тех.работы, Версии, Бусты</p>
+            </div>
+
+            <div class="tool-card warning" onclick="forceSyncRecipesFile()">
+                <div class="tool-card-icon"><i class="fas fa-cloud-download-alt"></i></div>
+                <h4>Сброс Рецептов</h4>
+                <p>Откат к заводским (File)</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openBroadcastModal()">
+                <div class="tool-card-icon"><i class="fas fa-bullhorn"></i></div>
+                <h4>Глобальная Рассылка</h4>
+                <p>Уведомление всем юзерам</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openAnnouncementModal()">
+                <div class="tool-card-icon"><i class="fas fa-bell"></i></div>
+                <h4>Объявление</h4>
+                <p>Опубликовать в ленту анонсов</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openSpeedTestModal()">
+                <div class="tool-card-icon"><i class="fas fa-gauge-high"></i></div>
+                <h4>Тест Скорости</h4>
+                <p>Проверка соединения с сервером</p>
+            </div>
+
+            <div class="tool-card warning" onclick="openSystemTestsModal()">
+                <div class="tool-card-icon"><i class="fas fa-stethoscope"></i></div>
+                <h4>Диагностика</h4>
+                <p>Системные тесты и пинг</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tools-section">
+        <div class="tools-section-header danger">
+            <i class="fas fa-triangle-exclamation"></i> Опасная зона
+        </div>
+        <div class="admin-tools-grid">
+            <div class="tool-card danger" onclick="massUnban()">
+                <div class="tool-card-icon"><i class="fas fa-users-slash"></i></div>
+                <h4>Массовая Амнистия</h4>
+                <p>Разбанить всех пользователей</p>
+            </div>
+
+            <div class="tool-card danger" onclick="cleanupOldData()">
+                <div class="tool-card-icon"><i class="fas fa-trash-alt"></i></div>
+                <h4>Очистка Мусора</h4>
+                <p>Удалить старые логи/жалобы</p>
+            </div>
+
+            <div class="tool-card danger" onclick="runRepairScript()">
+                <div class="tool-card-icon"><i class="fas fa-band-aid"></i></div>
+                <h4>Авто-Починка</h4>
+                <p>Исправить ошибки в БД</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tools-section">
+        <div class="tools-section-header">
+            <i class="fas fa-terminal"></i> Системный лог
+        </div>
+        <div id="admin-console-log" class="console-log">
+            <div class="log-line">&gt; Панель инструментов готова...</div>
+        </div>
+    </div>
+</div>
+
+        <div id="admin-tab-stats" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-chart-bar"></i> Analytics Hub</h5>
+                <button class="small-action-btn" onclick="renderDetailedStats()"><i class="fas fa-sync"></i> Обновить всё</button>
+            </div>
+
+            <div class="analytics-hub-nav">
+                <a href="#ah-overview" class="analytics-hub-pill"><i class="fas fa-gauge-high"></i> Обзор</a>
+                <a href="#ah-activity" class="analytics-hub-pill"><i class="fas fa-users"></i> Активность</a>
+                <a href="#ah-inventory" class="analytics-hub-pill"><i class="fas fa-kitchen-set"></i> Продукты</a>
+                <a href="#ah-content" class="analytics-hub-pill"><i class="fas fa-robot"></i> Рецепты и AI</a>
+                <a href="#ah-business" class="analytics-hub-pill"><i class="fas fa-chart-pie"></i> Бизнес</a>
+            </div>
+
+            <!-- ============ ОБЗОР ============ -->
+            <div id="ah-overview" class="analytics-hub-section">
+                <div id="mega-stats-container" class="stats-grid-mega">
+                    <div class="admin-table-loading" style="width:100%;">Загрузка данных аналитики...</div>
+                </div>
+            </div>
+
+            <!-- ============ 1. АКТИВНОСТЬ И УДЕРЖАНИЕ ============ -->
+            <div id="ah-activity" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-users"></i> Активность и удержание</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-chart-line"></i> DAU / MAU</h5>
+                    <div class="admin-stats-row" style="margin-bottom:15px;">
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-day"></i></div>
+                            <div><div class="stat-val" id="dau-today-val">—</div><div class="stat-lbl">DAU сегодня</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-calendar-days"></i></div>
+                            <div><div class="stat-val" id="mau-30d-val">—</div><div class="stat-lbl">MAU (30 дней)</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-percent"></i></div>
+                            <div><div class="stat-val" id="dau-mau-ratio-val">—</div><div class="stat-lbl">Стикинес (DAU/MAU)</div></div>
+                        </div>
+                    </div>
+                    <div style="position:relative; height:220px;">
+                        <canvas id="dauChart"></canvas>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Число уникальных пользователей, открывавших приложение в каждый из последних 30 дней. Один визит в сутки = 1 отметка.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-layer-group"></i> Когортный retention</h5>
+                    <div class="admin-stats-row" style="margin-bottom:15px;">
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-week"></i></div>
+                            <div><div class="stat-val" id="retention-w1-val">—</div><div class="stat-lbl">Ср. удержание, 1 нед.</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-calendar-check"></i></div>
+                            <div><div class="stat-val" id="retention-w2-val">—</div><div class="stat-lbl">Ср. удержание, 2 нед.</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-medal"></i></div>
+                            <div><div class="stat-val" id="retention-w4-val">—</div><div class="stat-lbl">Ср. удержание, 4 нед.</div></div>
+                        </div>
+                    </div>
+                    <div style="position:relative; height:240px;">
+                        <canvas id="retentionCohortChart"></canvas>
+                    </div>
+                    <div id="retention-cohort-empty" class="admin-empty-state" style="display:none;"><i class="fas fa-inbox"></i><p>Пока недостаточно данных для когортного анализа</p></div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Каждый столбец — недельная когорта (по дате регистрации). Высота показывает, какой % пользователей этой когорты был активен спустя 1, 2 и 4 недели после регистрации. Столбец горизонта не рисуется, пока этот срок для когорты ещё не наступил — иначе процент был бы искусственно занижен. Так видно, удерживает ли продукт людей, или рост держится только на притоке новых.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-earth-americas"></i> География и язык интерфейса</h5>
+                    <div class="donut-row" style="margin-bottom:18px;">
+                        <div class="donut-canvas-box"><canvas id="langBreakdownChart"></canvas></div>
+                        <div class="donut-legend" id="lang-breakdown-legend">
+                            <div class="admin-table-loading">Загрузка...</div>
+                        </div>
+                    </div>
+                    <div style="font-weight:700; font-size:0.85em; color:var(--text-secondary); margin-bottom:10px;">
+                        <i class="fas fa-flag"></i> Топ стран (по полю профиля)
+                    </div>
+                    <div id="geo-country-list" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Язык — это выбор интерфейса пользователя (надёжное поле). Страна — то, что человек сам вписал в профиле, поэтому написания могут отличаться; значения нормализованы без учёта регистра, но не переведены в единый справочник.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-filter"></i> Воронка онбординга</h5>
+                    <div id="onboarding-funnel-container" class="funnel-wrap">
+                        <div class="admin-table-loading">Загрузка данных...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Регистрация → холодильник → первый товар → первый рецепт. Шаги считаются по независимым признакам (владение холодильником, наличие товаров, счётчик приготовленных блюд), поэтому в редких случаях возможны небольшие расхождения с идеальной монотонностью.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-fire"></i> Пиковые часы активности</h5>
+                    <div id="activity-heatmap-container">
+                        <div class="admin-table-loading">Загрузка данных...</div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Тепловая карта по дням недели и часам суток за последние 30 дней. Строится по первой ежедневной отметке присутствия пользователя — хороший ориентир для времени Push-рассылок, но не отражает все открытия приложения за день.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============ 2. ПРОДУКТЫ И ХОЛОДИЛЬНИКИ ============ -->
+            <div id="ah-inventory" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-kitchen-set"></i> Продукты и холодильники</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-carrot"></i> Топ-10 популярных продуктов <span style="font-weight:400; font-size:0.75em; color:var(--text-secondary);">(30 дней)</span></h5>
+                    <div id="top-products-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-trash-can"></i> Списание vs Использование продуктов</h5>
+                    <div class="donut-row">
+                        <div class="donut-canvas-box"><canvas id="foodWasteChart"></canvas></div>
+                        <div class="donut-legend" id="food-waste-legend">
+                            <div class="admin-table-loading">Загрузка...</div>
+                        </div>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Продукты, отмеченные «Просрочено» / выброшенные, против продуктов, реально использованных в рецептах — суммарно по всем пользователям.
+                    </p>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-boxes-stacked"></i> Средний чек и шеринг</h5>
+                    <div class="metric-duo-grid" style="margin-bottom:14px;">
+                        <div class="metric-duo-card">
+                            <div class="metric-duo-icon" style="background:rgba(16,185,129,0.12); color:#10B981;"><i class="fas fa-box-open"></i></div>
+                            <div>
+                                <div class="metric-duo-val" id="avg-fridge-size-val">—</div>
+                                <div class="metric-duo-lbl">Ср. товаров в активном холодильнике</div>
+                            </div>
+                        </div>
+                        <div class="metric-duo-card">
+                            <div class="metric-duo-icon" style="background:rgba(139,92,246,0.12); color:#8B5CF6;"><i class="fas fa-user-group"></i></div>
+                            <div>
+                                <div class="metric-duo-val" id="avg-shared-members-val">—</div>
+                                <div class="metric-duo-lbl">Ср. участников в совместном холодильнике</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="donut-row">
+                        <div class="donut-canvas-box"><canvas id="sharingChart"></canvas></div>
+                        <div class="donut-legend" id="sharing-legend">
+                            <div class="admin-table-loading">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. РЕЦЕПТЫ И AI CHEF ============ -->
+            <div id="ah-content" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-robot"></i> Рецепты и AI Chef</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-wand-magic-sparkles"></i> Метрики AI Chef</h5>
+                    <div class="ai-chef-stats-row">
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(139, 92, 246, 0.12); color:#8B5CF6"><i class="fas fa-bolt"></i></div>
+                            <div><div class="stat-val" id="ai-gen-today-val">—</div><div class="stat-lbl">Сегодня</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(59, 130, 246, 0.12); color:#3B82F6"><i class="fas fa-calendar-days"></i></div>
+                            <div><div class="stat-val" id="ai-gen-month-val">—</div><div class="stat-lbl">За 30 дней</div></div>
+                        </div>
+                        <div class="admin-stat-widget">
+                            <div class="stat-icon" style="background:rgba(16, 185, 129, 0.12); color:#10B981"><i class="fas fa-stopwatch"></i></div>
+                            <div><div class="stat-val" id="ai-gen-avgtime-val">—</div><div class="stat-lbl">Ср. время ответа</div></div>
+                        </div>
+                    </div>
+                    <div class="conversion-meter-row">
+                        <div class="conversion-meter-circle" id="ai-conversion-circle">
+                            <span id="ai-conversion-val">—</span>
+                        </div>
+                        <div class="conversion-meter-info" id="ai-conversion-desc">Загрузка данных...</div>
+                    </div>
+                    <div id="ai-chef-empty-hint" class="ai-chef-empty-hint" style="display:none;">
+                        <i class="fas fa-circle-info"></i>
+                        <span>Сбор аналитики AI Chef подключён (коллекция <code>ai_chef_log</code>), но данных пока нет — счётчик наполнится после первых генераций рецептов.</span>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-face-frown"></i> Причины скрытия рецептов</h5>
+                    <div id="dislike-reasons-container" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-ban"></i> Причины отклонения заявок</h5>
+                    <div id="rejection-reasons-container" class="reason-bar-list">
+                        <div class="admin-table-loading">Загрузка...</div>
+                    </div>
+                    <div id="rejection-reasons-insight" class="admin-insight-hint" style="display:none;"></div>
+                </div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-trophy"></i> Топ-5 рецептов</h5>
+                    <div id="top-recipes-list" class="admin-scroll-list"><div class="admin-table-loading">Загрузка...</div></div>
+                </div>
+            </div>
+
+            <!-- ============ 4. BUSINESS METRICS ============ -->
+            <div id="ah-business" class="analytics-hub-section">
+                <div class="analytics-section-title"><i class="fas fa-chart-pie"></i> Business Metrics</div>
+
+                <div class="admin-panel-card admin-panel-card-spaced">
+                    <h5><i class="fas fa-ranking-star"></i> Распределение по уровням (XP Level)</h5>
+                    <div style="position:relative; height:240px;">
+                        <canvas id="xpLevelChart"></canvas>
+                    </div>
+                    <p class="admin-modal-hint" style="margin-top:12px; margin-bottom:0;">
+                        Сколько пользователей находится на каждом уровне. Помогает оценить, не слишком ли быстро/медленно балансируется геймификация.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div id="admin-tab-journal" class="admin-tab-content" style="display:none;">
+            <div class="admin-toolbar">
+                <h5><i class="fas fa-clock-rotate-left"></i> Журнал действий</h5>
+                <div class="admin-toolbar-actions">
+                    <div class="admin-search-box">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="journal-search" placeholder="Поиск по журналу..." oninput="renderAuditLog()">
+                    </div>
+                    <button class="small-action-btn danger-outline" onclick="clearAuditLog()" title="Очистить журнал"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+
+            <div class="journal-filters" id="journal-filters">
+                <button class="journal-filter-chip active" data-filter="all" onclick="setJournalFilter('all')">Все</button>
+                <button class="journal-filter-chip" data-filter="moderation" onclick="setJournalFilter('moderation')"><i class="fas fa-gavel"></i> Модерация</button>
+                <button class="journal-filter-chip" data-filter="users" onclick="setJournalFilter('users')"><i class="fas fa-users"></i> Пользователи</button>
+                <button class="journal-filter-chip" data-filter="fridges" onclick="setJournalFilter('fridges')"><i class="fas fa-kitchen-set"></i> Холодильники</button>
+                <button class="journal-filter-chip" data-filter="system" onclick="setJournalFilter('system')"><i class="fas fa-server"></i> Система</button>
+                <button class="journal-filter-chip" data-filter="trustsafety" onclick="setJournalFilter('trustsafety')"><i class="fas fa-shield-halved"></i> Trust & Safety</button>
+                <button class="journal-filter-chip" data-filter="security" onclick="setJournalFilter('security')"><i class="fas fa-lock"></i> Безопасность</button>
+            </div>
+
+            <div id="audit-log-list" class="audit-log-list">
+                <div class="admin-empty-state"><i class="fas fa-inbox"></i><p>Журнал пуст</p></div>
+            </div>
+        </div>
+
+    </div> 
+    </div>
+</div>
+
+<div id="admin-cmdk" class="admin-cmdk-overlay" onclick="if(event.target.id === 'admin-cmdk') closeAdminCommandPalette()">
+    <div class="admin-cmdk-box">
+        <div class="admin-cmdk-input-row">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="admin-cmdk-input" placeholder="Найти раздел, пользователя или действие..." oninput="filterAdminCommands(this.value)">
+            <kbd>Esc</kbd>
+        </div>
+        <div id="admin-cmdk-results" class="admin-cmdk-results"></div>
+    </div>
+</div>
+
+<div id="reject-reason-modal" class="modal" style="z-index: 10002;" onclick="if(event.target.id === 'reject-reason-modal') hideModal('reject-reason-modal')">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-ban"></i> Причина отклонения</h4>
+            <span class="modal-close" onclick="hideModal('reject-reason-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <div class="reason-chip-grid" id="reason-chip-grid">
+            <button class="reason-chip" onclick="pickRejectReason('Не соответствует правилам сообщества')">Не по правилам</button>
+            <button class="reason-chip" onclick="pickRejectReason('Дублирует существующий рецепт')">Дубликат</button>
+            <button class="reason-chip" onclick="pickRejectReason('Низкое качество фото/описания')">Низкое качество</button>
+            <button class="reason-chip" onclick="pickRejectReason('Похоже на спам или рекламу')">Спам</button>
+            <button class="reason-chip" onclick="pickRejectReason('Некорректные ингредиенты/шаги')">Ошибки в рецепте</button>
+            <button class="reason-chip" onclick="pickRejectReason('Подозрение на плагиат')">Плагиат</button>
+        </div>
+        <input type="text" id="reject-reason-custom" class="styled-input" placeholder="Своя причина (необязательно)" style="margin-top:12px;">
+        <div class="admin-modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('reject-reason-modal')">Отмена</button>
+            <button class="btn btn-primary admin-btn-reject" onclick="confirmRejectWithReason()">Отклонить</button>
+        </div>
+    </div>
+</div>
+
+<div id="ban-reason-modal" class="modal" style="z-index: 10002;" onclick="if(event.target.id === 'ban-reason-modal') hideModal('ban-reason-modal')">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-ban"></i> Причина блокировки</h4>
+            <span class="modal-close" onclick="hideModal('ban-reason-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <div class="reason-chip-grid" id="ban-reason-chip-grid">
+            <button class="reason-chip" onclick="pickBanReason('spam', 'Спам / реклама')">Спам</button>
+            <button class="reason-chip" onclick="pickBanReason('insults', 'Оскорбления в комментариях')">Оскорбления</button>
+            <button class="reason-chip" onclick="pickBanReason('plagiarism', 'Плагиат рецептов')">Плагиат</button>
+            <button class="reason-chip" onclick="pickBanReason('fraud', 'Накрутка / мультиаккаунты')">Накрутка/мульти</button>
+            <button class="reason-chip" onclick="pickBanReason('other', 'Другое нарушение правил')">Другое</button>
+        </div>
+        <input type="text" id="ban-reason-custom" class="styled-input" placeholder="Комментарий к причине (необязательно)" style="margin-top:12px;">
+        <div class="admin-modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('ban-reason-modal')">Отмена</button>
+            <button class="btn btn-primary admin-btn-reject" onclick="confirmBanWithReason()"><i class="fas fa-ban"></i> Забанить</button>
+        </div>
+    </div>
+</div>
+
+<div id="admin-preview-modal" class="modal" style="z-index: 10001;">
+    <div class="modal-content admin-subm-modal">
+        <div class="modal-header">
+            <h4><i class="fas fa-magnifying-glass"></i> Проверка рецепта</h4>
+            <span class="modal-close" onclick="hideModal('admin-preview-modal')"><i class="fas fa-times"></i></span>
+        </div>
+        <div id="admin-preview-content"></div>
+        <div class="admin-modal-actions">
+            <button id="btn-approve-preview" class="btn btn-primary admin-btn-approve">
+                <i class="fas fa-check"></i> Одобрить
+            </button>
+            <button id="btn-reject-preview" class="btn btn-primary admin-btn-reject">
+                <i class="fas fa-ban"></i> Отклонить
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="admin-user-modal" class="modal" onclick="if(event.target.id === 'admin-user-modal') hideModal('admin-user-modal')">
+    <div class="modal-content admin-subm-modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-user-gear"></i> Управление пользователем</h4>
+            <span class="modal-close" onclick="hideModal('admin-user-modal')">&times;</span>
+        </div>
+        <div id="admin-user-detail-content">
+            </div>
+    </div>
+</div>
+
+<div id="admin-fridge-modal" class="modal" onclick="if(event.target.id === 'admin-fridge-modal') hideModal('admin-fridge-modal')">
+    <div class="modal-content admin-subm-modal" style="max-width: 650px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-kitchen-set"></i> Управление холодильником</h4>
+            <span class="modal-close" onclick="hideModal('admin-fridge-modal')">&times;</span>
+        </div>
+        <div id="admin-fridge-detail-content">
+            </div>
+    </div>
+</div>
+
+<div id="admin-feedback-modal" class="modal" style="z-index:10005;">
+    <div class="modal-content admin-subm-modal" style="max-width:600px;">
+        <div class="modal-header">
+            <h4><i class="fas fa-comments"></i> Обратная связь</h4>
+            <span class="modal-close" onclick="hideModal('admin-feedback-modal')">&times;</span>
+        </div>
+        <button class="small-action-btn danger-outline" onclick="cleanupFeedback()"><i class="fas fa-trash"></i> Удалить старые</button>
+        <div id="feedback-list-container" class="admin-scroll-list">
+            </div>
+    </div>
+</div>
+
+<div id="announcement-modal" class="modal">
+    <div class="modal-content admin-subm-modal">
+        <div class="modal-header">
+            <h4><i class="fas fa-bullhorn"></i> Создать объявление</h4>
+            <span class="modal-close" onclick="hideModal('announcement-modal')">&times;</span>
+        </div>
+        <p class="admin-modal-hint">Это сообщение увидят все пользователи.</p>
+        <textarea id="announcement-text" class="styled-input" rows="4" placeholder="Введите текст..."></textarea>
+        <button class="btn btn-primary" onclick="sendAnnouncement()" style="margin-top:12px;">Отправить всем</button>
+    </div>
+</div>
+
+<div id="speed-test-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h4>⚡ Тест соединения</h4>
+            <span class="modal-close" onclick="hideModal('speed-test-modal')">&times;</span>
+        </div>
+        <div class="speed-test-wrapper">
+            <div class="speed-gauge">
+                <div class="speed-gauge-fill" id="speed-fill"></div>
+            </div>
+            <div class="speed-value" id="speed-value-text">0</div>
+            <div style="color:var(--text-secondary); font-size:0.9em;">ms (ping)</div>
+        </div>
+        <button class="btn btn-primary" id="start-speed-btn" onclick="runSpeedTestAnimation()">Запустить тест</button>
+    </div>
+</div>
+
+<div id="system-tests-modal" class="modal" style="z-index: 10020;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h4><i class="fas fa-microchip"></i> Диагностика Системы</h4>
+            <span class="modal-close" onclick="closeSystemTests()"><i class="fas fa-times"></i></span>
+        </div>
+        
+        <div style="background:var(--surface-light); padding:15px; border-radius:12px; margin-bottom:20px; text-align:center;">
+            <div style="font-size:0.8em; color:var(--text-secondary); margin-bottom:5px;">Realtime Database Latency</div>
+            <div style="font-size:2.5em; font-weight:800; font-family:monospace; color:var(--primary);" id="live-ping-value">--</div>
+            <div style="font-size:0.8em; color:var(--text-secondary);">ms</div>
+            <div id="ping-indicator" style="width:10px; height:10px; border-radius:50%; background:gray; margin:5px auto; transition:0.2s;"></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <button class="btn btn-secondary" onclick="runTest('auth')">🔐 Auth Service</button>
+            <button class="btn btn-secondary" onclick="runTest('storage')">💾 Storage Perms</button>
+            <button class="btn btn-secondary" onclick="runTest('integrity')">🧩 Data Integrity</button>
+            <button class="btn btn-secondary" onclick="runTest('quotas')">📈 API Quotas</button>
+            <button class="btn btn-secondary" onclick="runTest('cache')">🧹 Clear Cache</button>
+            <button class="btn btn-secondary" onclick="runTest('push')">🔔 Push Service</button>
+            <button class="btn btn-secondary" onclick="runTest('orphans')">🗑 Find Orphans</button>
+            <button class="btn btn-secondary" onclick="runTest('version')">ℹ️ App Version</button>
+            <button class="btn btn-secondary" onclick="runTest('admins')">🛡 Admin List</button>
+            <button class="btn btn-secondary" onclick="runTest('sim_load')">🔥 Simulate Load</button>
+        </div>
+        
+        <div id="test-console" style="background:#111; color:#0f0; font-family:monospace; padding:10px; border-radius:8px; margin-top:15px; height:100px; overflow-y:auto; font-size:0.8em;">
+            > Ready for diagnostics...
+        </div>
+    </div>
+</div>
+
+<div id="admin-security-modal" class="modal" style="z-index: 10003;">
+    <div class="modal-content" style="max-width: 380px;">
+        <span class="modal-close" onclick="hideModal('admin-security-modal')"><i class="fas fa-times"></i></span>
+        <div class="admin-security-icon"><i class="fas fa-shield-halved"></i></div>
+        <div id="admin-security-title" class="admin-security-title">Подтверждение доступа</div>
+        <div id="admin-security-subtitle" class="admin-security-subtitle">Введите пароль панели модератора</div>
+
+        <div id="admin-security-error" class="admin-security-error"></div>
+
+        <input type="password" id="admin-security-input" class="styled-input" placeholder="Пароль" autocomplete="off" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter') submitAdminSecurity()">
+        <input type="password" id="admin-security-confirm" class="styled-input" placeholder="Повторите пароль" autocomplete="off" style="display:none; margin-bottom:10px;" onkeydown="if(event.key==='Enter') submitAdminSecurity()">
+
+        <div class="admin-security-modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('admin-security-modal')">Отмена</button>
+            <button class="btn btn-primary" id="admin-security-submit-btn" onclick="submitAdminSecurity()">Войти</button>
+        </div>
+    </div>
+</div>

@@ -2,10 +2,11 @@
   "name": "axio-push-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Ежедневная рассылка push/telegram уведомлений об истекающих продуктах для Axio",
+  "description": "Ежедневная рассылка push/telegram уведомлений об истекающих продуктах для Axio, а также очистка неактивных гостевых аккаунтов",
   "main": "notify.js",
   "scripts": {
-    "notify": "node notify.js"
+    "notify": "node notify.js",
+    "cleanup-guests": "node cleanup_guests.js"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

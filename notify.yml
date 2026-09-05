@@ -2,10 +2,8 @@ name: Axio push notifications
 
 on:
   schedule:
-    # Каждые 5 минут. GitHub не гарантирует ровно 5 минут под нагрузкой —
-    # иногда может быть задержка в несколько минут, но обычно близко к этому.
     - cron: '*/5 * * * *'
-  workflow_dispatch: {} # позволяет запускать вручную кнопкой "Run workflow" на GitHub
+  workflow_dispatch: {}
 
 jobs:
   notify:

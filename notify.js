@@ -2,9 +2,9 @@ const admin = require('firebase-admin');
 const webpush = require('web-push');
 const fetch = require('node-fetch');
 
-// ---------------------------- НАСТРОЙКИ ----------------------------
+// НАСТРОЙКИ 
 const USER_COLLECTION = 'axioUsers';
-const MAX_SENT_IDS_KEPT = 300; // сколько последних id хранить в pushSentIds, чтобы поле не росло бесконечно
+const MAX_SENT_IDS_KEPT = 300;
 
 const TYPE_TITLES = {
     error: '⚠️ Axio',
@@ -12,7 +12,7 @@ const TYPE_TITLES = {
     success: '✅ Axio',
 };
 
-// ---------------------------- ИНИЦИАЛИЗАЦИЯ ----------------------------
+// ИНИЦИАЛИЗАЦИЯ
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
@@ -25,8 +25,15 @@ webpush.setVapidDetails(
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-// ---------------------------- ХЕЛПЕРЫ ----------------------------
-async function sendTelegram(chatId, title, body) {
+const TELEGRAM_PERMANENT_ERRORS = [
+    'bot was blocked by the user',
+    'user is deactivated',
+    'chat not found',
+    'bot was kicked',
+];
+
+// --- ХЕЛПЕРЫ -------
+async function sendTelegram(uid, chatId, title, body) {
     if (!BOT_TOKEN || !chatId) return;
     try {
         const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -35,7 +42,17 @@ async function sendTelegram(chatId, title, body) {
             body: JSON.stringify({ chat_id: chatId, text: `<b>${title}</b>\n${body}`, parse_mode: 'HTML' }),
         });
         const data = await res.json();
-        if (!data.ok) console.warn(`[telegram] ${chatId}: ${data.description}`);
+        if (!data.ok) {
+            console.warn(`[telegram] ${chatId}: ${data.description}`);
+            const isPermanent = TELEGRAM_PERMANENT_ERRORS.some(e =>
+                (data.description || '').toLowerCase().includes(e)
+            );
+            if (isPermanent) {
+                await db.collection(USER_COLLECTION).doc(uid)
+                    .update({ telegramChatId: admin.firestore.FieldValue.delete() })
+                    .catch(() => {});
+            }
+        }
     } catch (err) {
         console.error(`[telegram] Ошибка отправки ${chatId}:`, err.message);
     }
@@ -54,9 +71,6 @@ async function sendWebPush(uid, subscription, title, body) {
     }
 }
 
-// data-only сообщение (без поля "notification"): приходит в sw-push.js как
-// обычное 'push'-событие с тем же JSON-форматом {title, body}, что и у
-// собственного Web Push выше — один и тот же service worker обрабатывает оба канала.
 async function sendFcm(uid, token, title, body) {
     try {
         await admin.messaging().send({
@@ -74,7 +88,7 @@ async function sendFcm(uid, token, title, body) {
     }
 }
 
-// ---------------------------- ОСНОВНАЯ ЛОГИКА ----------------------------
+// -- ОСНОВНАЯ ЛОГИКА --
 async function run() {
     const usersSnap = await db.collection(USER_COLLECTION).get();
     console.log(`[notify] Пользователей в базе: ${usersSnap.size}`);
@@ -96,7 +110,7 @@ async function run() {
 
         for (const n of fresh) {
             const title = TYPE_TITLES[n.type] || '🔔 Axio';
-            if (user.telegramChatId) await sendTelegram(user.telegramChatId, title, n.message);
+            if (user.telegramChatId) await sendTelegram(uid, user.telegramChatId, title, n.message);
             if (user.pushSubscription) await sendWebPush(uid, user.pushSubscription, title, n.message);
             if (user.fcmToken) await sendFcm(uid, user.fcmToken, title, n.message);
             notificationsSent++;

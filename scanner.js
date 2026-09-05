@@ -1,57 +1,45 @@
 /**
  *  Сканер штрих-кода товара — единая точка входа.
  *  Источники поиска по коду (по порядку, первый успешный ответ побеждает):
- *       1) Open Food Facts   — всегда бесплатно, без ключа
- *       2) UPCitemdb         — бесплатный trial-эндпоинт, без ключа, лимит ~100/день
- *       3) Barcode Spider    — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
- *       4) EAN-Search        — нужен свой API-ключ (см. SCANNER_CONFIG ниже)
- * -----------------------------------------------------------------------
+ *       1) Open Food Facts
+ *       2) Open Products Facts
+ *       3) UPCitemdb
+ *       4) Barcodes-catalog
+ *       5) Olegon
  */
 
 (function () {
     'use strict';
 
-    // =====================================================================
-    // НАСТРОЙКИ. Ключи для платных/условно-бесплатных API вписываешь сюда.
-    // Если ключа нет — просто оставь enabled: false, скрипт спокойно
-    // пропустит этот источник и пойдёт дальше по цепочке.
-    // =====================================================================
     const SCANNER_CONFIG = {
         openFoodFacts: {
-            enabled: true // всегда бесплатно, ключ не нужен
+            enabled: true
         },
+
+        openProductsFacts: {
+            enabled: true
+        },
+
         upcitemdb: {
-            enabled: true // бесплатный trial-эндпоинт, ключ не нужен, лимит ~100/день
+            enabled: true
         },
-        barcodeSpider: {
-            enabled: false,     // поставь true, когда получишь ключ на barcodespider.com
-            apiKey: ''
+
+        barcodesCatalog: {
+            enabled: true
         },
-        eanSearch: {
-            enabled: false,     // поставь true, когда получишь токен на ean-search.org
-            apiKey: ''
+
+        olegon: {
+            enabled: true
         }
     };
 
-    // Категории формы add-product-modal (см. index.html)
     const CATEGORIES = ['Dairy', 'Meat', 'Vegetables', 'Fruits', 'Bakery', 'Other'];
-
-    // Единицы измерения формы add-product-modal (см. index.html, select#product-unit)
     const UNITS = ['шт', 'г', 'кг', 'мл', 'л'];
-
-    // На сколько дней вперёд ставить срок годности-заглушку, если источник
-    // не знает срок годности товара (это единственное поле формы, без
-    // которого нельзя сохранить продукт — оно required).
-    const PLACEHOLDER_EXPIRY_DAYS = 7;
 
     let html5QrCode = null;
     let scanActive = false;
     let lastHandledCode = null;
 
-    // ---------------------------------------------------------------
-    // Мелкие хелперы, максимально безопасно переиспользующие функции
-    // самого приложения (если их вдруг нет — не падаем).
-    // ---------------------------------------------------------------
     function toast(message, type) {
         if (typeof window.showToast === 'function') {
             window.showToast(message, type);
@@ -89,9 +77,6 @@
         }
     }
 
-    // =====================================================================
-    // Открытие / закрытие модалки со сканером
-    // =====================================================================
     window.openBarcodeScanner = function () {
         if (typeof window.hideModal === 'function') window.hideModal('add-choice-modal');
 
@@ -105,11 +90,36 @@
         setStatus(tr('BarcodeStatusReady', 'Наведите камеру на штрих-код'));
         setError('');
         const manualInput = document.getElementById('barcode-manual-input');
-        if (manualInput) manualInput.value = '';
+        if (manualInput) {
+            manualInput.value = '';
+            setupManualInputKeyboardHandling(manualInput);
+        }
 
         lastHandledCode = null;
         startCamera();
     };
+
+    let manualInputKeyboardHandlerAttached = false;
+    function setupManualInputKeyboardHandling(inputEl) {
+        if (manualInputKeyboardHandlerAttached) return;
+        manualInputKeyboardHandlerAttached = true;
+
+        const scrollToInput = function () {
+            setTimeout(function () {
+                inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        };
+
+        inputEl.addEventListener('focus', scrollToInput);
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', function () {
+                if (document.activeElement === inputEl) {
+                    inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+    }
 
     window.closeBarcodeScanner = function () {
         stopCamera();
@@ -117,8 +127,6 @@
         if (modal) modal.style.display = 'none';
     };
 
-    // Ручной ввод штрих-кода — на случай, если камера недоступна
-    // (нет разрешения, старое устройство, повреждённая упаковка и т.п.)
     window.submitManualBarcode = function () {
         const input = document.getElementById('barcode-manual-input');
         const code = input ? input.value.trim() : '';
@@ -133,9 +141,6 @@
         handleScannedCode(code);
     };
 
-    // =====================================================================
-    // Работа с камерой (html5-qrcode)
-    // =====================================================================
     function startCamera() {
         if (typeof Html5Qrcode === 'undefined') {
             setError(tr('BarcodeLibMissing', 'Библиотека сканера не загрузилась. Проверьте интернет-соединение и обновите страницу.'));
@@ -171,7 +176,6 @@
 
         html5QrCode
             .start({ facingMode: 'environment' }, config, onScanFrame, function () {
-                // ошибки распознавания отдельного кадра — это нормально, игнорируем
             })
             .catch(function (err) {
                 scanActive = false;
@@ -196,47 +200,68 @@
         if (decodedText === lastHandledCode) return; // защита от повторного срабатывания на том же кадре
         scanActive = false; // не даём сработать второй раз, пока идёт поиск
         lastHandledCode = decodedText;
+        flashScanSuccess(); // сразу даём понять человеку, что код считался — до всякого поиска по базам
         stopCamera();
         handleScannedCode(decodedText.trim());
     }
 
-    // =====================================================================
-    // Обработка распознанного/введённого кода
-    // =====================================================================
+    function flashScanSuccess() {
+        const el = document.getElementById('barcode-reader');
+        if (el) {
+            el.classList.add('barcode-scan-flash');
+            setTimeout(function () { el.classList.remove('barcode-scan-flash'); }, 450);
+        }
+        try {
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            } else if (navigator.vibrate) {
+                navigator.vibrate(60);
+            }
+        } catch (e) { /* вибрация недоступна - не критично */ }
+    }
+
     function handleScannedCode(code) {
         setStatus(tr('BarcodeFound', 'Штрих-код: ') + code + '. ' + tr('BarcodeSearching', 'Ищем товар в базах...'));
         setError('');
         lookupBarcodeChain(code);
     }
 
-    // Цепочка источников — идём по порядку, первый успешный ответ побеждает
     async function lookupBarcodeChain(code) {
         const sources = [
             { name: 'Open Food Facts', fn: lookupOpenFoodFacts, cfg: SCANNER_CONFIG.openFoodFacts },
+            { name: 'Open Products Facts', fn: lookupOpenProductsFacts, cfg: SCANNER_CONFIG.openProductsFacts },
             { name: 'UPCitemdb', fn: lookupUpcItemDb, cfg: SCANNER_CONFIG.upcitemdb },
-            { name: 'Barcode Spider', fn: lookupBarcodeSpider, cfg: SCANNER_CONFIG.barcodeSpider },
-            { name: 'EAN-Search', fn: lookupEanSearch, cfg: SCANNER_CONFIG.eanSearch }
+            { name: 'Barcodes-catalog', fn: lookupBarcodesCatalog, cfg: SCANNER_CONFIG.barcodesCatalog },
+            { name: 'Olegon', fn: lookupOlegon, cfg: SCANNER_CONFIG.olegon }
         ];
+
+        let anyEnabled = false;
+        let anySucceeded = false;
 
         for (const source of sources) {
             if (!source.cfg || !source.cfg.enabled) continue;
+            anyEnabled = true;
             try {
                 setStatus(tr('BarcodeChecking', 'Проверяем: ') + source.name + '...');
                 const result = await source.fn(code);
+                anySucceeded = true;
                 if (result && result.name) {
                     handleProductFound(result, code);
                     return;
                 }
             } catch (e) {
                 console.warn('[scanner] источник "' + source.name + '" не ответил:', e);
-                // просто идём дальше по цепочке
             }
         }
 
-        handleProductNotFound(code);
+        if (anyEnabled && !anySucceeded) {
+            handleLookupNetworkError(code);
+        } else {
+            handleProductNotFound(code);
+        }
     }
 
-    // --- 1) Open Food Facts ------------------------------------------------
+    // --- 1) Open Food Facts-----
     async function lookupOpenFoodFacts(code) {
         const url = 'https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(code) +
             '.json?fields=product_name,product_name_ru,generic_name,brands,quantity,image_front_small_url,image_url,categories_tags';
@@ -259,7 +284,30 @@
         };
     }
 
-    // --- 2) UPCitemdb (бесплатный trial, без ключа, лимит ~100/день) -------
+    // --- 2) Open Products Facts--
+    async function lookupOpenProductsFacts(code) {
+        const url = 'https://world.openproductsfacts.org/api/v2/product/' + encodeURIComponent(code) +
+            '.json?fields=product_name,product_name_ru,generic_name,brands,quantity,image_front_small_url,image_url,categories_tags';
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.status !== 1 || !data.product) return null;
+
+        const p = data.product;
+        const name = p.product_name_ru || p.product_name || p.generic_name;
+        if (!name) return null;
+
+        return {
+            name: name,
+            brand: p.brands || '',
+            image: p.image_front_small_url || p.image_url || '',
+            category: mapOpenFoodFactsCategory(p.categories_tags),
+            rawQuantity: p.quantity || '',
+            source: 'Open Products Facts'
+        };
+    }
+
+    // --- 3) UPCitemdb--
     async function lookupUpcItemDb(code) {
         const url = 'https://api.upcitemdb.com/prod/trial/lookup?upc=' + encodeURIComponent(code);
         const res = await fetch(url);
@@ -280,48 +328,45 @@
         };
     }
 
-    // --- 3) Barcode Spider (нужен свой ключ) --------------------------------
-    async function lookupBarcodeSpider(code) {
-        const key = SCANNER_CONFIG.barcodeSpider.apiKey;
-        if (!key) return null;
-        const url = 'https://api.barcodespider.com/v1/lookup?token=' + encodeURIComponent(key) +
-            '&upc=' + encodeURIComponent(code);
+    // --- 4) Barcodes-catalog.ru----
+    async function lookupBarcodesCatalog(code) {
+        const url = 'https://api.barcodes-catalog.ru/barcode/free_search?barcode=' +
+            encodeURIComponent(code) + '&limit=1';
         const res = await fetch(url);
         if (!res.ok) return null;
         const data = await res.json();
-        if (!data.item_response || data.item_response.code !== 200 || !data.item_attributes) return null;
+        if (!data.barcodes || !data.barcodes.length || !data.barcodes[0].product_name) return null;
 
-        const item = data.item_attributes;
-        if (!item.title) return null;
-
+        const name = data.barcodes[0].product_name;
         return {
-            name: item.title,
-            brand: item.brand || '',
-            image: item.image || '',
-            category: guessCategoryFromText(item.category || item.title),
-            rawQuantity: '',
-            source: 'Barcode Spider'
+            name: name,
+            brand: '',
+            image: '',
+            category: guessCategoryFromText(name),
+            rawQuantity: name,
+            source: 'Barcodes-catalog'
         };
     }
 
-    // --- 4) EAN-Search (нужен свой токен) -----------------------------------
-    async function lookupEanSearch(code) {
-        const key = SCANNER_CONFIG.eanSearch.apiKey;
-        if (!key) return null;
-        const url = 'https://api.ean-search.org/api?token=' + encodeURIComponent(key) +
-            '&op=barcode-lookup&ean=' + encodeURIComponent(code) + '&format=json';
+    // --- 5) Olegon---
+    async function lookupOlegon(code) {
+        const url = 'https://barcodes.olegon.ru/api/card/name/' + encodeURIComponent(code);
         const res = await fetch(url);
         if (!res.ok) return null;
         const data = await res.json();
-        if (!Array.isArray(data) || !data.length || !data[0].name) return null;
+        const names = Array.isArray(data) ? data : (data && data.names);
+        if (!names || !names.length) return null;
+
+        const name = typeof names[0] === 'string' ? names[0] : (names[0] && names[0].name);
+        if (!name) return null;
 
         return {
-            name: data[0].name,
+            name: name,
             brand: '',
             image: '',
-            category: guessCategoryFromText(data[0].categoryName || data[0].name),
-            rawQuantity: '',
-            source: 'EAN-Search'
+            category: guessCategoryFromText(name),
+            rawQuantity: name,
+            source: 'Olegon'
         };
     }
 
@@ -341,10 +386,6 @@
         return 'Other';
     }
 
-    // Разбирает строки вида "1 л", "500 г", "0.5 kg" — берём первое число +
-    // единицу измерения. Возвращает null, если строка пустая или не распознана
-    // (в этом случае поля формы просто не трогаем и оставляем значения по
-    // умолчанию из разметки).
     function parseQuantityString(raw) {
         const str = (raw || '').toString().trim().toLowerCase().replace(',', '.');
         if (!str) return null;
@@ -377,9 +418,6 @@
             categorySelect.value = product.category;
         }
 
-        // Количество/единица — если источник знает (пока умеет только
-        // Open Food Facts через поле quantity), проставляем в форму.
-        // Если нет — оставляем значения по умолчанию из разметки (1 шт).
         const parsedQty = parseQuantityString(product.rawQuantity);
         if (parsedQty) {
             const qtyInput = document.getElementById('product-qty');
@@ -393,17 +431,6 @@
 
         if (product.image) {
             applyScannedImage(product.image);
-        }
-
-        // Срок годности ни одна из баз не знает — если поле ещё не
-        // заполнено пользователем, ставим ориентировочную дату (+7 дней),
-        // чтобы не блокировать обязательное поле формы; пользователь может
-        // поправить дату вручную перед сохранением.
-        const expiryInput = document.getElementById('product-expiry');
-        if (expiryInput && !expiryInput.value) {
-            const d = new Date();
-            d.setDate(d.getDate() + PLACEHOLDER_EXPIRY_DAYS);
-            expiryInput.value = d.toISOString().split('T')[0];
         }
 
         if (typeof window.showModal === 'function') {
@@ -421,8 +448,6 @@
                 reader.onload = function () {
                     const base64 = reader.result;
 
-                    // Приложение хранит текущее фото в глобальной переменной
-                    // currentImageBase64 (см. addProduct() в index.html)
                     try { window.currentImageBase64 = base64; } catch (e) { /* игнор */ }
 
                     const hiddenInput = document.getElementById('product-image');
@@ -440,8 +465,6 @@
                 reader.readAsDataURL(blob);
             })
             .catch(function () {
-                // Некоторые источники блокируют кросс-доменную загрузку картинки (CORS) —
-                // это не критично, товар всё равно добавится, просто без фото.
                 console.warn('[scanner] не удалось загрузить изображение товара (возможно, CORS)');
             });
     }
@@ -450,6 +473,22 @@
         window.closeBarcodeScanner();
 
         toast(tr('BarcodeNotFound', 'Товар со штрих-кодом ' + code + ' не найден. Заполните карточку вручную.'), 'warning');
+
+        const nameInput = document.getElementById('product-name');
+        if (nameInput) {
+            nameInput.value = '';
+            nameInput.placeholder = tr('BarcodeManualPlaceholder', 'Штрих-код: ') + code;
+        }
+
+        if (typeof window.showModal === 'function') {
+            window.showModal('add-product-modal');
+        }
+    }
+
+    function handleLookupNetworkError(code) {
+        window.closeBarcodeScanner();
+
+        toast(tr('BarcodeLookupError', 'Код ' + code + ' считан, но проверить базы товаров не удалось (нет соединения). Заполните карточку вручную.'), 'error');
 
         const nameInput = document.getElementById('product-name');
         if (nameInput) {
